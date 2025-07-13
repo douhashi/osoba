@@ -11,9 +11,12 @@ osobaは、tmux + git worktree + claude を組み合わせた自律的なソフ�
 ### 開発環境のセットアップ
 
 1. Go 1.21以上をインストール
-2. golangci-lintをインストール:
+2. 開発ツールをインストール:
    ```bash
-   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
+   make install-tools
+   # または手動で:
+   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+   go install golang.org/x/tools/cmd/goimports@latest
    export PATH=$PATH:$(go env GOPATH)/bin
    ```
 

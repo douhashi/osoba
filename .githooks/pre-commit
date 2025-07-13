@@ -43,12 +43,24 @@ fi
 if command -v golangci-lint &> /dev/null || [ -f "$(go env GOPATH)/bin/golangci-lint" ]; then
     echo "Running golangci-lint..."
     export PATH=$PATH:$(go env GOPATH)/bin
+    # Run with default linters only for v2 compatibility
     golangci-lint run --timeout=5m || {
         echo "Warning: golangci-lint found issues (continuing anyway)"
         # Don't fail on golangci-lint errors for now
     }
 else
     echo "golangci-lint not found, skipping..."
+fi
+
+# Run additional checks
+echo "Running goimports check..."
+if command -v goimports &> /dev/null; then
+    UNFORMATTED=$(goimports -l $STAGED_GO_FILES)
+    if [ -n "$UNFORMATTED" ]; then
+        echo "Warning: The following files need goimports:"
+        echo "$UNFORMATTED"
+        echo "Run 'goimports -w .' to fix"
+    fi
 fi
 
 echo "Pre-commit checks passed!"

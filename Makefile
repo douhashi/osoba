@@ -37,9 +37,11 @@ clean:
 
 # Install development tools
 install-tools:
-	@echo "Installing golangci-lint..."
-	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.61.0
+	@echo "Installing golangci-lint v2..."
+	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin latest
 	@echo "golangci-lint installed to $$(go env GOPATH)/bin"
+	@echo "Installing goimports..."
+	@go install golang.org/x/tools/cmd/goimports@latest
 	@echo "Make sure to add $$(go env GOPATH)/bin to your PATH"
 
 # Setup development environment

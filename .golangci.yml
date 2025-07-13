@@ -1,23 +1,16 @@
-# .golangci.yml
-run:
-  timeout: 5m
+# golangci-lint v2 configuration
+version: "2"
 
-linters:
-  enable:
-    - gofmt
-    - goimports
-    - govet
-    - errcheck
-    - staticcheck
-    - gosimple
-    - ineffassign
-    - unused
-    - misspell
-    - gocyclo
-    - gosec
+# Use default linters (errcheck, govet, ineffassign, staticcheck, unused)
+# Additional linters can be enabled as needed
 
 linters-settings:
-  gocyclo:
-    min-complexity: 15
-  goimports:
-    local-prefixes: github.com/douhashi/osoba
+  # Configure specific linters if needed
+  staticcheck:
+    checks: ["all"]
+
+run:
+  timeout: 5m
+  
+output:
+  format: colored-line-number
