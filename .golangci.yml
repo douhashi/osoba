@@ -1,0 +1,16 @@
+# golangci-lint v2 configuration
+version: "2"
+
+# Use default linters (errcheck, govet, ineffassign, staticcheck, unused)
+# Additional linters can be enabled as needed
+
+linters-settings:
+  # Configure specific linters if needed
+  staticcheck:
+    checks: ["all"]
+
+run:
+  timeout: 5m
+  
+output:
+  format: colored-line-number

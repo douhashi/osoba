@@ -9,6 +9,7 @@ GoベースのCLIツールの開発において、指示者の指示に最大限
 
 ## 前提知識
 
+- プロジェクト概要: @docs/development/project-brief.md
 - Git/Githubのブランチ運用とコミットルール: @docs/development/git-instructions.md
 - ghコマンドの使い方: @docs/development/gh-instructions.md
 - Goコーディング規約: @docs/development/go-coding-standards.md

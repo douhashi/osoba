@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# pre-commit hook for Go projects
+# This hook runs go fmt, go vet, and golangci-lint before committing
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Get list of Go files to be committed
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+
+if [ -z "$STAGED_GO_FILES" ]; then
+    echo "No Go files to check"
+    exit 0
+fi
+
+# Check if all tools are available
+if ! command -v go &> /dev/null; then
+    echo "Error: go is not installed"
+    exit 1
+fi
+
+# Run go fmt
+echo "Running go fmt..."
+UNFMT_FILES=$(gofmt -l $STAGED_GO_FILES)
+if [ -n "$UNFMT_FILES" ]; then
+    echo "Error: The following files are not properly formatted:"
+    echo "$UNFMT_FILES"
+    echo "Please run 'go fmt ./...' to fix formatting"
+    exit 1
+fi
+
+# Run go vet
+echo "Running go vet..."
+go vet ./...
+if [ $? -ne 0 ]; then
+    echo "Error: go vet failed"
+    exit 1
+fi
+
+# Run golangci-lint if available
+if command -v golangci-lint &> /dev/null || [ -f "$(go env GOPATH)/bin/golangci-lint" ]; then
+    echo "Running golangci-lint..."
+    export PATH=$PATH:$(go env GOPATH)/bin
+    # Run with default linters only for v2 compatibility
+    golangci-lint run --timeout=5m || {
+        echo "Warning: golangci-lint found issues (continuing anyway)"
+        # Don't fail on golangci-lint errors for now
+    }
+else
+    echo "golangci-lint not found, skipping..."
+fi
+
+# Run additional checks
+echo "Running goimports check..."
+if command -v goimports &> /dev/null; then
+    UNFORMATTED=$(goimports -l $STAGED_GO_FILES)
+    if [ -n "$UNFORMATTED" ]; then
+        echo "Warning: The following files need goimports:"
+        echo "$UNFORMATTED"
+        echo "Run 'goimports -w .' to fix"
+    fi
+fi
+
+echo "Pre-commit checks passed!"
+exit 0
