@@ -29,6 +29,16 @@ func addCommands() {
 	rootCmd.AddCommand(newStatusCmd())
 }
 
+// NewRootCmd creates a new root command with all subcommands
+func NewRootCmd() *cobra.Command {
+	cmd := newRootCmd()
+	// サブコマンドを追加
+	cmd.AddCommand(newInitCmd())
+	cmd.AddCommand(newStartCmd())
+	cmd.AddCommand(newStatusCmd())
+	return cmd
+}
+
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "osoba",
