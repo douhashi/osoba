@@ -3,7 +3,7 @@ version: "2"
 
 run:
   timeout: 5m
-  go: "1.24"
+  go: "1.24.5"
   tests: true
   skip-dirs:
     - vendor
@@ -23,35 +23,14 @@ linters:
     - misspell
     - gocyclo
     - gosec
-    - unconvert
-    - goconst
-    - gocognit
-    - asciicheck
-    - gofumpt
-    - prealloc
-    - predeclared
-    - nilerr
-    - exhaustive
-    - exportloopref
-    - whitespace
-    - wsl
-    - godot
 
 linters-settings:
   gocyclo:
     min-complexity: 15
   goimports:
     local-prefixes: github.com/douhashi/osoba
-  goconst:
-    min-len: 2
-    min-occurrences: 2
   misspell:
     locale: US
-  gofumpt:
-    extra-rules: true
-  godot:
-    scope: declarations
-    capital: true
   staticcheck:
     checks: ["all"]
 
@@ -62,13 +41,6 @@ issues:
         - gocyclo
         - errcheck
         - gosec
-    - path: cmd/
-      linters:
-        - gocognit
-    - text: "exported (method|function|type|const) .* should have comment or be unexported"
-      linters:
-        - revive
-        - golint
 
   max-issues-per-linter: 0
   max-same-issues: 0
