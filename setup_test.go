@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestProjectStructure はプロジェクトの基本構造をテストします
 func TestProjectStructure(t *testing.T) {
 	t.Run("go.modファイルが存在する", func(t *testing.T) {
 		if _, err := os.Stat("go.mod"); os.IsNotExist(err) {
