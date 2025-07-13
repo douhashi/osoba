@@ -26,6 +26,7 @@ func init() {
 func addCommands() {
 	rootCmd.AddCommand(newInitCmd())
 	rootCmd.AddCommand(newStartCmd())
+	rootCmd.AddCommand(newOpenCmd())
 	rootCmd.AddCommand(newStatusCmd())
 }
 
@@ -35,6 +36,7 @@ func NewRootCmd() *cobra.Command {
 	// サブコマンドを追加
 	cmd.AddCommand(newInitCmd())
 	cmd.AddCommand(newStartCmd())
+	cmd.AddCommand(newOpenCmd())
 	cmd.AddCommand(newStatusCmd())
 	return cmd
 }
