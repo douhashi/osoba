@@ -1,4 +1,4 @@
-.PHONY: build test lint fmt vet clean install-tools setup
+.PHONY: build test lint fmt vet clean install-tools setup install run help
 
 # 変数定義
 BINARY_NAME := osoba
@@ -60,3 +60,44 @@ setup: install-tools
 # Run all checks (format, vet, lint, test)
 check: fmt vet lint test
 	@echo "All checks passed!"
+
+# Install the binary to GOPATH/bin
+install: build
+	@echo "Installing $(BINARY_NAME) to $$(go env GOPATH)/bin..."
+	@cp $(BINARY_NAME) $$(go env GOPATH)/bin/
+	@echo "Installation complete! Make sure $$(go env GOPATH)/bin is in your PATH."
+
+# Run the application with default arguments
+run: build
+	@echo "Running $(BINARY_NAME)..."
+	@./$(BINARY_NAME)
+
+# Display help information about available targets
+help:
+	@echo "Makefile for $(BINARY_NAME) v$(VERSION)"
+	@echo ""
+	@echo "Usage:"
+	@echo "  make [target]"
+	@echo ""
+	@echo "Targets:"
+	@echo "  build           Build the application binary"
+	@echo "  test            Run all tests"
+	@echo "  test-coverage   Run tests with coverage report"
+	@echo "  lint            Run golangci-lint"
+	@echo "  fmt             Format code using go fmt"
+	@echo "  vet             Run go vet"
+	@echo "  clean           Remove build artifacts"
+	@echo "  install         Build and install to GOPATH/bin"
+	@echo "  run             Build and run the application"
+	@echo "  check           Run all checks (fmt, vet, lint, test)"
+	@echo "  install-tools   Install required development tools"
+	@echo "  setup           Setup development environment"
+	@echo "  help            Display this help message"
+	@echo ""
+	@echo "Variables:"
+	@echo "  VERSION=$(VERSION)"
+	@echo "  COMMIT=$(COMMIT)"
+	@echo "  GOPATH=$$(go env GOPATH)"
+
+# Default target
+.DEFAULT_GOAL := help

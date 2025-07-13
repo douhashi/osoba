@@ -1,0 +1,135 @@
+# osoba設定ファイルのサンプル
+
+# GitHub設定
+github:
+  # GitHub Personal Access Token
+  # 環境変数 GITHUB_TOKEN でも設定可能
+  token: "${GITHUB_TOKEN}"
+  
+  # Issue監視間隔
+  poll_interval: 5m
+  
+  # 監視するリポジトリ（省略時は現在のリポジトリ）
+  # repos:
+  #   - douhashi/osoba
+  #   - owner/another-repo
+  
+  # 監視するラベル（デフォルト値）
+  labels:
+    plan: "status:needs-plan"
+    ready: "status:ready"
+    review: "status:review-requested"
+
+# tmux設定
+tmux:
+  # セッション名のプレフィックス
+  session_prefix: "osoba-"
+  
+  # ウィンドウレイアウト
+  # 選択肢: "tiled", "even-horizontal", "even-vertical", "main-horizontal", "main-vertical"
+  window_layout: "tiled"
+  
+  # 新しいウィンドウを作成する際のシェル
+  shell: "/bin/bash"
+  
+  # tmuxオプション
+  options:
+    - "set-option -g mouse on"
+    - "set-option -g history-limit 10000"
+
+# Claude設定
+claude:
+  # 使用するモデル
+  model: "claude-3-opus-20240229"
+  
+  # 最大トークン数
+  max_tokens: 4096
+  
+  # 温度パラメータ（0.0-1.0）
+  temperature: 0.7
+  
+  # プロンプトディレクトリ（カスタムプロンプト用）
+  # prompt_dir: "~/.osoba/prompts"
+
+# ロギング設定
+log:
+  # ログレベル: debug, info, warn, error
+  level: "info"
+  
+  # ログファイルのパス
+  file: "~/.osoba/osoba.log"
+  
+  # ログのローテーション設定
+  max_size: 10  # MB
+  max_backups: 3
+  max_age: 7    # days
+  
+  # コンソール出力
+  console: true
+  
+  # ログフォーマット: json, text
+  format: "text"
+
+# git worktree設定
+git:
+  # worktreeの基底ディレクトリ
+  worktree_base: ".git/worktrees"
+  
+  # ブランチ作成時のプレフィックス
+  branch_prefix: "osoba"
+  
+  # mainブランチ名（デフォルトブランチ）
+  main_branch: "main"
+  
+  # 自動的にmainブランチと同期するか
+  auto_sync: true
+
+# 通知設定（オプション）
+notifications:
+  # 有効/無効
+  enabled: false
+  
+  # 通知タイプ
+  # types:
+  #   - slack
+  #   - email
+  
+  # Slack設定例
+  # slack:
+  #   webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  #   channel: "#osoba-notifications"
+  #   username: "osoba-bot"
+  
+  # Email設定例
+  # email:
+  #   smtp_host: "smtp.gmail.com"
+  #   smtp_port: 587
+  #   from: "osoba@example.com"
+  #   to: ["dev@example.com"]
+
+# 高度な設定
+advanced:
+  # 並行処理数
+  concurrency: 3
+  
+  # タイムアウト設定
+  timeouts:
+    api_call: 30s
+    claude_execution: 30m
+    tmux_command: 10s
+  
+  # リトライ設定
+  retry:
+    max_attempts: 3
+    backoff: 2s
+  
+  # フィルター設定
+  filters:
+    # 無視するIssueのパターン
+    ignore_issues:
+      - "^\\[WIP\\]"
+      - "^Draft:"
+    
+    # 無視するユーザー
+    # ignore_users:
+    #   - "bot-user"

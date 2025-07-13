@@ -1,0 +1,11 @@
+# 最小限の設定ファイルサンプル
+
+github:
+  token: "${GITHUB_TOKEN}"
+  poll_interval: 5m
+
+tmux:
+  session_prefix: "osoba-"
+
+claude:
+  model: "claude-3-opus-20240229"
