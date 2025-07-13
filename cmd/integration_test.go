@@ -1,98 +1,295 @@
-package cmd_test
+package cmd
 
 import (
-	"bytes"
+	"context"
 	"os"
-	"os/exec"
-	"strings"
+	"path/filepath"
 	"testing"
+	"time"
 
-	"github.com/douhashi/osoba/cmd"
+	"github.com/douhashi/osoba/internal/config"
+	"github.com/douhashi/osoba/internal/watcher"
+	gh "github.com/google/go-github/v50/github"
 )
 
-func TestStartCommandIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+// モックGitHubクライアント
+type mockGitHubClient struct {
+	issues    []*gh.Issue
+	err       error
+	callCount int
+	rateLimit *gh.RateLimits
+}
+
+func (m *mockGitHubClient) GetRepository(ctx context.Context, owner, repo string) (*gh.Repository, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &gh.Repository{
+		Name: gh.String(repo),
+		Owner: &gh.User{
+			Login: gh.String(owner),
+		},
+	}, nil
+}
+
+func (m *mockGitHubClient) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*gh.Issue, error) {
+	m.callCount++
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.issues, nil
+}
+
+func (m *mockGitHubClient) GetRateLimit(ctx context.Context) (*gh.RateLimits, error) {
+	if m.rateLimit != nil {
+		return m.rateLimit, nil
 	}
 
-	// テスト用のGitリポジトリを作成
-	tmpDir := t.TempDir()
+	resetTime := gh.Timestamp{Time: time.Now().Add(1 * time.Hour)}
+	return &gh.RateLimits{
+		Core: &gh.Rate{
+			Limit:     5000,
+			Remaining: 4999,
+			Reset:     resetTime,
+		},
+	}, nil
+}
 
-	// gitリポジトリを初期化
-	initCmd := exec.Command("git", "init")
-	initCmd.Dir = tmpDir
-	if err := initCmd.Run(); err != nil {
-		t.Fatalf("failed to init git repo: %v", err)
+// TestIntegration_WatchFlow は監視フロー全体の統合テスト
+func TestIntegration_WatchFlow(t *testing.T) {
+	tests := []struct {
+		name          string
+		setupConfig   func() *config.Config
+		mockClient    *mockGitHubClient
+		expectedCalls int
+		timeout       time.Duration
+		wantErr       bool
+	}{
+		{
+			name: "正常系: 新しいIssueを検出してコールバックが実行される",
+			setupConfig: func() *config.Config {
+				cfg := config.NewConfig()
+				cfg.GitHub.Token = "test-token"
+				cfg.GitHub.PollInterval = 100 * time.Millisecond
+				return cfg
+			},
+			mockClient: &mockGitHubClient{
+				issues: []*gh.Issue{
+					{
+						Number: gh.Int(1),
+						Title:  gh.String("Test Issue 1"),
+						Labels: []*gh.Label{
+							{Name: gh.String("status:needs-plan")},
+						},
+					},
+				},
+			},
+			expectedCalls: 2,
+			timeout:       300 * time.Millisecond,
+			wantErr:       false,
+		},
+		{
+			name: "正常系: 複数のIssueを検出",
+			setupConfig: func() *config.Config {
+				cfg := config.NewConfig()
+				cfg.GitHub.Token = "test-token"
+				cfg.GitHub.PollInterval = 100 * time.Millisecond
+				return cfg
+			},
+			mockClient: &mockGitHubClient{
+				issues: []*gh.Issue{
+					{
+						Number: gh.Int(1),
+						Title:  gh.String("Test Issue 1"),
+						Labels: []*gh.Label{
+							{Name: gh.String("status:needs-plan")},
+						},
+					},
+					{
+						Number: gh.Int(2),
+						Title:  gh.String("Test Issue 2"),
+						Labels: []*gh.Label{
+							{Name: gh.String("status:ready")},
+						},
+					},
+				},
+			},
+			expectedCalls: 2,
+			timeout:       300 * time.Millisecond,
+			wantErr:       false,
+		},
 	}
 
-	// リモートを追加
-	remoteCmd := exec.Command("git", "remote", "add", "origin", "https://github.com/test/integration-test.git")
-	remoteCmd.Dir = tmpDir
-	if err := remoteCmd.Run(); err != nil {
-		t.Fatalf("failed to add remote: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := tt.setupConfig()
 
-	// 現在のディレクトリを保存
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Chdir(origDir)
+			// Issue監視を作成
+			issueWatcher, err := watcher.NewIssueWatcher(
+				tt.mockClient,
+				"douhashi",
+				"osoba",
+				cfg.GetLabels(),
+			)
+			if err != nil {
+				t.Fatalf("Failed to create issue watcher: %v", err)
+			}
 
-	// テストディレクトリに移動
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
+			issueWatcher.SetPollInterval(cfg.GitHub.PollInterval)
 
-	// コマンドを実行
-	buf := new(bytes.Buffer)
-	errBuf := new(bytes.Buffer)
+			// コールバック実行カウンター
+			callbackCount := 0
+			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
+			defer cancel()
 
-	// NewRootCmdはすべてのサブコマンドを含む新しいrootCmdを作成
-	rootCmd := cmd.NewRootCmd()
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(errBuf)
-	rootCmd.SetArgs([]string{"start"})
+			// Issue監視を開始
+			issueWatcher.Start(ctx, func(issue *gh.Issue) {
+				callbackCount++
+				t.Logf("Callback executed for issue #%d: %s", *issue.Number, *issue.Title)
+			})
 
-	// tmuxの存在確認（インストールされていない場合はスキップ）
-	if _, err := exec.LookPath("tmux"); err != nil {
-		t.Skip("tmux not installed, skipping integration test")
-	}
+			// タイムアウトまで待機
+			<-ctx.Done()
 
-	err = rootCmd.Execute()
-	output := buf.String()
-	errOutput := errBuf.String()
+			// 期待される呼び出し回数を確認
+			if tt.mockClient.callCount < tt.expectedCalls {
+				t.Errorf("API calls = %d, want at least %d", tt.mockClient.callCount, tt.expectedCalls)
+			}
 
-	if err != nil {
-		t.Logf("Command error: %v", err)
-		t.Logf("Error output: %s", errOutput)
-	}
-
-	// 出力を確認
-	if err == nil {
-		// 成功した場合の出力確認
-		if !strings.Contains(output, "osoba-integration-test") {
-			t.Errorf("Expected session name 'osoba-integration-test' in output, got: %s", output)
-		}
-
-		if !strings.Contains(output, "tmux attach") {
-			t.Errorf("Expected tmux attach command in output, got: %s", output)
-		}
-
-		// 実際にセッションが作成されたか確認
-		checkCmd := exec.Command("tmux", "has-session", "-t", "osoba-integration-test")
-		if err := checkCmd.Run(); err != nil {
-			t.Errorf("tmux session was not created: %v", err)
-		} else {
-			// セッションをクリーンアップ
-			killCmd := exec.Command("tmux", "kill-session", "-t", "osoba-integration-test")
-			killCmd.Run() // エラーは無視（既に存在しない可能性もある）
-		}
+			// 初回の呼び出しで新しいIssueが検出されることを確認
+			if callbackCount != len(tt.mockClient.issues) {
+				t.Errorf("Callback calls = %d, want %d", callbackCount, len(tt.mockClient.issues))
+			}
+		})
 	}
 }
 
-// NewRootCmd を公開するためのヘルパー（テスト用）
-func init() {
-	// cmd パッケージから rootCmd を取得できるようにする必要がある
-	// このテストではcmd.Executeを使わずに直接コマンドを作成する
+// TestIntegration_ConfigLoading は設定読み込みの統合テスト
+func TestIntegration_ConfigLoading(t *testing.T) {
+	tests := []struct {
+		name          string
+		configContent string
+		envVars       map[string]string
+		wantToken     string
+		wantInterval  time.Duration
+		wantLabels    []string
+	}{
+		{
+			name: "設定ファイルと環境変数の組み合わせ",
+			configContent: `
+github:
+  poll_interval: 10s
+  labels:
+    plan: "status:planning"
+    ready: "status:ready-to-dev"
+    review: "status:needs-review"
+`,
+			envVars: map[string]string{
+				"GITHUB_TOKEN": "env-token-123",
+			},
+			wantToken:    "env-token-123",
+			wantInterval: 10 * time.Second,
+			wantLabels:   []string{"status:planning", "status:ready-to-dev", "status:needs-review"},
+		},
+		{
+			name: "OSOBA_GITHUB_TOKEN環境変数が優先される",
+			configContent: `
+github:
+  token: "file-token"
+`,
+			envVars: map[string]string{
+				"GITHUB_TOKEN":       "github-token",
+				"OSOBA_GITHUB_TOKEN": "osoba-token",
+			},
+			wantToken:    "osoba-token",
+			wantInterval: 5 * time.Second, // デフォルト値
+			wantLabels:   []string{"status:needs-plan", "status:ready", "status:review-requested"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// テスト用の設定ファイルを作成
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "test_config.yml")
+			if err := os.WriteFile(configPath, []byte(tt.configContent), 0644); err != nil {
+				t.Fatalf("Failed to write config file: %v", err)
+			}
+
+			// 環境変数を設定
+			for k, v := range tt.envVars {
+				os.Setenv(k, v)
+				defer os.Unsetenv(k)
+			}
+
+			// 設定を読み込む
+			cfg := config.NewConfig()
+			if err := cfg.Load(configPath); err != nil {
+				t.Fatalf("Failed to load config: %v", err)
+			}
+
+			// 検証
+			if cfg.GitHub.Token != tt.wantToken {
+				t.Errorf("Token = %v, want %v", cfg.GitHub.Token, tt.wantToken)
+			}
+			if cfg.GitHub.PollInterval != tt.wantInterval {
+				t.Errorf("PollInterval = %v, want %v", cfg.GitHub.PollInterval, tt.wantInterval)
+			}
+
+			labels := cfg.GetLabels()
+			if len(labels) != len(tt.wantLabels) {
+				t.Errorf("Labels count = %d, want %d", len(labels), len(tt.wantLabels))
+			}
+			for i, label := range labels {
+				if label != tt.wantLabels[i] {
+					t.Errorf("Label[%d] = %v, want %v", i, label, tt.wantLabels[i])
+				}
+			}
+		})
+	}
+}
+
+// TestIntegration_ErrorHandling はエラーハンドリングの統合テスト
+func TestIntegration_ErrorHandling(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupConfig func() *config.Config
+		expectError string
+	}{
+		{
+			name: "GitHubトークンが空の場合",
+			setupConfig: func() *config.Config {
+				cfg := config.NewConfig()
+				cfg.GitHub.Token = ""
+				return cfg
+			},
+			expectError: "GitHub token is required",
+		},
+		{
+			name: "ポーリング間隔が短すぎる場合",
+			setupConfig: func() *config.Config {
+				cfg := config.NewConfig()
+				cfg.GitHub.Token = "test-token"
+				cfg.GitHub.PollInterval = 500 * time.Millisecond
+				return cfg
+			},
+			expectError: "poll interval must be at least 1 second",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := tt.setupConfig()
+			err := cfg.Validate()
+
+			if err == nil {
+				t.Error("Expected error but got nil")
+				return
+			}
+
+			if err.Error() != tt.expectError {
+				t.Errorf("Error = %v, want %v", err.Error(), tt.expectError)
+			}
+		})
+	}
 }

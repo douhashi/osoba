@@ -61,8 +61,8 @@ func (c *Config) Load(configPath string) error {
 	v.SetEnvPrefix("OSOBA")
 	v.AutomaticEnv()
 
-	// GITHUB_TOKENもサポート
-	v.BindEnv("github.token", "GITHUB_TOKEN", "OSOBA_GITHUB_TOKEN")
+	// OSOBA_GITHUB_TOKENを優先、GITHUB_TOKENもサポート
+	v.BindEnv("github.token", "OSOBA_GITHUB_TOKEN", "GITHUB_TOKEN")
 
 	// デフォルト値の設定
 	v.SetDefault("github.poll_interval", 5*time.Second)
