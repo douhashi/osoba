@@ -1,8 +1,15 @@
 .PHONY: build test lint fmt vet clean install-tools setup
 
+# 変数定義
+BINARY_NAME := osoba
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
+DATE := $(shell date +%Y-%m-%d\ %H:%M:%S)
+LDFLAGS := -ldflags "-X 'github.com/douhashi/osoba/internal/version.Version=$(VERSION)' -X 'github.com/douhashi/osoba/internal/version.Commit=$(COMMIT)' -X 'github.com/douhashi/osoba/internal/version.Date=$(DATE)'"
+
 # Build the application
 build:
-	go build -o osoba main.go
+	go build $(LDFLAGS) -o $(BINARY_NAME) main.go
 
 # Run tests
 test:
@@ -32,7 +39,7 @@ vet:
 
 # Clean build artifacts
 clean:
-	rm -f osoba
+	rm -f $(BINARY_NAME)
 	go clean
 
 # Install development tools
