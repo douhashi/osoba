@@ -133,7 +133,6 @@ osobaがラベルを検知し、対応するアクションを実行：
 ## 制約事項
 - tmuxが必要（Linux/macOS）
 - GitHub APIトークンが必要
-- Claude APIアクセスが必要
 - git 2.x以上が必要
 
 ## セキュリティ考慮事項
