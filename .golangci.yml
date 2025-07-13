@@ -1,9 +1,8 @@
 # golangci-lint configuration for osoba project
-version: "2"
 
 run:
   timeout: 5m
-  go: "1.24.5"
+  go: '1.24.5'
   tests: true
   skip-dirs:
     - vendor
