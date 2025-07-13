@@ -10,6 +10,7 @@ description: "TDD方式での実装"
 
 ## 前提知識
 
+- プロジェクト概要: @docs/development/project-brief.md
 - ghコマンドの使用方法とワークフロー: @docs/development/gh-instructions.md
 - 実行計画テンプレート: @docs/development/plan-template.md
 - Git/Githubのブランチ運用とコミットルール: @docs/development/git-instructions.md
