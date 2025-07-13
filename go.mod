@@ -1,6 +1,6 @@
 module github.com/douhashi/osoba
 
-go 1.21
+go 1.24.5
 
 require (
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
