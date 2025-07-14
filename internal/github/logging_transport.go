@@ -21,8 +21,11 @@ type loggingRoundTripper struct {
 func (rt *loggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	start := time.Now()
 
+	// リクエストをクローンして、元のリクエストを変更しない
+	clonedReq := req.Clone(req.Context())
+
 	// リクエストログ
-	rt.logRequest(req)
+	rt.logRequest(clonedReq)
 
 	// 実際のリクエスト実行
 	resp, err := rt.base.RoundTrip(req)
@@ -53,9 +56,14 @@ func (rt *loggingRoundTripper) logRequest(req *http.Request) {
 		"url", req.URL.String(),
 	}
 
-	// Authorizationヘッダーをマスキング
-	if auth := req.Header.Get("Authorization"); auth != "" {
-		fields = append(fields, "authorization", rt.maskAuthHeader(auth))
+	// 全てのヘッダーをチェック（デバッグ用）
+	for key, values := range req.Header {
+		if key == "Authorization" {
+			// Authorizationヘッダーをマスキング
+			if len(values) > 0 && values[0] != "" {
+				fields = append(fields, "authorization", rt.maskAuthHeader(values[0]))
+			}
+		}
 	}
 
 	// User-Agentヘッダー

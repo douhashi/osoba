@@ -50,7 +50,13 @@ func TestLoggingRoundTripper_RoundTrip(t *testing.T) {
 		require.GreaterOrEqual(t, len(logs), 2, "少なくともリクエストとレスポンスのログが必要")
 
 		// リクエストログの確認
-		reqLog := logs[0]
+		var reqLog observer.LoggedEntry
+		for _, log := range logs {
+			if log.Message == "github_api_request" {
+				reqLog = log
+				break
+			}
+		}
 		assert.Equal(t, "github_api_request", reqLog.Message)
 		assert.Equal(t, "GET", reqLog.ContextMap()["method"])
 		assert.Contains(t, reqLog.ContextMap()["url"], "/repos/owner/repo")
@@ -96,7 +102,13 @@ func TestLoggingRoundTripper_RoundTrip(t *testing.T) {
 
 		// Assert
 		logs := observed.All()
-		reqLog := logs[0]
+		var reqLog observer.LoggedEntry
+		for _, log := range logs {
+			if log.Message == "github_api_request" {
+				reqLog = log
+				break
+			}
+		}
 		assert.Equal(t, "token [REDACTED]", reqLog.ContextMap()["authorization"])
 	})
 
