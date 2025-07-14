@@ -70,7 +70,7 @@ func TestIntegration_WatchFlow(t *testing.T) {
 			setupConfig: func() *config.Config {
 				cfg := config.NewConfig()
 				cfg.GitHub.Token = "test-token"
-				cfg.GitHub.PollInterval = 100 * time.Millisecond
+				cfg.GitHub.PollInterval = time.Second
 				return cfg
 			},
 			mockClient: &mockGitHubClient{
@@ -85,7 +85,7 @@ func TestIntegration_WatchFlow(t *testing.T) {
 				},
 			},
 			expectedCalls: 2,
-			timeout:       300 * time.Millisecond,
+			timeout:       3 * time.Second,
 			wantErr:       false,
 		},
 		{
@@ -93,7 +93,7 @@ func TestIntegration_WatchFlow(t *testing.T) {
 			setupConfig: func() *config.Config {
 				cfg := config.NewConfig()
 				cfg.GitHub.Token = "test-token"
-				cfg.GitHub.PollInterval = 100 * time.Millisecond
+				cfg.GitHub.PollInterval = time.Second
 				return cfg
 			},
 			mockClient: &mockGitHubClient{
@@ -115,7 +115,7 @@ func TestIntegration_WatchFlow(t *testing.T) {
 				},
 			},
 			expectedCalls: 2,
-			timeout:       300 * time.Millisecond,
+			timeout:       3 * time.Second,
 			wantErr:       false,
 		},
 	}
