@@ -14,6 +14,7 @@ var (
 	cfgFile string
 	verbose bool
 	rootCmd *cobra.Command
+	appLog  logger.Logger
 )
 
 func init() {
@@ -49,12 +50,21 @@ func newRootCmd() *cobra.Command {
 自律的なソフトウェア開発を支援するCLIツールです。`,
 		Version: version.Get().Version,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// ロギング設定
-			logger.SetVerbose(verbose)
-
+			// 設定ファイルを先に読み込む
 			if err := initConfig(); err != nil {
 				return fmt.Errorf("failed to initialize config: %w", err)
 			}
+
+			// ロガーの初期化
+			if verbose {
+				os.Setenv("DEBUG", "true")
+			}
+			var err error
+			appLog, err = logger.NewFromEnv()
+			if err != nil {
+				return fmt.Errorf("failed to initialize logger: %w", err)
+			}
+
 			return nil
 		},
 	}
