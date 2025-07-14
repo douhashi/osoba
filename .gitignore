@@ -46,3 +46,6 @@ build/
 *.tmp
 *.temp
 tmp/
+
+# direnv
+.envrc
