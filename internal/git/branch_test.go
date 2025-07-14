@@ -24,6 +24,12 @@ func TestBranch_Create(t *testing.T) {
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
+	// CI環境用のgit設定
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.email", "test@example.com"}, tmpDir)
+	require.NoError(t, err)
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.name", "Test User"}, tmpDir)
+	require.NoError(t, err)
+
 	// 初期コミットを作成
 	testFile := filepath.Join(tmpDir, "test.txt")
 	err = os.WriteFile(testFile, []byte("test content"), 0644)
@@ -130,6 +136,12 @@ func TestBranch_Checkout(t *testing.T) {
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
+	// CI環境用のgit設定
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.email", "test@example.com"}, tmpDir)
+	require.NoError(t, err)
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.name", "Test User"}, tmpDir)
+	require.NoError(t, err)
+
 	// 初期コミット
 	testFile := filepath.Join(tmpDir, "test.txt")
 	err = os.WriteFile(testFile, []byte("test content"), 0644)
@@ -188,6 +200,12 @@ func TestBranch_List(t *testing.T) {
 	// gitリポジトリを初期化
 	cmd := NewCommand(&testLoggerImpl{sugar: zap.NewNop().Sugar()})
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
+	require.NoError(t, err)
+
+	// CI環境用のgit設定
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.email", "test@example.com"}, tmpDir)
+	require.NoError(t, err)
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.name", "Test User"}, tmpDir)
 	require.NoError(t, err)
 
 	// 初期コミット
@@ -266,6 +284,12 @@ func TestBranch_Delete(t *testing.T) {
 	// gitリポジトリを初期化
 	cmd := NewCommand(&testLoggerImpl{sugar: zap.NewNop().Sugar()})
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
+	require.NoError(t, err)
+
+	// CI環境用のgit設定
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.email", "test@example.com"}, tmpDir)
+	require.NoError(t, err)
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.name", "Test User"}, tmpDir)
 	require.NoError(t, err)
 
 	// 初期コミット

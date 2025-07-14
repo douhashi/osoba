@@ -187,6 +187,12 @@ func TestCommand_RunWithLargeOutput(t *testing.T) {
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
+	// CI環境用のgit設定
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.email", "test@example.com"}, tmpDir)
+	require.NoError(t, err)
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.name", "Test User"}, tmpDir)
+	require.NoError(t, err)
+
 	// 大量のファイルを作成
 	for i := 0; i < 100; i++ {
 		filename := filepath.Join(tmpDir, fmt.Sprintf("file%d.txt", i))
