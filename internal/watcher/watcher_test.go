@@ -122,7 +122,10 @@ func TestIssueWatcher_Start(t *testing.T) {
 		}
 
 		// ポーリング間隔を短くしてテストを高速化
-		watcher.SetPollInterval(100 * time.Millisecond)
+		if err := watcher.SetPollInterval(100 * time.Millisecond); err != nil {
+			// テスト環境では1秒未満を許可
+			watcher.pollInterval = 100 * time.Millisecond
+		}
 
 		// 監視を開始
 		go watcher.Start(ctx, callback)
@@ -207,7 +210,10 @@ func TestIssueWatcher_Start(t *testing.T) {
 			mu.Unlock()
 		}
 
-		watcher.SetPollInterval(100 * time.Millisecond)
+		if err := watcher.SetPollInterval(100 * time.Millisecond); err != nil {
+			// テスト環境では1秒未満を許可
+			watcher.pollInterval = 100 * time.Millisecond
+		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		defer cancel()

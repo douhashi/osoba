@@ -51,8 +51,17 @@ func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string
 }
 
 // SetPollInterval はポーリング間隔を設定する
-func (w *IssueWatcher) SetPollInterval(interval time.Duration) {
+func (w *IssueWatcher) SetPollInterval(interval time.Duration) error {
+	if interval < time.Second {
+		return errors.New("poll interval must be at least 1 second")
+	}
 	w.pollInterval = interval
+	return nil
+}
+
+// GetPollInterval は現在のポーリング間隔を取得する
+func (w *IssueWatcher) GetPollInterval() time.Duration {
+	return w.pollInterval
 }
 
 // Start はIssue監視を開始する
@@ -136,4 +145,12 @@ func getLabels(issue *gh.Issue) []string {
 		}
 	}
 	return labels
+}
+
+// ValidatePollInterval はポーリング間隔の妥当性を検証する
+func ValidatePollInterval(interval time.Duration) error {
+	if interval < time.Second {
+		return errors.New("poll interval must be at least 1 second")
+	}
+	return nil
 }
