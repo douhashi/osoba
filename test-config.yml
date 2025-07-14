@@ -1,0 +1,12 @@
+github:
+  # テスト用のダミートークン（実際の機能テストには本物のトークンが必要）
+  token: "your-github-token-here"
+  owner: "douhashi"
+  repo: "osoba"
+  poll_interval: 10s
+  max_retries: 3
+  retry_base_delay: 1s
+  labels:
+    plan: "status:needs-plan"
+    ready: "status:ready"
+    review: "status:review-requested"
