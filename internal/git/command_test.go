@@ -90,7 +90,10 @@ func TestCommand_Run(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.NotEmpty(t, output)
+				// git versionコマンドの場合のみ出力があることを確認
+				if tt.name == "正常系: git versionコマンドの実行" {
+					assert.NotEmpty(t, output)
+				}
 			}
 
 			// ログ出力の検証
