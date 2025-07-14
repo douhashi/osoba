@@ -47,10 +47,14 @@ func TestIssueWatcherIntegration(t *testing.T) {
 		}
 
 		callCount := 0
+		callCountMu := sync.Mutex{}
 		mockClient := &mockGitHubClient{
 			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
+				callCountMu.Lock()
 				callCount++
-				if callCount == 1 {
+				current := callCount
+				callCountMu.Unlock()
+				if current == 1 {
 					return initialIssues, nil
 				}
 				return updatedIssues, nil
@@ -107,8 +111,11 @@ func TestIssueWatcherIntegration(t *testing.T) {
 
 		// 監視開始
 		issueCallbackCount := 0
+		issueCallbackMu := sync.Mutex{}
 		go watcher.Start(ctx, func(issue *github.Issue) {
+			issueCallbackMu.Lock()
 			issueCallbackCount++
+			issueCallbackMu.Unlock()
 			t.Logf("Issue callback called for #%d: %s", *issue.Number, *issue.Title)
 		})
 
@@ -161,15 +168,18 @@ func TestIssueWatcherIntegration(t *testing.T) {
 		}
 
 		// コールバックが呼ばれたことを確認
-		if issueCallbackCount < 2 {
-			t.Errorf("Expected at least 2 callback invocations, got %d", issueCallbackCount)
+		issueCallbackMu.Lock()
+		finalCallbackCount := issueCallbackCount
+		issueCallbackMu.Unlock()
+		if finalCallbackCount < 2 {
+			t.Errorf("Expected at least 2 callback invocations, got %d", finalCallbackCount)
 		}
 
 		t.Logf("Integration test completed successfully:")
 		t.Logf("- Total events: %d", len(receivedEvents))
 		t.Logf("- Issue detected events: %d", issueDetectedCount)
 		t.Logf("- Label changed events: %d", labelChangedCount)
-		t.Logf("- Callback invocations: %d", issueCallbackCount)
+		t.Logf("- Callback invocations: %d", finalCallbackCount)
 	})
 }
 
@@ -177,10 +187,14 @@ func TestIssueWatcherIntegration(t *testing.T) {
 func TestRetryIntegration(t *testing.T) {
 	t.Run("APIエラー時のリトライとイベント通知", func(t *testing.T) {
 		callCount := 0
+		callCountMu := sync.Mutex{}
 		mockClient := &mockGitHubClient{
 			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
+				callCountMu.Lock()
 				callCount++
-				if callCount <= 2 {
+				current := callCount
+				callCountMu.Unlock()
+				if current <= 2 {
 					// 最初の2回はエラーを返す
 					return nil, &github.ErrorResponse{
 						Response: &http.Response{
@@ -225,26 +239,36 @@ func TestRetryIntegration(t *testing.T) {
 		defer cancel()
 
 		issueCallbackCount := 0
+		issueCallbackMu := sync.Mutex{}
 		go watcher.Start(ctx, func(issue *github.Issue) {
+			issueCallbackMu.Lock()
 			issueCallbackCount++
+			issueCallbackMu.Unlock()
 		})
 
 		// 完了を待機
 		<-ctx.Done()
 
 		// リトライが機能して最終的にissueが検出されることを確認
-		if issueCallbackCount == 0 {
+		issueCallbackMu.Lock()
+		finalIssueCallbackCount := issueCallbackCount
+		issueCallbackMu.Unlock()
+		callCountMu.Lock()
+		finalCallCount := callCount
+		callCountMu.Unlock()
+
+		if finalIssueCallbackCount == 0 {
 			t.Error("Expected issue to be detected after retries")
 		}
 
 		// APIが複数回呼ばれたことを確認（リトライが発生した証拠）
-		if callCount < 3 {
-			t.Errorf("Expected at least 3 API calls due to retries, got %d", callCount)
+		if finalCallCount < 3 {
+			t.Errorf("Expected at least 3 API calls due to retries, got %d", finalCallCount)
 		}
 
 		t.Logf("Retry integration test completed:")
-		t.Logf("- API calls: %d", callCount)
-		t.Logf("- Issues detected: %d", issueCallbackCount)
+		t.Logf("- API calls: %d", finalCallCount)
+		t.Logf("- Issues detected: %d", finalIssueCallbackCount)
 	})
 }
 
