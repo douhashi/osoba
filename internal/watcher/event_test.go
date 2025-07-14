@@ -230,7 +230,15 @@ func TestDetectLabelChanges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			events := DetectLabelChanges(tt.oldLabels, tt.newLabels, tt.issueID, tt.issueTitle, tt.owner, tt.repo)
+			events := DetectLabelChanges(tt.oldLabels, tt.newLabels)
+			// テスト用にIssue情報を設定
+			for i := range events {
+				events[i].IssueID = tt.issueID
+				events[i].IssueTitle = tt.issueTitle
+				events[i].Owner = tt.owner
+				events[i].Repo = tt.repo
+				events[i].Timestamp = time.Time{} // テスト用に時刻を固定
+			}
 
 			if len(events) != len(tt.wantEvents) {
 				t.Fatalf("got %d events, want %d events", len(events), len(tt.wantEvents))

@@ -9,6 +9,8 @@ import (
 type EventType string
 
 const (
+	// IssueDetected 新しいIssueが検出された
+	IssueDetected EventType = "issue_detected"
 	// LabelAdded ラベルが追加された
 	LabelAdded EventType = "label_added"
 	// LabelRemoved ラベルが削除された
@@ -32,6 +34,9 @@ type IssueEvent struct {
 // String はイベントの文字列表現を返す
 func (e IssueEvent) String() string {
 	switch e.Type {
+	case IssueDetected:
+		return fmt.Sprintf("[%s] Issue #%d '%s' (%s/%s) detected at %s",
+			e.Type, e.IssueID, e.IssueTitle, e.Owner, e.Repo, e.Timestamp.Format(time.RFC3339))
 	case LabelAdded:
 		return fmt.Sprintf("[%s] Issue #%d '%s' (%s/%s): Label added '%s' at %s",
 			e.Type, e.IssueID, e.IssueTitle, e.Owner, e.Repo, e.ToLabel, e.Timestamp.Format(time.RFC3339))
@@ -48,9 +53,8 @@ func (e IssueEvent) String() string {
 }
 
 // DetectLabelChanges は新旧のラベルリストを比較してイベントを生成する
-func DetectLabelChanges(oldLabels, newLabels []string, issueID int, issueTitle, owner, repo string) []IssueEvent {
+func DetectLabelChanges(oldLabels, newLabels []string) []IssueEvent {
 	events := []IssueEvent{}
-	now := time.Now()
 
 	// ラベルをセットに変換
 	oldSet := make(map[string]bool)
@@ -81,14 +85,9 @@ func DetectLabelChanges(oldLabels, newLabels []string, issueID int, issueTitle, 
 	// statusラベルの変更を検出
 	if oldStatus != "" && newStatus != "" && oldStatus != newStatus {
 		events = append(events, IssueEvent{
-			Type:       LabelChanged,
-			IssueID:    issueID,
-			IssueTitle: issueTitle,
-			Owner:      owner,
-			Repo:       repo,
-			FromLabel:  oldStatus,
-			ToLabel:    newStatus,
-			Timestamp:  now,
+			Type:      LabelChanged,
+			FromLabel: oldStatus,
+			ToLabel:   newStatus,
 		})
 		// 変更イベントを生成した場合、個別の追加/削除イベントは生成しない
 		delete(oldSet, oldStatus)
@@ -99,13 +98,8 @@ func DetectLabelChanges(oldLabels, newLabels []string, issueID int, issueTitle, 
 	for label := range oldSet {
 		if !newSet[label] {
 			events = append(events, IssueEvent{
-				Type:       LabelRemoved,
-				IssueID:    issueID,
-				IssueTitle: issueTitle,
-				Owner:      owner,
-				Repo:       repo,
-				FromLabel:  label,
-				Timestamp:  now,
+				Type:      LabelRemoved,
+				FromLabel: label,
 			})
 		}
 	}
@@ -114,13 +108,8 @@ func DetectLabelChanges(oldLabels, newLabels []string, issueID int, issueTitle, 
 	for label := range newSet {
 		if !oldSet[label] {
 			events = append(events, IssueEvent{
-				Type:       LabelAdded,
-				IssueID:    issueID,
-				IssueTitle: issueTitle,
-				Owner:      owner,
-				Repo:       repo,
-				ToLabel:    label,
-				Timestamp:  now,
+				Type:    LabelAdded,
+				ToLabel: label,
 			})
 		}
 	}

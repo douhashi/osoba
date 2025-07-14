@@ -39,6 +39,9 @@ func TestRetryWithBackoff(t *testing.T) {
 						// リトライ可能なエラーを返す
 						return &github.RateLimitError{
 							Message: "API rate limit exceeded",
+							Rate: github.Rate{
+								Reset: github.Timestamp{Time: time.Now().Add(time.Second)},
+							},
 						}
 					}
 					return nil

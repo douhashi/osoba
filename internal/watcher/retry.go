@@ -48,7 +48,19 @@ func RetryWithBackoff(ctx context.Context, maxRetries int, baseDelay time.Durati
 
 		// バックオフ時間を計算
 		backoff := CalculateBackoff(attempt+1, baseDelay)
-		log.Printf("Retrying after %v (attempt %d/%d): %s", backoff, attempt+1, maxRetries, err.Error())
+		errMsg := "unknown error"
+		if err != nil {
+			// エラーメッセージを安全に取得
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						errMsg = fmt.Sprintf("error getting error message: %v", r)
+					}
+				}()
+				errMsg = err.Error()
+			}()
+		}
+		log.Printf("Retrying after %v (attempt %d/%d): %s", backoff, attempt+1, maxRetries, errMsg)
 
 		// レート制限エラーの場合は特別な処理
 		if sleepDuration, ok := HandleRateLimitError(err); ok && sleepDuration > 0 {
