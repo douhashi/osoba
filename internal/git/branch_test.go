@@ -39,6 +39,11 @@ func TestBranch_Create(t *testing.T) {
 	_, err = cmd.Run(context.Background(), "git", []string{"commit", "-m", "initial commit"}, tmpDir)
 	require.NoError(t, err)
 
+	// 現在のブランチ名を取得（masterまたはmainになる可能性がある）
+	currentBranch, err := cmd.Run(context.Background(), "git", []string{"branch", "--show-current"}, tmpDir)
+	require.NoError(t, err)
+	currentBranch = strings.TrimSpace(currentBranch)
+
 	tests := []struct {
 		name          string
 		branchName    string
@@ -59,7 +64,7 @@ func TestBranch_Create(t *testing.T) {
 		{
 			name:        "正常系: ベースブランチを指定して作成",
 			branchName:  "feature/test2",
-			baseBranch:  "main",
+			baseBranch:  currentBranch,
 			expectError: false,
 			expectLogMsgs: []string{
 				"Creating git branch",
