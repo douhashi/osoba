@@ -84,7 +84,7 @@ func (c *Client) GetRepository(ctx context.Context, owner, repo string) (*github
 	return repository, nil
 }
 
-// ListIssuesByLabels は指定されたラベルを持つIssueを取得する
+// ListIssuesByLabels は指定されたラベルのいずれかを持つIssueを取得する（OR条件）
 func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
 	if owner == "" {
 		return nil, errors.New("owner is required")
@@ -102,33 +102,48 @@ func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, lab
 		)
 	}
 
-	opts := &github.IssueListByRepoOptions{
-		Labels: labels,
-		State:  "open",
-		ListOptions: github.ListOptions{
-			PerPage: 100,
-		},
+	// OR条件で検索するため、各ラベルごとに検索して結果をマージ
+	issueMap := make(map[int]*github.Issue) // 重複を避けるためのマップ
+
+	for _, label := range labels {
+		opts := &github.IssueListByRepoOptions{
+			Labels: []string{label}, // 単一ラベルで検索
+			State:  "open",
+			ListOptions: github.ListOptions{
+				PerPage: 100,
+			},
+		}
+
+		for {
+			issues, resp, err := c.github.Issues.ListByRepo(ctx, owner, repo, opts)
+			if err != nil {
+				if c.logger != nil {
+					c.logger.Error("failed_to_list_issues",
+						"owner", owner,
+						"repo", repo,
+						"label", label,
+						"error", err.Error(),
+					)
+				}
+				return nil, err
+			}
+
+			// 結果をマップに追加（重複を自動除去）
+			for _, issue := range issues {
+				issueMap[*issue.Number] = issue
+			}
+
+			if resp.NextPage == 0 {
+				break
+			}
+			opts.Page = resp.NextPage
+		}
 	}
 
+	// マップからスライスに変換
 	var allIssues []*github.Issue
-	for {
-		issues, resp, err := c.github.Issues.ListByRepo(ctx, owner, repo, opts)
-		if err != nil {
-			if c.logger != nil {
-				c.logger.Error("failed_to_list_issues",
-					"owner", owner,
-					"repo", repo,
-					"labels", labels,
-					"error", err.Error(),
-				)
-			}
-			return nil, err
-		}
-		allIssues = append(allIssues, issues...)
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
+	for _, issue := range issueMap {
+		allIssues = append(allIssues, issue)
 	}
 
 	// 取得完了のログ
