@@ -129,6 +129,7 @@ func TestIntegration_WatchFlow(t *testing.T) {
 				tt.mockClient,
 				"douhashi",
 				"osoba",
+				"test-session",
 				cfg.GetLabels(),
 			)
 			if err != nil {

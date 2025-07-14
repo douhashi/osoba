@@ -15,33 +15,38 @@ type IssueCallback func(issue *gh.Issue)
 
 // IssueWatcher はGitHub Issueを監視する構造体
 type IssueWatcher struct {
-	client       github.GitHubClient
-	owner        string
-	repo         string
-	labels       []string
-	pollInterval time.Duration
-	seenIssues   map[int64]bool // 既に処理したIssueを記録
+	client        github.GitHubClient
+	owner         string
+	repo          string
+	labels        []string
+	pollInterval  time.Duration
+	seenIssues    map[int64]bool // 既に処理したIssueを記録
+	actionManager *ActionManager
 }
 
 // NewIssueWatcher は新しいIssueWatcherを作成する
-func NewIssueWatcher(client github.GitHubClient, owner, repo string, labels []string) (*IssueWatcher, error) {
+func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string, labels []string) (*IssueWatcher, error) {
 	if owner == "" {
 		return nil, errors.New("owner is required")
 	}
 	if repo == "" {
 		return nil, errors.New("repo is required")
 	}
+	if sessionName == "" {
+		return nil, errors.New("session name is required")
+	}
 	if len(labels) == 0 {
 		return nil, errors.New("at least one label is required")
 	}
 
 	return &IssueWatcher{
-		client:       client,
-		owner:        owner,
-		repo:         repo,
-		labels:       labels,
-		pollInterval: 5 * time.Second, // デフォルト5秒
-		seenIssues:   make(map[int64]bool),
+		client:        client,
+		owner:         owner,
+		repo:          repo,
+		labels:        labels,
+		pollInterval:  5 * time.Second, // デフォルト5秒
+		seenIssues:    make(map[int64]bool),
+		actionManager: NewActionManager(sessionName),
 	}, nil
 }
 
@@ -70,6 +75,18 @@ func (w *IssueWatcher) Start(ctx context.Context, callback IssueCallback) {
 			w.checkIssues(ctx, callback)
 		}
 	}
+}
+
+// StartWithActions はIssue監視を開始し、ラベルに基づいてアクションを実行する
+func (w *IssueWatcher) StartWithActions(ctx context.Context) {
+	callback := func(issue *gh.Issue) {
+		// ActionManagerを使用してアクションを実行
+		if err := w.actionManager.ExecuteAction(ctx, issue); err != nil {
+			log.Printf("Failed to execute action for issue #%d: %v", issue.GetNumber(), err)
+		}
+	}
+
+	w.Start(ctx, callback)
 }
 
 // checkIssues は現在のIssueをチェックし、新しいIssueがあればコールバックを呼ぶ
