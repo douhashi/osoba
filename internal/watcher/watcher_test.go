@@ -65,7 +65,7 @@ func TestNewIssueWatcher(t *testing.T) {
 			// モックGitHubクライアント
 			mockClient := &mockGitHubClient{}
 
-			watcher, err := NewIssueWatcher(mockClient, tt.owner, tt.repo, tt.labels)
+			watcher, err := NewIssueWatcher(mockClient, tt.owner, tt.repo, "test-session", tt.labels)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewIssueWatcher() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -107,7 +107,7 @@ func TestIssueWatcher_Start(t *testing.T) {
 			issues: testIssues,
 		}
 
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", []string{"status:needs-plan", "status:ready"})
+		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan", "status:ready"})
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
@@ -148,7 +148,7 @@ func TestIssueWatcher_Start(t *testing.T) {
 			issues: testIssues,
 		}
 
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", []string{"status:needs-plan"})
+		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"})
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
@@ -194,7 +194,7 @@ func TestIssueWatcher_Start(t *testing.T) {
 			},
 		}
 
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", []string{"status:needs-plan"})
+		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"})
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
@@ -246,7 +246,7 @@ func TestIssueWatcher_GetRateLimit(t *testing.T) {
 			},
 		}
 
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", []string{"status:needs-plan"})
+		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"})
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
 		}

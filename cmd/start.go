@@ -160,8 +160,11 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 		return fmt.Errorf("GitHubクライアントの作成に失敗: %w", err)
 	}
 
+	// セッション名を生成
+	sessionName := fmt.Sprintf("osoba-%s", repoName)
+
 	// Issue監視を作成
-	issueWatcher, err := watcher.NewIssueWatcher(githubClient, owner, repoName, cfg.GetLabels())
+	issueWatcher, err := watcher.NewIssueWatcher(githubClient, owner, repoName, sessionName, cfg.GetLabels())
 	if err != nil {
 		return fmt.Errorf("Issue監視の作成に失敗: %w", err)
 	}
