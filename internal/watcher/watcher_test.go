@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -113,8 +114,11 @@ func TestIssueWatcher_Start(t *testing.T) {
 
 		// 検出されたIssueを記録
 		detectedIssues := make(map[int]bool)
+		var mu sync.Mutex
 		callback := func(issue *github.Issue) {
+			mu.Lock()
 			detectedIssues[*issue.Number] = true
+			mu.Unlock()
 		}
 
 		// ポーリング間隔を短くしてテストを高速化
@@ -126,10 +130,15 @@ func TestIssueWatcher_Start(t *testing.T) {
 		// 少し待ってIssueが検出されることを確認
 		time.Sleep(300 * time.Millisecond)
 
-		if !detectedIssues[1] {
+		mu.Lock()
+		detected1 := detectedIssues[1]
+		detected2 := detectedIssues[2]
+		mu.Unlock()
+
+		if !detected1 {
 			t.Error("Issue #1 was not detected")
 		}
-		if !detectedIssues[2] {
+		if !detected2 {
 			t.Error("Issue #2 was not detected")
 		}
 	})
@@ -168,10 +177,15 @@ func TestIssueWatcher_Start(t *testing.T) {
 
 	t.Run("異常系: APIエラー時は継続する", func(t *testing.T) {
 		callCount := 0
+		var callMu sync.Mutex
 		mockClient := &mockGitHubClient{
 			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
+				callMu.Lock()
 				callCount++
-				if callCount == 1 {
+				count := callCount
+				callMu.Unlock()
+
+				if count == 1 {
 					// 初回はエラーを返す
 					return nil, fmt.Errorf("not found")
 				}
@@ -186,8 +200,11 @@ func TestIssueWatcher_Start(t *testing.T) {
 		}
 
 		detectedIssues := make(map[int]bool)
+		var mu sync.Mutex
 		callback := func(issue *github.Issue) {
+			mu.Lock()
 			detectedIssues[*issue.Number] = true
+			mu.Unlock()
 		}
 
 		watcher.SetPollInterval(100 * time.Millisecond)
@@ -200,10 +217,19 @@ func TestIssueWatcher_Start(t *testing.T) {
 		// エラー後も継続してIssueが検出されることを確認
 		time.Sleep(350 * time.Millisecond)
 
-		if callCount < 2 {
+		callMu.Lock()
+		finalCallCount := callCount
+		callMu.Unlock()
+
+		if finalCallCount < 2 {
 			t.Error("API was not retried after error")
 		}
-		if !detectedIssues[1] {
+
+		mu.Lock()
+		detected1 := detectedIssues[1]
+		mu.Unlock()
+
+		if !detected1 {
 			t.Error("Issue #1 was not detected after retry")
 		}
 	})
