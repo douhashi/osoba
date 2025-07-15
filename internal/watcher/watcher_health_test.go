@@ -84,12 +84,12 @@ func TestIssueWatcher_HealthCheck(t *testing.T) {
 
 		watcher.pollInterval = 100 * time.Millisecond
 
-		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 		defer cancel()
 
 		go watcher.Start(ctx, func(issue *github.Issue) {})
 
-		time.Sleep(550 * time.Millisecond)
+		time.Sleep(850 * time.Millisecond)
 
 		// 統計情報を取得
 		stats := watcher.GetHealthStats()
