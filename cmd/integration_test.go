@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/config"
+	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/watcher"
 	gh "github.com/google/go-github/v67/github"
 )
@@ -53,6 +54,18 @@ func (m *mockGitHubClient) GetRateLimit(ctx context.Context) (*gh.RateLimits, er
 			Reset:     resetTime,
 		},
 	}, nil
+}
+
+func (m *mockGitHubClient) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
+	return false, nil
+}
+
+func (m *mockGitHubClient) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *github.TransitionInfo, error) {
+	return false, nil, nil
+}
+
+func (m *mockGitHubClient) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
+	return nil
 }
 
 // TestIntegration_WatchFlow は監視フロー全体の統合テスト

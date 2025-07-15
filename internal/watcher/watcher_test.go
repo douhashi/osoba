@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
+	gh "github.com/google/go-github/v67/github"
 )
 
 func TestNewIssueWatcher(t *testing.T) {
@@ -85,19 +86,19 @@ func TestIssueWatcher_Start(t *testing.T) {
 	defer cancel()
 
 	// モックIssueデータ
-	testIssues := []*github.Issue{
+	testIssues := []*gh.Issue{
 		{
-			Number: github.Int(1),
-			Title:  github.String("Test Issue 1"),
-			Labels: []*github.Label{
-				{Name: github.String("status:needs-plan")},
+			Number: gh.Int(1),
+			Title:  gh.String("Test Issue 1"),
+			Labels: []*gh.Label{
+				{Name: gh.String("status:needs-plan")},
 			},
 		},
 		{
-			Number: github.Int(2),
-			Title:  github.String("Test Issue 2"),
-			Labels: []*github.Label{
-				{Name: github.String("status:ready")},
+			Number: gh.Int(2),
+			Title:  gh.String("Test Issue 2"),
+			Labels: []*gh.Label{
+				{Name: gh.String("status:ready")},
 			},
 		},
 	}
@@ -115,7 +116,7 @@ func TestIssueWatcher_Start(t *testing.T) {
 		// 検出されたIssueを記録
 		detectedIssues := make(map[int]bool)
 		var mu sync.Mutex
-		callback := func(issue *github.Issue) {
+		callback := func(issue *gh.Issue) {
 			mu.Lock()
 			detectedIssues[*issue.Number] = true
 			mu.Unlock()
@@ -161,7 +162,7 @@ func TestIssueWatcher_Start(t *testing.T) {
 		// 監視が終了したことを確認するためのチャネル
 		done := make(chan bool)
 		go func() {
-			watcher.Start(ctx, func(issue *github.Issue) {})
+			watcher.Start(ctx, func(issue *gh.Issue) {})
 			done <- true
 		}()
 
@@ -182,7 +183,7 @@ func TestIssueWatcher_Start(t *testing.T) {
 		callCount := 0
 		var callMu sync.Mutex
 		mockClient := &mockGitHubClient{
-			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
+			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*gh.Issue, error) {
 				callMu.Lock()
 				callCount++
 				count := callCount
@@ -204,7 +205,7 @@ func TestIssueWatcher_Start(t *testing.T) {
 
 		detectedIssues := make(map[int]bool)
 		var mu sync.Mutex
-		callback := func(issue *github.Issue) {
+		callback := func(issue *gh.Issue) {
 			mu.Lock()
 			detectedIssues[*issue.Number] = true
 			mu.Unlock()
@@ -244,7 +245,7 @@ func TestIssueWatcher_Start(t *testing.T) {
 		callCount := 0
 		var callMu sync.Mutex
 		mockClient := &mockGitHubClient{
-			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
+			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*gh.Issue, error) {
 				callMu.Lock()
 				callCount++
 				callMu.Unlock()
@@ -261,7 +262,7 @@ func TestIssueWatcher_Start(t *testing.T) {
 
 		panicCount := 0
 		var panicMu sync.Mutex
-		callback := func(issue *github.Issue) {
+		callback := func(issue *gh.Issue) {
 			panicMu.Lock()
 			defer panicMu.Unlock()
 			if panicCount == 0 && *issue.Number == 1 {
@@ -296,8 +297,8 @@ func TestIssueWatcher_Start(t *testing.T) {
 func TestIssueWatcher_GetRateLimit(t *testing.T) {
 	t.Run("正常系: レート制限情報を取得できる", func(t *testing.T) {
 		mockClient := &mockGitHubClient{
-			rateLimit: &github.RateLimits{
-				Core: &github.Rate{
+			rateLimit: &gh.RateLimits{
+				Core: &gh.Rate{
 					Limit:     5000,
 					Remaining: 4999,
 				},
@@ -326,33 +327,45 @@ func TestIssueWatcher_GetRateLimit(t *testing.T) {
 
 // モッククライアント
 type mockGitHubClient struct {
-	issues         []*github.Issue
-	rateLimit      *github.RateLimits
-	listIssuesFunc func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error)
+	issues         []*gh.Issue
+	rateLimit      *gh.RateLimits
+	listIssuesFunc func(ctx context.Context, owner, repo string, labels []string) ([]*gh.Issue, error)
 }
 
-func (m *mockGitHubClient) GetRepository(ctx context.Context, owner, repo string) (*github.Repository, error) {
-	return &github.Repository{
-		Name:  github.String(repo),
-		Owner: &github.User{Login: github.String(owner)},
+func (m *mockGitHubClient) GetRepository(ctx context.Context, owner, repo string) (*gh.Repository, error) {
+	return &gh.Repository{
+		Name:  gh.String(repo),
+		Owner: &gh.User{Login: gh.String(owner)},
 	}, nil
 }
 
-func (m *mockGitHubClient) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
+func (m *mockGitHubClient) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*gh.Issue, error) {
 	if m.listIssuesFunc != nil {
 		return m.listIssuesFunc(ctx, owner, repo, labels)
 	}
 	return m.issues, nil
 }
 
-func (m *mockGitHubClient) GetRateLimit(ctx context.Context) (*github.RateLimits, error) {
+func (m *mockGitHubClient) GetRateLimit(ctx context.Context) (*gh.RateLimits, error) {
 	if m.rateLimit != nil {
 		return m.rateLimit, nil
 	}
-	return &github.RateLimits{
-		Core: &github.Rate{
+	return &gh.RateLimits{
+		Core: &gh.Rate{
 			Limit:     5000,
 			Remaining: 5000,
 		},
 	}, nil
+}
+
+func (m *mockGitHubClient) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
+	return false, nil
+}
+
+func (m *mockGitHubClient) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *github.TransitionInfo, error) {
+	return false, nil, nil
+}
+
+func (m *mockGitHubClient) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
+	return nil
 }
