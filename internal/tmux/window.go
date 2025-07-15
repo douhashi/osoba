@@ -173,6 +173,26 @@ func GetWindowName(issueNumber int) string {
 	return fmt.Sprintf("issue-%d", issueNumber)
 }
 
+// GetWindowNameWithPhase はIssue番号とフェーズからウィンドウ名を生成する
+func GetWindowNameWithPhase(issueNumber int, phase string) (string, error) {
+	// 有効なフェーズのチェック
+	validPhases := map[string]bool{
+		"plan":      true,
+		"implement": true,
+		"review":    true,
+	}
+
+	if phase == "" {
+		return "", fmt.Errorf("invalid phase: phase cannot be empty")
+	}
+
+	if !validPhases[phase] {
+		return "", fmt.Errorf("invalid phase: %s (valid phases are: plan, implement, review)", phase)
+	}
+
+	return fmt.Sprintf("%d-%s", issueNumber, phase), nil
+}
+
 // CreateWindowForIssue はIssue番号に基づいてウィンドウを作成する
 func CreateWindowForIssue(sessionName string, issueNumber int) error {
 	windowName := GetWindowName(issueNumber)
@@ -215,4 +235,98 @@ func SwitchToIssueWindow(sessionName string, issueNumber int) error {
 	}
 
 	return SwitchToWindow(sessionName, windowName)
+}
+
+// KillWindow は指定されたウィンドウを削除する
+func KillWindow(sessionName, windowName string) error {
+	return KillWindowWithExecutor(sessionName, windowName, &DefaultCommandExecutor{})
+}
+
+// KillWindowWithExecutor はExecutorを使用して指定されたウィンドウを削除する
+func KillWindowWithExecutor(sessionName, windowName string, executor CommandExecutor) error {
+	if sessionName == "" {
+		return fmt.Errorf("session name cannot be empty")
+	}
+	if windowName == "" {
+		return fmt.Errorf("window name cannot be empty")
+	}
+
+	target := fmt.Sprintf("%s:%s", sessionName, windowName)
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("tmuxウィンドウ削除開始",
+			"operation", "kill_window",
+			"session_name", sessionName,
+			"window_name", windowName,
+			"target", target,
+			"command", "tmux kill-window",
+			"args", []string{"-t", target})
+	}
+
+	_, err := executor.Execute("tmux", "kill-window", "-t", target)
+	if err != nil {
+		if logger := GetLogger(); logger != nil {
+			logger.Error("tmuxウィンドウ削除失敗",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"target", target,
+				"error", err)
+		}
+		return fmt.Errorf("failed to kill window '%s' in session '%s': %w", windowName, sessionName, err)
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("tmuxウィンドウ削除完了",
+			"session_name", sessionName,
+			"window_name", windowName)
+	}
+
+	return nil
+}
+
+// CreateOrReplaceWindow は既存のウィンドウを削除してから新しいウィンドウを作成する
+func CreateOrReplaceWindow(sessionName, windowName string) error {
+	return CreateOrReplaceWindowWithExecutor(sessionName, windowName, &DefaultCommandExecutor{})
+}
+
+// CreateOrReplaceWindowWithExecutor はExecutorを使用して既存のウィンドウを削除してから新しいウィンドウを作成する
+func CreateOrReplaceWindowWithExecutor(sessionName, windowName string, executor CommandExecutor) error {
+	if logger := GetLogger(); logger != nil {
+		logger.Info("tmuxウィンドウ作成/置換開始",
+			"operation", "create_or_replace_window",
+			"session_name", sessionName,
+			"window_name", windowName)
+	}
+
+	// ウィンドウの存在確認
+	exists, err := WindowExistsWithExecutor(sessionName, windowName, executor)
+	if err != nil {
+		return fmt.Errorf("failed to check window existence: %w", err)
+	}
+
+	// 既存のウィンドウが存在する場合は削除
+	if exists {
+		if logger := GetLogger(); logger != nil {
+			logger.Info("既存のウィンドウを削除します",
+				"session_name", sessionName,
+				"window_name", windowName)
+		}
+
+		if err := KillWindowWithExecutor(sessionName, windowName, executor); err != nil {
+			return fmt.Errorf("failed to kill existing window: %w", err)
+		}
+	}
+
+	// 新しいウィンドウを作成
+	if err := CreateWindowWithExecutor(sessionName, windowName, executor); err != nil {
+		return fmt.Errorf("failed to create new window: %w", err)
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("tmuxウィンドウ作成/置換完了",
+			"session_name", sessionName,
+			"window_name", windowName)
+	}
+
+	return nil
 }

@@ -211,6 +211,129 @@ func TestGetWindowName(t *testing.T) {
 	}
 }
 
+func TestGetWindowNameWithPhase(t *testing.T) {
+	tests := []struct {
+		name        string
+		issueNumber int
+		phase       string
+		want        string
+		wantErr     bool
+	}{
+		{
+			name:        "正常系: planフェーズのウィンドウ名",
+			issueNumber: 44,
+			phase:       "plan",
+			want:        "44-plan",
+		},
+		{
+			name:        "正常系: implementフェーズのウィンドウ名",
+			issueNumber: 44,
+			phase:       "implement",
+			want:        "44-implement",
+		},
+		{
+			name:        "正常系: reviewフェーズのウィンドウ名",
+			issueNumber: 44,
+			phase:       "review",
+			want:        "44-review",
+		},
+		{
+			name:        "異常系: 無効なフェーズ",
+			issueNumber: 44,
+			phase:       "invalid",
+			want:        "",
+			wantErr:     true,
+		},
+		{
+			name:        "異常系: 空のフェーズ",
+			issueNumber: 44,
+			phase:       "",
+			want:        "",
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Act
+			got, err := GetWindowNameWithPhase(tt.issueNumber, tt.phase)
+
+			// Assert
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid phase")
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestKillWindow(t *testing.T) {
+	t.Run("正常系: ウィンドウが正常に削除される", func(t *testing.T) {
+		// Arrange
+		sessionName := "osoba-test"
+		windowName := "44-plan"
+
+		mockExec := new(MockCommandExecutor)
+		mockExec.On("Execute", "tmux", "kill-window", "-t", sessionName+":"+windowName).Return("", nil)
+
+		// Act
+		err := KillWindowWithExecutor(sessionName, windowName, mockExec)
+
+		// Assert
+		assert.NoError(t, err)
+		mockExec.AssertExpectations(t)
+	})
+
+	t.Run("異常系: tmuxコマンドがエラーを返す", func(t *testing.T) {
+		// Arrange
+		sessionName := "osoba-test"
+		windowName := "44-plan"
+		expectedErr := errors.New("window not found")
+
+		mockExec := new(MockCommandExecutor)
+		mockExec.On("Execute", "tmux", "kill-window", "-t", sessionName+":"+windowName).Return("", expectedErr)
+
+		// Act
+		err := KillWindowWithExecutor(sessionName, windowName, mockExec)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to kill window")
+		mockExec.AssertExpectations(t)
+	})
+
+	t.Run("異常系: 空のセッション名", func(t *testing.T) {
+		// Arrange
+		sessionName := ""
+		windowName := "44-plan"
+		mockExec := new(MockCommandExecutor)
+
+		// Act
+		err := KillWindowWithExecutor(sessionName, windowName, mockExec)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "session name cannot be empty")
+	})
+
+	t.Run("異常系: 空のウィンドウ名", func(t *testing.T) {
+		// Arrange
+		sessionName := "osoba-test"
+		windowName := ""
+		mockExec := new(MockCommandExecutor)
+
+		// Act
+		err := KillWindowWithExecutor(sessionName, windowName, mockExec)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "window name cannot be empty")
+	})
+}
+
 func TestCreateWindow_WithLogging(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -398,5 +521,67 @@ func TestCreateWindowForIssue_WithLogging(t *testing.T) {
 		// 実際のログ出力は、すでにテストされている CreateWindow_WithLogging でカバーされる
 		t.Log("CreateWindowForIssue は内部で WindowExists と CreateWindow を呼び出します")
 		t.Log("それぞれの関数のログ出力は個別のテストでカバーされています")
+	})
+}
+
+func TestCreateOrReplaceWindow(t *testing.T) {
+	t.Run("正常系: ウィンドウが存在しない場合、新規作成される", func(t *testing.T) {
+		// Arrange
+		sessionName := "osoba-test"
+		windowName := "44-plan"
+
+		mockExec := new(MockCommandExecutor)
+		// WindowExists: ウィンドウが存在しない
+		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_name}").Return("other-window", nil)
+		// CreateWindow
+		mockExec.On("Execute", "tmux", "new-window", "-t", sessionName, "-n", windowName).Return("", nil)
+
+		// Act
+		err := CreateOrReplaceWindowWithExecutor(sessionName, windowName, mockExec)
+
+		// Assert
+		assert.NoError(t, err)
+		mockExec.AssertExpectations(t)
+	})
+
+	t.Run("正常系: ウィンドウが存在する場合、削除してから新規作成される", func(t *testing.T) {
+		// Arrange
+		sessionName := "osoba-test"
+		windowName := "44-plan"
+
+		mockExec := new(MockCommandExecutor)
+		// WindowExists: ウィンドウが存在する
+		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_name}").Return("44-plan\nother-window", nil)
+		// KillWindow
+		mockExec.On("Execute", "tmux", "kill-window", "-t", sessionName+":"+windowName).Return("", nil)
+		// CreateWindow
+		mockExec.On("Execute", "tmux", "new-window", "-t", sessionName, "-n", windowName).Return("", nil)
+
+		// Act
+		err := CreateOrReplaceWindowWithExecutor(sessionName, windowName, mockExec)
+
+		// Assert
+		assert.NoError(t, err)
+		mockExec.AssertExpectations(t)
+	})
+
+	t.Run("異常系: ウィンドウ削除に失敗", func(t *testing.T) {
+		// Arrange
+		sessionName := "osoba-test"
+		windowName := "44-plan"
+
+		mockExec := new(MockCommandExecutor)
+		// WindowExists: ウィンドウが存在する
+		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_name}").Return("44-plan\nother-window", nil)
+		// KillWindow: 失敗
+		mockExec.On("Execute", "tmux", "kill-window", "-t", sessionName+":"+windowName).Return("", errors.New("kill failed"))
+
+		// Act
+		err := CreateOrReplaceWindowWithExecutor(sessionName, windowName, mockExec)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to kill existing window")
+		mockExec.AssertExpectations(t)
 	})
 }

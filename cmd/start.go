@@ -160,8 +160,20 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 		return fmt.Errorf("GitHubクライアントの作成に失敗: %w", err)
 	}
 
+	// tmuxがインストールされているか確認
+	if err := checkTmuxInstalled(); err != nil {
+		return fmt.Errorf("%w", err)
+	}
+
 	// セッション名を生成
 	sessionName := fmt.Sprintf("osoba-%s", repoName)
+
+	// tmuxセッションを確保（存在しない場合は作成）
+	fmt.Fprintf(cmd.OutOrStdout(), "tmuxセッション '%s' を確認中...\n", sessionName)
+	if err := tmux.EnsureSession(sessionName); err != nil {
+		return fmt.Errorf("tmuxセッションの確保に失敗: %w", err)
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "tmuxセッション '%s' が利用可能です\n", sessionName)
 
 	// 必要なラベルが存在することを確認
 	fmt.Fprintln(cmd.OutOrStdout(), "必要なラベルを確認中...")
@@ -195,7 +207,37 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	// Issue監視を開始
 	issueWatcher.Start(ctx, func(issue *gh.Issue) {
 		log.Printf("Issue detected: #%d - %s", *issue.Number, *issue.Title)
-		// TODO: ここでtmuxウィンドウ作成やClaude実行などの処理を追加
+
+		// フェーズを判定（ラベルから推測）
+		phase := "plan" // デフォルト
+		for _, label := range issue.Labels {
+			labelName := label.GetName()
+			switch labelName {
+			case "status:needs-plan":
+				phase = "plan"
+			case "status:ready":
+				phase = "implement"
+			case "status:review-requested":
+				phase = "review"
+			}
+		}
+
+		// ウィンドウ名を生成
+		windowName, err := tmux.GetWindowNameWithPhase(*issue.Number, phase)
+		if err != nil {
+			log.Printf("ウィンドウ名の生成に失敗: %v", err)
+			return
+		}
+
+		// tmuxウィンドウを作成または置換
+		log.Printf("tmuxウィンドウ '%s' を作成中...", windowName)
+		if err := tmux.CreateOrReplaceWindow(sessionName, windowName); err != nil {
+			log.Printf("tmuxウィンドウの作成に失敗: %v", err)
+			return
+		}
+		log.Printf("tmuxウィンドウ '%s' を作成しました", windowName)
+
+		// TODO: git worktree作成やClaude実行などの処理を追加
 	})
 
 	return nil
