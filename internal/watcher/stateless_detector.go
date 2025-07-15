@@ -20,6 +20,16 @@ const (
 	ExecutionLabelReviewing    = "status:reviewing"
 )
 
+// getTriggerLabelPriority はトリガーラベルの優先順位順に返す
+// 優先順位: needs-plan > ready > review-requested
+func getTriggerLabelPriority() []string {
+	return []string{
+		TriggerLabelNeedsPlan,
+		TriggerLabelReady,
+		TriggerLabelReviewRequested,
+	}
+}
+
 // GetTriggerLabelMapping はトリガーラベルと実行中ラベルの対応関係を返す
 func GetTriggerLabelMapping() map[string]string {
 	return map[string]string{
@@ -46,8 +56,10 @@ func ShouldProcessIssue(issue *github.Issue) (bool, string) {
 		}
 	}
 
-	// トリガーラベルごとに判定
-	for trigger, executionLabel := range triggerMapping {
+	// トリガーラベルを優先順位順に判定
+	triggerPriority := getTriggerLabelPriority()
+	for _, trigger := range triggerPriority {
+		executionLabel := triggerMapping[trigger]
 		hasTrigger := issueLabels[trigger]
 		hasExecution := issueLabels[executionLabel]
 

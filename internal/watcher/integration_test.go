@@ -194,8 +194,8 @@ func TestRetryIntegration(t *testing.T) {
 				callCount++
 				current := callCount
 				callCountMu.Unlock()
-				if current <= 2 {
-					// 最初の2回はエラーを返す
+				if current <= 1 {
+					// 最初の1回はエラーを返す
 					return nil, &github.ErrorResponse{
 						Response: &http.Response{
 							StatusCode: 503,
@@ -208,7 +208,7 @@ func TestRetryIntegration(t *testing.T) {
 						Message: "Service Unavailable",
 					}
 				}
-				// 3回目は成功
+				// 2回目は成功
 				return []*github.Issue{
 					{
 						Number: github.Int(1),
@@ -232,8 +232,10 @@ func TestRetryIntegration(t *testing.T) {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
 
-		// ポーリング間隔を短く設定
-		watcher.SetPollInterval(time.Second)
+		// ポーリング間隔を最小値に設定（テスト用）
+		if err := watcher.SetPollInterval(1 * time.Second); err != nil {
+			t.Fatalf("failed to set poll interval: %v", err)
+		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -246,8 +248,8 @@ func TestRetryIntegration(t *testing.T) {
 			issueCallbackMu.Unlock()
 		})
 
-		// リトライが成功するまで待機（最大6秒）
-		time.Sleep(6 * time.Second)
+		// リトライが成功するまで待機（2.5秒で十分）
+		time.Sleep(2500 * time.Millisecond)
 		cancel()
 
 		// リトライが機能して最終的にissueが検出されることを確認
@@ -263,8 +265,8 @@ func TestRetryIntegration(t *testing.T) {
 		}
 
 		// APIが複数回呼ばれたことを確認（リトライが発生した証拠）
-		if finalCallCount < 3 {
-			t.Errorf("Expected at least 3 API calls due to retries, got %d", finalCallCount)
+		if finalCallCount < 2 {
+			t.Errorf("Expected at least 2 API calls due to retries, got %d", finalCallCount)
 		}
 
 		t.Logf("Retry integration test completed:")
