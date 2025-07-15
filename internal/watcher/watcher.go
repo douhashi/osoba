@@ -85,8 +85,17 @@ func (w *IssueWatcher) SetPollInterval(interval time.Duration) error {
 	if interval < time.Second {
 		return errors.New("poll interval must be at least 1 second")
 	}
+	w.mu.Lock()
 	w.pollInterval = interval
+	w.mu.Unlock()
 	return nil
+}
+
+// SetPollIntervalForTest はテスト用にポーリング間隔を設定する（1秒未満も許可）
+func (w *IssueWatcher) SetPollIntervalForTest(interval time.Duration) {
+	w.mu.Lock()
+	w.pollInterval = interval
+	w.mu.Unlock()
 }
 
 // GetActionManager はActionManagerを取得する
@@ -96,15 +105,19 @@ func (w *IssueWatcher) GetActionManager() *ActionManager {
 
 // GetPollInterval は現在のポーリング間隔を取得する
 func (w *IssueWatcher) GetPollInterval() time.Duration {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	return w.pollInterval
 }
 
 // Start はIssue監視を開始する
 func (w *IssueWatcher) Start(ctx context.Context, callback IssueCallback) {
+	// ポーリング間隔を安全に取得
+	pollInterval := w.GetPollInterval()
 	log.Printf("Starting issue watcher: owner=%s, repo=%s, labels=%v, interval=%v",
-		w.owner, w.repo, w.labels, w.pollInterval)
+		w.owner, w.repo, w.labels, pollInterval)
 
-	ticker := time.NewTicker(w.pollInterval)
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	// 初回実行
@@ -175,7 +188,8 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 	// リトライ付きでAPIを呼び出し
 	// テスト環境では短いリトライ間隔を使用
 	retryDelay := time.Second
-	if w.pollInterval < time.Second {
+	pollInterval := w.GetPollInterval()
+	if pollInterval < time.Second {
 		// ポーリング間隔が1秒未満の場合（テスト環境）は短いリトライ間隔を使用
 		retryDelay = 100 * time.Millisecond
 	}
@@ -229,28 +243,8 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 				w.eventNotifier.Send(event)
 			}
 
-			// ラベル遷移を試みる
-			// TransitionIssueLabelWithInfoメソッドを持つクライアントかチェック
-			type labelTransitioner interface {
-				TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *github.TransitionInfo, error)
-			}
-
-			if client, ok := w.client.(labelTransitioner); ok {
-				transitioned, info, err := client.TransitionIssueLabelWithInfo(ctx, w.owner, w.repo, *issue.Number)
-				if err != nil {
-					log.Printf("Failed to transition label for issue #%d: %v", *issue.Number, err)
-				} else if transitioned && info != nil {
-					log.Printf("Issue #%d: %s → %s", *issue.Number, info.From, info.To)
-				}
-			} else {
-				// 後方互換性のため、古いメソッドも試す
-				transitioned, err := w.client.TransitionIssueLabel(ctx, w.owner, w.repo, *issue.Number)
-				if err != nil {
-					log.Printf("Failed to transition label for issue #%d: %v", *issue.Number, err)
-				} else if transitioned {
-					log.Printf("Successfully transitioned label for issue #%d", *issue.Number)
-				}
-			}
+			// ラベル遷移はActionでのみ実行される。
+			// Issue検知時にはラベル遷移を実行しない。
 
 			// コールバック実行時のパニックを捕捉
 			func() {

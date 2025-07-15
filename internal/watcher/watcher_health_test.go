@@ -30,7 +30,7 @@ func TestIssueWatcher_HealthCheck(t *testing.T) {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
 
-		watcher.pollInterval = 100 * time.Millisecond
+		watcher.SetPollIntervalForTest(100 * time.Millisecond)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 		defer cancel()
@@ -94,7 +94,7 @@ func TestIssueWatcher_HealthCheck(t *testing.T) {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
 
-		watcher.pollInterval = 100 * time.Millisecond
+		watcher.SetPollIntervalForTest(100 * time.Millisecond)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 		defer cancel()
@@ -152,7 +152,7 @@ func TestIssueWatcher_HealthCheck(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 
-		watcher.pollInterval = 50 * time.Millisecond
+		watcher.SetPollIntervalForTest(50 * time.Millisecond)
 		go watcher.Start(ctx, func(issue *github.Issue) {})
 
 		time.Sleep(150 * time.Millisecond)

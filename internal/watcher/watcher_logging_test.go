@@ -92,11 +92,8 @@ func TestIssueWatcher_LogsDetailedTransitionInfo(t *testing.T) {
 	mockClient.On("ListIssuesByLabels", ctx, "test-owner", "test-repo", []string{"status:needs-plan"}).
 		Return(issues, nil)
 
-	mockClient.On("TransitionIssueLabelWithInfo", ctx, "test-owner", "test-repo", 123).
-		Return(true, &github.TransitionInfo{
-			From: "status:needs-plan",
-			To:   "status:planning",
-		}, nil)
+	// Issue #75の修正により、Issue検知時にはラベル遷移を実行しないため、
+	// TransitionIssueLabelWithInfoの呼び出しは期待しない
 
 	// Create watcher
 	watcher := &IssueWatcher{
@@ -118,10 +115,14 @@ func TestIssueWatcher_LogsDetailedTransitionInfo(t *testing.T) {
 	// Verify
 	assert.True(t, callbackCalled)
 
-	// Check log output
+	// Check log output - Issue検知時にはラベル遷移ログは出力されない
 	logOutput := logBuf.String()
-	assert.Contains(t, logOutput, "Issue #123: status:needs-plan → status:planning",
-		"Log should contain detailed transition info")
+	assert.Contains(t, logOutput, "Issue #123 - Test Issue (labels: [status:needs-plan]) - Process: true",
+		"Log should contain issue detection info")
+
+	// Issue #75の修正により、Issue検知時にはラベル遷移は実行されない
+	assert.NotContains(t, logOutput, "Issue #123: status:needs-plan → status:planning",
+		"Log should NOT contain label transition info during issue detection")
 
 	mockClient.AssertExpectations(t)
 }
@@ -154,8 +155,8 @@ func TestIssueWatcher_LogsFailedTransition(t *testing.T) {
 	mockClient.On("ListIssuesByLabels", ctx, "test-owner", "test-repo", []string{"status:ready"}).
 		Return(issues, nil)
 
-	mockClient.On("TransitionIssueLabelWithInfo", ctx, "test-owner", "test-repo", 456).
-		Return(false, (*github.TransitionInfo)(nil), assert.AnError)
+	// Issue #75の修正により、Issue検知時にはラベル遷移を実行しないため、
+	// TransitionIssueLabelWithInfoの呼び出しは期待しない
 
 	// Create watcher
 	watcher := &IssueWatcher{
@@ -170,10 +171,14 @@ func TestIssueWatcher_LogsFailedTransition(t *testing.T) {
 	callback := func(issue *gh.Issue) {}
 	watcher.checkIssues(ctx, callback)
 
-	// Check log output
+	// Check log output - Issue検知時にはラベル遷移失敗ログは出力されない
 	logOutput := logBuf.String()
-	assert.Contains(t, logOutput, "Failed to transition label for issue #456",
-		"Log should contain failure message")
+	assert.Contains(t, logOutput, "Issue #456 - Another Test Issue (labels: [status:ready]) - Process: true",
+		"Log should contain issue detection info")
+
+	// Issue #75の修正により、Issue検知時にはラベル遷移は実行されないため失敗ログも出力されない
+	assert.NotContains(t, logOutput, "Failed to transition label for issue #456",
+		"Log should NOT contain label transition failure message during issue detection")
 
 	mockClient.AssertExpectations(t)
 }

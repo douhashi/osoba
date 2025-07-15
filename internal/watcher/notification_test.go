@@ -176,9 +176,8 @@ func TestWatcherWithEventNotification(t *testing.T) {
 		watcher.SetEventNotifier(notifier)
 
 		// ポーリング間隔を短く
-		if err := watcher.SetPollInterval(100 * time.Millisecond); err != nil {
-			watcher.pollInterval = 100 * time.Millisecond
-		}
+		// テスト用に短いポーリング間隔を設定
+		watcher.SetPollIntervalForTest(100 * time.Millisecond)
 
 		// イベントを受信するゴルーチン
 		eventCh := notifier.Subscribe()
@@ -270,9 +269,8 @@ func TestLabelChangeEventNotification(t *testing.T) {
 		watcher.EnableLabelChangeTracking(true)
 
 		// ポーリング間隔を短く
-		if err := watcher.SetPollInterval(100 * time.Millisecond); err != nil {
-			watcher.pollInterval = 100 * time.Millisecond
-		}
+		// テスト用に短いポーリング間隔を設定
+		watcher.SetPollIntervalForTest(100 * time.Millisecond)
 
 		// イベントを受信
 		eventCh := notifier.Subscribe()
