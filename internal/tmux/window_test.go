@@ -585,3 +585,317 @@ func TestCreateOrReplaceWindow(t *testing.T) {
 		mockExec.AssertExpectations(t)
 	})
 }
+
+func TestListWindows(t *testing.T) {
+	t.Run("正常系: ウィンドウ一覧が正常に取得される", func(t *testing.T) {
+		// Arrange
+		sessionName := "osoba-test"
+		mockExec := new(MockCommandExecutor)
+		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}").
+			Return("0:37-plan:1:1\n1:40-implement:0:2\n2:42-review:0:1", nil)
+
+		// Act
+		windows, err := ListWindowsWithExecutor(sessionName, mockExec)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Len(t, windows, 3)
+
+		// 最初のウィンドウ（アクティブ）
+		assert.Equal(t, 0, windows[0].Index)
+		assert.Equal(t, "37-plan", windows[0].Name)
+		assert.True(t, windows[0].Active)
+		assert.Equal(t, 1, windows[0].Panes)
+
+		// 2番目のウィンドウ（非アクティブ）
+		assert.Equal(t, 1, windows[1].Index)
+		assert.Equal(t, "40-implement", windows[1].Name)
+		assert.False(t, windows[1].Active)
+		assert.Equal(t, 2, windows[1].Panes)
+
+		// 3番目のウィンドウ（非アクティブ）
+		assert.Equal(t, 2, windows[2].Index)
+		assert.Equal(t, "42-review", windows[2].Name)
+		assert.False(t, windows[2].Active)
+		assert.Equal(t, 1, windows[2].Panes)
+
+		mockExec.AssertExpectations(t)
+	})
+
+	t.Run("正常系: ウィンドウが存在しない場合", func(t *testing.T) {
+		// Arrange
+		sessionName := "osoba-test"
+		mockExec := new(MockCommandExecutor)
+		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}").
+			Return("", nil)
+
+		// Act
+		windows, err := ListWindowsWithExecutor(sessionName, mockExec)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Len(t, windows, 0)
+		mockExec.AssertExpectations(t)
+	})
+
+	t.Run("異常系: セッションが存在しない場合", func(t *testing.T) {
+		// Arrange
+		sessionName := "non-existent-session"
+		expectedErr := errors.New("session not found")
+		mockExec := new(MockCommandExecutor)
+		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}").
+			Return("", expectedErr)
+
+		// Act
+		windows, err := ListWindowsWithExecutor(sessionName, mockExec)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, windows)
+		assert.Contains(t, err.Error(), "failed to list windows")
+		mockExec.AssertExpectations(t)
+	})
+
+	t.Run("異常系: 空のセッション名", func(t *testing.T) {
+		// Arrange
+		sessionName := ""
+		mockExec := new(MockCommandExecutor)
+
+		// Act
+		windows, err := ListWindowsWithExecutor(sessionName, mockExec)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, windows)
+		assert.Contains(t, err.Error(), "session name cannot be empty")
+	})
+
+	t.Run("正常系: フォーマットが不正な行は無視される", func(t *testing.T) {
+		// Arrange
+		sessionName := "osoba-test"
+		mockExec := new(MockCommandExecutor)
+		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}").
+			Return("0:37-plan:1:1\ninvalid-line\n1:40-implement:0:2", nil)
+
+		// Act
+		windows, err := ListWindowsWithExecutor(sessionName, mockExec)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Len(t, windows, 2) // 不正な行は無視される
+
+		assert.Equal(t, 0, windows[0].Index)
+		assert.Equal(t, "37-plan", windows[0].Name)
+		assert.Equal(t, 1, windows[1].Index)
+		assert.Equal(t, "40-implement", windows[1].Name)
+
+		mockExec.AssertExpectations(t)
+	})
+}
+
+func TestParseWindowName(t *testing.T) {
+	tests := []struct {
+		name         string
+		windowName   string
+		wantIssueNum int
+		wantPhase    string
+		wantOk       bool
+	}{
+		{
+			name:         "正常系: plan フェーズ",
+			windowName:   "37-plan",
+			wantIssueNum: 37,
+			wantPhase:    "plan",
+			wantOk:       true,
+		},
+		{
+			name:         "正常系: implement フェーズ",
+			windowName:   "40-implement",
+			wantIssueNum: 40,
+			wantPhase:    "implement",
+			wantOk:       true,
+		},
+		{
+			name:         "正常系: review フェーズ",
+			windowName:   "42-review",
+			wantIssueNum: 42,
+			wantPhase:    "review",
+			wantOk:       true,
+		},
+		{
+			name:         "異常系: 無効なフェーズ",
+			windowName:   "37-invalid",
+			wantIssueNum: 0,
+			wantPhase:    "",
+			wantOk:       false,
+		},
+		{
+			name:         "異常系: Issue番号が数値でない",
+			windowName:   "abc-plan",
+			wantIssueNum: 0,
+			wantPhase:    "",
+			wantOk:       false,
+		},
+		{
+			name:         "異常系: ハイフンがない",
+			windowName:   "37plan",
+			wantIssueNum: 0,
+			wantPhase:    "",
+			wantOk:       false,
+		},
+		{
+			name:         "異常系: 複数のハイフン",
+			windowName:   "37-plan-extra",
+			wantIssueNum: 0,
+			wantPhase:    "",
+			wantOk:       false,
+		},
+		{
+			name:         "異常系: 空の文字列",
+			windowName:   "",
+			wantIssueNum: 0,
+			wantPhase:    "",
+			wantOk:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Act
+			gotIssueNum, gotPhase, gotOk := ParseWindowName(tt.windowName)
+
+			// Assert
+			assert.Equal(t, tt.wantIssueNum, gotIssueNum)
+			assert.Equal(t, tt.wantPhase, gotPhase)
+			assert.Equal(t, tt.wantOk, gotOk)
+		})
+	}
+}
+
+func TestGetWindowDetails(t *testing.T) {
+	t.Run("正常系: ウィンドウ詳細情報が正常に取得される", func(t *testing.T) {
+		// Arrange
+		sessionName := "osoba-test"
+		mockExec := new(MockCommandExecutor)
+		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}").
+			Return("0:37-plan:1:1\n1:40-implement:0:2\n2:unknown-window:0:1", nil)
+
+		// Act
+		details, err := GetWindowDetailsWithExecutor(sessionName, mockExec)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Len(t, details, 3)
+
+		// 最初のウィンドウ（パース成功）
+		assert.Equal(t, 0, details[0].Index)
+		assert.Equal(t, "37-plan", details[0].Name)
+		assert.True(t, details[0].Active)
+		assert.Equal(t, 37, details[0].IssueNumber)
+		assert.Equal(t, "plan", details[0].Phase)
+
+		// 2番目のウィンドウ（パース成功）
+		assert.Equal(t, 1, details[1].Index)
+		assert.Equal(t, "40-implement", details[1].Name)
+		assert.False(t, details[1].Active)
+		assert.Equal(t, 40, details[1].IssueNumber)
+		assert.Equal(t, "implement", details[1].Phase)
+
+		// 3番目のウィンドウ（パース失敗、Issue番号とフェーズは0と空文字列）
+		assert.Equal(t, 2, details[2].Index)
+		assert.Equal(t, "unknown-window", details[2].Name)
+		assert.False(t, details[2].Active)
+		assert.Equal(t, 0, details[2].IssueNumber)
+		assert.Equal(t, "", details[2].Phase)
+
+		mockExec.AssertExpectations(t)
+	})
+
+	t.Run("異常系: ウィンドウ一覧取得に失敗", func(t *testing.T) {
+		// Arrange
+		sessionName := "non-existent-session"
+		expectedErr := errors.New("session not found")
+		mockExec := new(MockCommandExecutor)
+		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}").
+			Return("", expectedErr)
+
+		// Act
+		details, err := GetWindowDetailsWithExecutor(sessionName, mockExec)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, details)
+		assert.Contains(t, err.Error(), "session not found")
+		mockExec.AssertExpectations(t)
+	})
+}
+
+func TestSortWindowDetails(t *testing.T) {
+	t.Run("正常系: ウィンドウ詳細情報が名前でソートされる", func(t *testing.T) {
+		// Arrange
+		details := []*WindowDetail{
+			{WindowInfo: &WindowInfo{Name: "42-review"}},
+			{WindowInfo: &WindowInfo{Name: "37-plan"}},
+			{WindowInfo: &WindowInfo{Name: "40-implement"}},
+			{WindowInfo: &WindowInfo{Name: "45-plan"}},
+		}
+
+		// Act
+		SortWindowDetails(details)
+
+		// Assert
+		assert.Len(t, details, 4)
+		assert.Equal(t, "37-plan", details[0].Name)
+		assert.Equal(t, "40-implement", details[1].Name)
+		assert.Equal(t, "42-review", details[2].Name)
+		assert.Equal(t, "45-plan", details[3].Name)
+	})
+
+	t.Run("正常系: 空のスライスでもエラーにならない", func(t *testing.T) {
+		// Arrange
+		details := []*WindowDetail{}
+
+		// Act & Assert（エラーが発生しないことを確認）
+		SortWindowDetails(details)
+		assert.Len(t, details, 0)
+	})
+
+	t.Run("正常系: 1つの要素でもエラーにならない", func(t *testing.T) {
+		// Arrange
+		details := []*WindowDetail{
+			{WindowInfo: &WindowInfo{Name: "37-plan"}},
+		}
+
+		// Act
+		SortWindowDetails(details)
+
+		// Assert
+		assert.Len(t, details, 1)
+		assert.Equal(t, "37-plan", details[0].Name)
+	})
+}
+
+func TestGetSortedWindowDetails(t *testing.T) {
+	t.Run("正常系: ソート済みのウィンドウ詳細情報が取得される", func(t *testing.T) {
+		// Arrange
+		sessionName := "osoba-test"
+		mockExec := new(MockCommandExecutor)
+		// ソートされていない順序で返す
+		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}").
+			Return("0:42-review:0:1\n1:37-plan:1:1\n2:40-implement:0:2", nil)
+
+		// Act
+		details, err := GetSortedWindowDetailsWithExecutor(sessionName, mockExec)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Len(t, details, 3)
+
+		// ソートされた順序で返されることを確認
+		assert.Equal(t, "37-plan", details[0].Name)
+		assert.Equal(t, "40-implement", details[1].Name)
+		assert.Equal(t, "42-review", details[2].Name)
+
+		mockExec.AssertExpectations(t)
+	})
+}

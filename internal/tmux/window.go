@@ -3,6 +3,7 @@ package tmux
 import (
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 )
 
@@ -329,6 +330,173 @@ func CreateOrReplaceWindowWithExecutor(sessionName, windowName string, executor 
 	}
 
 	return nil
+}
+
+// WindowInfo はtmuxウィンドウの情報を保持する構造体
+type WindowInfo struct {
+	Index  int    // ウィンドウインデックス
+	Name   string // ウィンドウ名
+	Active bool   // アクティブウィンドウかどうか
+	Panes  int    // ペイン数
+}
+
+// ListWindows は指定されたセッション内のウィンドウ一覧を取得する
+func ListWindows(sessionName string) ([]*WindowInfo, error) {
+	return ListWindowsWithExecutor(sessionName, &DefaultCommandExecutor{})
+}
+
+// ListWindowsWithExecutor はExecutorを使用して指定されたセッション内のウィンドウ一覧を取得する
+func ListWindowsWithExecutor(sessionName string, executor CommandExecutor) ([]*WindowInfo, error) {
+	if sessionName == "" {
+		return nil, fmt.Errorf("session name cannot be empty")
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Debug("tmuxウィンドウ一覧取得",
+			"operation", "list_windows",
+			"session_name", sessionName,
+			"command", "tmux list-windows")
+	}
+
+	// tmux list-windows -t session -F "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"
+	output, err := executor.Execute("tmux", "list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}")
+	if err != nil {
+		if logger := GetLogger(); logger != nil {
+			logger.Error("tmuxウィンドウ一覧取得失敗",
+				"session_name", sessionName,
+				"error", err)
+		}
+		return nil, fmt.Errorf("failed to list windows in session '%s': %w", sessionName, err)
+	}
+
+	windows := []*WindowInfo{}
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Split(line, ":")
+		if len(parts) >= 4 {
+			windowInfo := &WindowInfo{}
+
+			// ウィンドウインデックス
+			if index, err := fmt.Sscanf(parts[0], "%d", &windowInfo.Index); err == nil && index == 1 {
+				// indexを正常に取得
+			}
+
+			// ウィンドウ名
+			windowInfo.Name = parts[1]
+
+			// アクティブウィンドウかどうか
+			windowInfo.Active = parts[2] == "1"
+
+			// ペイン数
+			if panes, err := fmt.Sscanf(parts[3], "%d", &windowInfo.Panes); err == nil && panes == 1 {
+				// panes数を正常に取得
+			}
+
+			windows = append(windows, windowInfo)
+		}
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Debug("tmuxウィンドウ一覧取得完了",
+			"session_name", sessionName,
+			"count", len(windows))
+	}
+
+	return windows, nil
+}
+
+// WindowDetail はウィンドウの詳細情報を保持する構造体
+type WindowDetail struct {
+	*WindowInfo
+	IssueNumber int    // Issue番号（パースできた場合）
+	Phase       string // フェーズ（パースできた場合）
+}
+
+// ParseWindowName はウィンドウ名をパースしてIssue番号とフェーズを抽出する
+func ParseWindowName(windowName string) (issueNumber int, phase string, ok bool) {
+	// "37-plan", "40-implement", "42-review" の形式をパース
+	parts := strings.Split(windowName, "-")
+	if len(parts) != 2 {
+		return 0, "", false
+	}
+
+	// Issue番号をパース
+	num, err := fmt.Sscanf(parts[0], "%d", &issueNumber)
+	if err != nil || num != 1 {
+		return 0, "", false
+	}
+
+	// フェーズを検証
+	phase = parts[1]
+	validPhases := map[string]bool{
+		"plan":      true,
+		"implement": true,
+		"review":    true,
+	}
+
+	if !validPhases[phase] {
+		return 0, "", false
+	}
+
+	return issueNumber, phase, true
+}
+
+// GetWindowDetails はウィンドウ一覧を取得して詳細情報に変換する
+func GetWindowDetails(sessionName string) ([]*WindowDetail, error) {
+	return GetWindowDetailsWithExecutor(sessionName, &DefaultCommandExecutor{})
+}
+
+// GetWindowDetailsWithExecutor はExecutorを使用してウィンドウ一覧を取得して詳細情報に変換する
+func GetWindowDetailsWithExecutor(sessionName string, executor CommandExecutor) ([]*WindowDetail, error) {
+	windows, err := ListWindowsWithExecutor(sessionName, executor)
+	if err != nil {
+		return nil, err
+	}
+
+	details := make([]*WindowDetail, 0, len(windows))
+	for _, window := range windows {
+		detail := &WindowDetail{
+			WindowInfo: window,
+		}
+
+		// ウィンドウ名をパース
+		if issueNumber, phase, ok := ParseWindowName(window.Name); ok {
+			detail.IssueNumber = issueNumber
+			detail.Phase = phase
+		}
+
+		details = append(details, detail)
+	}
+
+	return details, nil
+}
+
+// SortWindowDetails はウィンドウ詳細情報を名前の昇順でソートする
+func SortWindowDetails(details []*WindowDetail) {
+	sort.Slice(details, func(i, j int) bool {
+		return details[i].Name < details[j].Name
+	})
+}
+
+// GetSortedWindowDetails はソート済みのウィンドウ詳細情報を取得する
+func GetSortedWindowDetails(sessionName string) ([]*WindowDetail, error) {
+	return GetSortedWindowDetailsWithExecutor(sessionName, &DefaultCommandExecutor{})
+}
+
+// GetSortedWindowDetailsWithExecutor はExecutorを使用してソート済みのウィンドウ詳細情報を取得する
+func GetSortedWindowDetailsWithExecutor(sessionName string, executor CommandExecutor) ([]*WindowDetail, error) {
+	details, err := GetWindowDetailsWithExecutor(sessionName, executor)
+	if err != nil {
+		return nil, err
+	}
+
+	SortWindowDetails(details)
+	return details, nil
 }
 
 // CreateWindowForIssueWithExecutor はIssue番号とフェーズに基づいてウィンドウを作成する
