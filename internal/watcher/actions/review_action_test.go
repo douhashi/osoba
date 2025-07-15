@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/claude"
+	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/watcher"
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/assert"
@@ -26,8 +28,9 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockTmux := new(MockTmuxClient)
 		mockState := new(MockStateManager)
 		mockLabel := new(MockLabelManager)
-		mockGit := new(MockGitManager)
-		mockClaude := new(MockClaudeManager)
+		mockWorktree := new(MockWorktreeManager)
+		mockClaude := new(MockClaudeExecutor)
+		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
 		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateReview).Return(false)
@@ -42,11 +45,27 @@ func TestReviewAction_Execute(t *testing.T) {
 		// tmuxウィンドウへの切り替え
 		mockTmux.On("SwitchToIssueWindow", sessionName, int(issueNumber)).Return(nil)
 
-		// 既存のworktreeパスを取得（レビューフェーズでは既存のworktreeを使用）
-		workdir := "/tmp/osoba/worktree/28"
+		// mainブランチの更新
+		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
 
-		// claudeプロンプト実行
-		mockClaude.On("ExecuteReviewPrompt", ctx, int(issueNumber), workdir).Return(nil)
+		// worktreeの存在確認（実装フェーズのworktreeを使用）
+		mockWorktree.On("WorktreeExists", ctx, int(issueNumber), git.PhaseImplementation).Return(true, nil)
+
+		// worktreeパスの取得
+		workdir := "/tmp/osoba/worktree/28"
+		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseImplementation).Return(workdir)
+
+		// Claude実行
+		phaseConfig := &claude.PhaseConfig{
+			Args:   []string{"--read-only"},
+			Prompt: "/osoba:review {{issue-number}}",
+		}
+		templateVars := &claude.TemplateVariables{
+			IssueNumber: int(issueNumber),
+			IssueTitle:  "Test Issue",
+			RepoName:    "douhashi/osoba",
+		}
+		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "issue-28", workdir).Return(nil)
 
 		// レビュー完了後のラベル追加
 		mockLabel.On("AddLabel", ctx, int(issueNumber), "status:completed").Return(nil)
@@ -54,7 +73,7 @@ func TestReviewAction_Execute(t *testing.T) {
 		// 処理完了
 		mockState.On("MarkAsCompleted", issueNumber, watcher.IssueStateReview)
 
-		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockGit, mockClaude)
+		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 
 		// Act
 		err := action.Execute(ctx, issue)
@@ -64,8 +83,7 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockTmux.AssertExpectations(t)
 		mockState.AssertExpectations(t)
 		mockLabel.AssertExpectations(t)
-		// GitManagerはレビューフェーズでは使用されない
-		mockGit.AssertNotCalled(t, "CreateWorktreeForIssue")
+		mockWorktree.AssertExpectations(t)
 		mockClaude.AssertExpectations(t)
 	})
 
@@ -85,13 +103,14 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockTmux := new(MockTmuxClient)
 		mockState := new(MockStateManager)
 		mockLabel := new(MockLabelManager)
-		mockGit := new(MockGitManager)
-		mockClaude := new(MockClaudeManager)
+		mockWorktree := new(MockWorktreeManager)
+		mockClaude := new(MockClaudeExecutor)
+		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 既に処理済み
 		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateReview).Return(true)
 
-		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockGit, mockClaude)
+		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 
 		// Act
 		err := action.Execute(ctx, issue)
@@ -100,7 +119,8 @@ func TestReviewAction_Execute(t *testing.T) {
 		assert.NoError(t, err) // 処理済みはエラーではない
 		mockTmux.AssertNotCalled(t, "SwitchToIssueWindow")
 		mockLabel.AssertNotCalled(t, "TransitionLabel")
-		mockClaude.AssertNotCalled(t, "ExecuteReviewPrompt")
+		mockWorktree.AssertNotCalled(t, "UpdateMainBranch")
+		mockClaude.AssertNotCalled(t, "ExecuteInTmux")
 		mockState.AssertExpectations(t)
 	})
 
@@ -120,8 +140,9 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockTmux := new(MockTmuxClient)
 		mockState := new(MockStateManager)
 		mockLabel := new(MockLabelManager)
-		mockGit := new(MockGitManager)
-		mockClaude := new(MockClaudeManager)
+		mockWorktree := new(MockWorktreeManager)
+		mockClaude := new(MockClaudeExecutor)
+		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
 		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateReview).Return(false)
@@ -136,7 +157,7 @@ func TestReviewAction_Execute(t *testing.T) {
 		// 処理失敗
 		mockState.On("MarkAsFailed", issueNumber, watcher.IssueStateReview)
 
-		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockGit, mockClaude)
+		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 
 		// Act
 		err := action.Execute(ctx, issue)
@@ -145,7 +166,8 @@ func TestReviewAction_Execute(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "transition label")
 		mockTmux.AssertNotCalled(t, "SwitchToIssueWindow")
-		mockClaude.AssertNotCalled(t, "ExecuteReviewPrompt")
+		mockWorktree.AssertNotCalled(t, "UpdateMainBranch")
+		mockClaude.AssertNotCalled(t, "ExecuteInTmux")
 		mockState.AssertExpectations(t)
 		mockLabel.AssertExpectations(t)
 	})
@@ -166,8 +188,9 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockTmux := new(MockTmuxClient)
 		mockState := new(MockStateManager)
 		mockLabel := new(MockLabelManager)
-		mockGit := new(MockGitManager)
-		mockClaude := new(MockClaudeManager)
+		mockWorktree := new(MockWorktreeManager)
+		mockClaude := new(MockClaudeExecutor)
+		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
 		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateReview).Return(false)
@@ -182,25 +205,44 @@ func TestReviewAction_Execute(t *testing.T) {
 		// tmuxウィンドウへの切り替え
 		mockTmux.On("SwitchToIssueWindow", sessionName, int(issueNumber)).Return(nil)
 
-		// claudeプロンプト実行失敗
+		// mainブランチの更新
+		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
+
+		// worktreeの存在確認
+		mockWorktree.On("WorktreeExists", ctx, int(issueNumber), git.PhaseImplementation).Return(true, nil)
+
+		// worktreeパスの取得
 		workdir := "/tmp/osoba/worktree/28"
-		mockClaude.On("ExecuteReviewPrompt", ctx, int(issueNumber), workdir).Return(assert.AnError)
+		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseImplementation).Return(workdir)
+
+		// Claude実行失敗
+		phaseConfig := &claude.PhaseConfig{
+			Args:   []string{"--read-only"},
+			Prompt: "/osoba:review {{issue-number}}",
+		}
+		templateVars := &claude.TemplateVariables{
+			IssueNumber: int(issueNumber),
+			IssueTitle:  "Test Issue",
+			RepoName:    "douhashi/osoba",
+		}
+		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "issue-28", workdir).Return(assert.AnError)
 
 		// 処理失敗
 		mockState.On("MarkAsFailed", issueNumber, watcher.IssueStateReview)
 
-		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockGit, mockClaude)
+		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 
 		// Act
 		err := action.Execute(ctx, issue)
 
 		// Assert
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "execute claude prompt")
+		assert.Contains(t, err.Error(), "execute claude")
 		mockLabel.AssertNotCalled(t, "AddLabel", ctx, int(issueNumber), "status:completed")
 		mockTmux.AssertExpectations(t)
 		mockState.AssertExpectations(t)
 		mockLabel.AssertExpectations(t)
+		mockWorktree.AssertExpectations(t)
 		mockClaude.AssertExpectations(t)
 	})
 }
