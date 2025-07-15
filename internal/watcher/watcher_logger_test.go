@@ -48,7 +48,7 @@ func TestIssueWatcher_Logging(t *testing.T) {
 		}
 
 		// ポーリング間隔を短くしてテストを高速化
-		watcher.pollInterval = 100 * time.Millisecond
+		watcher.SetPollIntervalForTest(100 * time.Millisecond)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 350*time.Millisecond)
 		defer cancel()
@@ -111,7 +111,7 @@ func TestIssueWatcher_Logging(t *testing.T) {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
 
-		watcher.pollInterval = 100 * time.Millisecond
+		watcher.SetPollIntervalForTest(100 * time.Millisecond)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 		defer cancel()
