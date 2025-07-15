@@ -30,7 +30,7 @@ description: "実装計画の作成"
    - `GH_PAGER= gh issue comment <issue番号> --body "実装計画: ..."`
 
 5. **ラベル更新**
-   - `GH_PAGER= gh issue edit <issue番号> --add-label "status:ready"` でラベルを付与
+   - `GH_PAGER= gh issue edit <issue番号> --remove-label "status:planning" --add-label "status:ready"` でラベルを付与
 
 ## 基本ルール
 
