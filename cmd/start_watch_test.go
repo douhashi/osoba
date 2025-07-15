@@ -104,7 +104,7 @@ github:
 				}
 			}()
 
-			// 環境変数を設定
+			// テスト用の環境変数を設定
 			for k, v := range tt.envVars {
 				os.Setenv(k, v)
 			}
