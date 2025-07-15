@@ -18,13 +18,13 @@ type MockTmuxClient struct {
 	mock.Mock
 }
 
-func (m *MockTmuxClient) CreateWindowForIssue(sessionName string, issueNumber int) error {
-	args := m.Called(sessionName, issueNumber)
+func (m *MockTmuxClient) CreateWindowForIssue(sessionName string, issueNumber int, phase string) error {
+	args := m.Called(sessionName, issueNumber, phase)
 	return args.Error(0)
 }
 
-func (m *MockTmuxClient) SwitchToIssueWindow(sessionName string, issueNumber int) error {
-	args := m.Called(sessionName, issueNumber)
+func (m *MockTmuxClient) SwitchToIssueWindow(sessionName string, issueNumber int, phase string) error {
+	args := m.Called(sessionName, issueNumber, phase)
 	return args.Error(0)
 }
 
@@ -178,7 +178,7 @@ func TestPlanAction_Execute(t *testing.T) {
 		mockState.On("SetState", issueNumber, types.IssueStatePlan, types.IssueStatusProcessing)
 
 		// tmuxウィンドウ作成
-		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber)).Return(nil)
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "plan").Return(nil)
 
 		// mainブランチ更新とworktree作成
 		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
@@ -186,7 +186,7 @@ func TestPlanAction_Execute(t *testing.T) {
 		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhasePlan).Return("/tmp/worktree/13-plan")
 
 		// Claude実行
-		mockClaude.On("ExecuteInTmux", ctx, config.Phases["plan"], mock.AnythingOfType("*claude.TemplateVariables"), sessionName, "issue-13", "/tmp/worktree/13-plan").Return(nil)
+		mockClaude.On("ExecuteInTmux", ctx, config.Phases["plan"], mock.AnythingOfType("*claude.TemplateVariables"), sessionName, "13-plan", "/tmp/worktree/13-plan").Return(nil)
 
 		// 処理完了
 		mockState.On("MarkAsCompleted", issueNumber, types.IssueStatePlan)

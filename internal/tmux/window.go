@@ -330,3 +330,57 @@ func CreateOrReplaceWindowWithExecutor(sessionName, windowName string, executor 
 
 	return nil
 }
+
+// CreateWindowForIssueWithExecutor はIssue番号とフェーズに基づいてウィンドウを作成する
+func CreateWindowForIssueWithExecutor(sessionName string, issueNumber int, phase string, executor CommandExecutor) error {
+	// フェーズの検証とウィンドウ名の生成
+	windowName, err := GetWindowNameWithPhase(issueNumber, phase)
+	if err != nil {
+		return err
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("Issue用フェーズウィンドウ作成開始",
+			"operation", "create_window_for_issue_with_phase",
+			"session_name", sessionName,
+			"issue_number", issueNumber,
+			"phase", phase,
+			"window_name", windowName)
+	}
+
+	// ウィンドウが既に存在する場合はスキップ
+	exists, err := WindowExistsWithExecutor(sessionName, windowName, executor)
+	if err != nil {
+		return fmt.Errorf("failed to check window existence: %w", err)
+	}
+	if exists {
+		if logger := GetLogger(); logger != nil {
+			logger.Info("フェーズウィンドウは既に存在します",
+				"session_name", sessionName,
+				"window_name", windowName)
+		}
+		return nil
+	}
+
+	return CreateWindowWithExecutor(sessionName, windowName, executor)
+}
+
+// SwitchToIssueWindowWithExecutor はIssue番号とフェーズに基づいてウィンドウに切り替える
+func SwitchToIssueWindowWithExecutor(sessionName string, issueNumber int, phase string, executor CommandExecutor) error {
+	// フェーズの検証とウィンドウ名の生成
+	windowName, err := GetWindowNameWithPhase(issueNumber, phase)
+	if err != nil {
+		return err
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("Issue用フェーズウィンドウへ切り替え",
+			"operation", "switch_to_issue_window_with_phase",
+			"session_name", sessionName,
+			"issue_number", issueNumber,
+			"phase", phase,
+			"window_name", windowName)
+	}
+
+	return SwitchToWindowWithExecutor(sessionName, windowName, executor)
+}

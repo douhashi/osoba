@@ -74,10 +74,10 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 		return fmt.Errorf("failed to transition label: %w", err)
 	}
 
-	// tmuxウィンドウへの切り替え（既存のウィンドウを使用）
-	if err := a.tmuxClient.SwitchToIssueWindow(a.sessionName, int(issueNumber)); err != nil {
+	// tmuxウィンドウ作成
+	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber), "review"); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
-		return fmt.Errorf("failed to switch tmux window: %w", err)
+		return fmt.Errorf("failed to create tmux window: %w", err)
 	}
 
 	// mainブランチを最新化
@@ -123,7 +123,7 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	// tmuxウィンドウ内でClaude実行
-	windowName := fmt.Sprintf("issue-%d", issueNumber)
+	windowName := fmt.Sprintf("%d-review", issueNumber)
 	log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
 	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)

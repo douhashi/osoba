@@ -43,7 +43,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:ready", "status:implementing").Return(nil)
 
 		// tmuxウィンドウへの切り替え
-		mockTmux.On("SwitchToIssueWindow", sessionName, int(issueNumber)).Return(nil)
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "implement").Return(nil)
 
 		// mainブランチの更新
 		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
@@ -65,7 +65,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 			IssueTitle:  "Test Issue",
 			RepoName:    "douhashi/osoba",
 		}
-		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "issue-28", workdir).Return(nil)
+		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "28-implement", workdir).Return(nil)
 
 		// 処理完了
 		mockState.On("MarkAsCompleted", issueNumber, types.IssueStateImplementation)
@@ -114,7 +114,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 
 		// Assert
 		assert.NoError(t, err) // 処理済みはエラーではない
-		mockTmux.AssertNotCalled(t, "SwitchToIssueWindow")
+		mockTmux.AssertNotCalled(t, "CreateWindowForIssue")
 		mockLabel.AssertNotCalled(t, "TransitionLabel")
 		mockWorktree.AssertNotCalled(t, "UpdateMainBranch")
 		mockClaude.AssertNotCalled(t, "ExecuteInTmux")
@@ -162,7 +162,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "transition label")
-		mockTmux.AssertNotCalled(t, "SwitchToIssueWindow")
+		mockTmux.AssertNotCalled(t, "CreateWindowForIssue")
 		mockWorktree.AssertNotCalled(t, "UpdateMainBranch")
 		mockClaude.AssertNotCalled(t, "ExecuteInTmux")
 		mockState.AssertExpectations(t)
@@ -200,7 +200,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:ready", "status:implementing").Return(nil)
 
 		// tmuxウィンドウへの切り替え
-		mockTmux.On("SwitchToIssueWindow", sessionName, int(issueNumber)).Return(nil)
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "implement").Return(nil)
 
 		// mainブランチの更新
 		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
@@ -222,7 +222,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 			IssueTitle:  "Test Issue",
 			RepoName:    "douhashi/osoba",
 		}
-		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "issue-28", workdir).Return(assert.AnError)
+		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "28-implement", workdir).Return(assert.AnError)
 
 		// 処理失敗
 		mockState.On("MarkAsFailed", issueNumber, types.IssueStateImplementation)
