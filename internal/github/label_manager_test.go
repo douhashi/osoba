@@ -75,7 +75,7 @@ func TestLabelManager_GetLabelDefinitions(t *testing.T) {
 	// トリガーラベルの確認
 	assert.Contains(t, definitions, "status:needs-plan")
 	assert.Contains(t, definitions, "status:ready")
-	assert.Contains(t, definitions, "status:needs-review")
+	assert.Contains(t, definitions, "status:review-requested")
 
 	// 実行中ラベルの確認
 	assert.Contains(t, definitions, "status:planning")
@@ -96,7 +96,7 @@ func TestLabelManager_GetTransitionRules(t *testing.T) {
 
 	assert.Equal(t, "status:planning", rules["status:needs-plan"])
 	assert.Equal(t, "status:implementing", rules["status:ready"])
-	assert.Equal(t, "status:reviewing", rules["status:needs-review"])
+	assert.Equal(t, "status:reviewing", rules["status:review-requested"])
 }
 
 func TestLabelManager_TransitionLabel(t *testing.T) {
@@ -207,7 +207,7 @@ func TestLabelManager_EnsureLabelsExist(t *testing.T) {
 	}{
 		{
 			name:           "全てのラベルが既に存在する場合",
-			existingLabels: []string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:needs-review", "status:reviewing"},
+			existingLabels: []string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing"},
 			setupMocks: func(m *MockLabelService) {
 				// 既存ラベルの取得
 				m.On("ListLabels", mock.Anything, "owner", "repo", (*github.ListOptions)(nil)).
@@ -216,7 +216,7 @@ func TestLabelManager_EnsureLabelsExist(t *testing.T) {
 						{Name: github.String("status:planning")},
 						{Name: github.String("status:ready")},
 						{Name: github.String("status:implementing")},
-						{Name: github.String("status:needs-review")},
+						{Name: github.String("status:review-requested")},
 						{Name: github.String("status:reviewing")},
 					}, &github.Response{}, nil)
 			},
@@ -243,8 +243,8 @@ func TestLabelManager_EnsureLabelsExist(t *testing.T) {
 				})).Return(&github.Label{Name: github.String("status:implementing")}, &github.Response{}, nil)
 
 				m.On("CreateLabel", mock.Anything, "owner", "repo", mock.MatchedBy(func(label *github.Label) bool {
-					return *label.Name == "status:needs-review" && *label.Color == "d93f0b"
-				})).Return(&github.Label{Name: github.String("status:needs-review")}, &github.Response{}, nil)
+					return *label.Name == "status:review-requested" && *label.Color == "d93f0b"
+				})).Return(&github.Label{Name: github.String("status:review-requested")}, &github.Response{}, nil)
 
 				m.On("CreateLabel", mock.Anything, "owner", "repo", mock.MatchedBy(func(label *github.Label) bool {
 					return *label.Name == "status:reviewing" && *label.Color == "d93f0b"
