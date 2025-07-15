@@ -16,12 +16,6 @@ import (
 // IssueCallback はIssue検出時に呼ばれるコールバック関数
 type IssueCallback func(issue *gh.Issue)
 
-// 定数定義
-const (
-	// MaxSeenIssues はseenIssuesマップの最大サイズ
-	MaxSeenIssues = 500
-)
-
 // HealthStats はwatcherの健全性統計情報
 type HealthStats struct {
 	TotalExecutions      int
@@ -44,7 +38,6 @@ type IssueWatcher struct {
 	repo                string
 	labels              []string
 	pollInterval        time.Duration
-	seenIssues          map[int64]bool // 既に処理したIssueを記録
 	actionManager       *ActionManager
 	eventNotifier       *EventNotifier     // イベント通知システム
 	labelChangeTracking bool               // ラベル変更追跡が有効かどうか
@@ -80,7 +73,6 @@ func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string
 		repo:                repo,
 		labels:              labels,
 		pollInterval:        5 * time.Second, // デフォルト5秒
-		seenIssues:          make(map[int64]bool),
 		actionManager:       NewActionManager(sessionName),
 		labelChangeTracking: false,
 		issueLabels:         make(map[int64][]string),
@@ -148,12 +140,12 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 	w.mu.Unlock()
 
 	// 処理統計の記録
-	var processedCount, newIssueCount int
+	var processedCount, processedIssueCount int
 	var executionSuccessful bool
 	defer func() {
 		elapsed := time.Since(startTime)
-		log.Printf("Completed issue check cycle: processed issues: %d, new issues detected: %d, time taken: %v",
-			processedCount, newIssueCount, elapsed)
+		log.Printf("Completed issue check cycle: checked issues: %d, processed issues: %d, time taken: %v",
+			processedCount, processedIssueCount, elapsed)
 
 		// ヘルスチェック情報の更新
 		w.mu.Lock()
@@ -200,26 +192,18 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 		issueID := int64(*issue.Number)
 		currentLabels := getLabels(issue)
 
-		// 新しいIssueの検出
-		w.mu.Lock()
-		alreadySeen := w.seenIssues[issueID]
-		if !alreadySeen {
-			// メモリ管理: seenIssuesのサイズ制限
-			if len(w.seenIssues) >= MaxSeenIssues {
-				// 最も古いエントリを削除
-				w.cleanupSeenIssues()
-			}
+		// ステートレスな判定ロジックを使用してIssueを処理すべきか判断
+		shouldProcess, reason := ShouldProcessIssue(issue)
 
-			w.seenIssues[issueID] = true
-			newIssueCount++
-		}
-		w.mu.Unlock()
+		log.Printf("Issue #%d - %s (labels: %v) - Process: %v - Reason: %s",
+			*issue.Number,
+			safeString(issue.Title),
+			currentLabels,
+			shouldProcess,
+			reason)
 
-		if !alreadySeen {
-			log.Printf("New issue detected: #%d - %s (labels: %v)",
-				*issue.Number,
-				safeString(issue.Title),
-				currentLabels)
+		if shouldProcess {
+			processedIssueCount++
 
 			// イベント通知
 			if w.eventNotifier != nil {
@@ -244,7 +228,16 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 				}
 			}
 
-			callback(issue)
+			// コールバック実行時のパニックを捕捉
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("Panic recovered in callback for issue #%d: %v\nStack trace:\n%s",
+							*issue.Number, r, string(debug.Stack()))
+					}
+				}()
+				callback(issue)
+			}()
 		}
 
 		// ラベル変更の追跡
@@ -278,56 +271,9 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 	}
 }
 
-// cleanupSeenIssues は最も古いエントリを削除してメモリを解放する
-// 注意: このメソッドは呼び出し元でmutexがロックされていることを前提としている
-func (w *IssueWatcher) cleanupSeenIssues() {
-	// 削除するエントリ数（全体の20%）
-	toDelete := len(w.seenIssues) / 5
-	if toDelete < 1 {
-		toDelete = 1
-	}
-
-	// Issue IDのリストを取得してソート（古いIDほど小さいと仮定）
-	var issueIDs []int64
-	for id := range w.seenIssues {
-		issueIDs = append(issueIDs, id)
-	}
-	// 昇順でソート
-	for i := 0; i < len(issueIDs)-1; i++ {
-		for j := i + 1; j < len(issueIDs); j++ {
-			if issueIDs[i] > issueIDs[j] {
-				issueIDs[i], issueIDs[j] = issueIDs[j], issueIDs[i]
-			}
-		}
-	}
-
-	// 古いエントリを削除
-	for i := 0; i < toDelete && i < len(issueIDs); i++ {
-		delete(w.seenIssues, issueIDs[i])
-		// 関連するラベル情報も削除
-		delete(w.issueLabels, issueIDs[i])
-	}
-
-	log.Printf("Cleaned up %d old entries from seenIssues (current size: %d)", toDelete, len(w.seenIssues))
-}
-
 // GetRateLimit はGitHub APIのレート制限情報を取得する
 func (w *IssueWatcher) GetRateLimit(ctx context.Context) (*gh.RateLimits, error) {
 	return w.client.GetRateLimit(ctx)
-}
-
-// GetSeenIssuesCount はseenIssuesマップのサイズを取得する
-func (w *IssueWatcher) GetSeenIssuesCount() int {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return len(w.seenIssues)
-}
-
-// HasSeenIssue は指定されたIssue IDが既に処理されているかを確認する
-func (w *IssueWatcher) HasSeenIssue(issueID int64) bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.seenIssues[issueID]
 }
 
 // GetLastExecutionTime は最後の実行時刻を取得する

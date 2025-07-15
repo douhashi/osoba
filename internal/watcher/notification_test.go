@@ -34,6 +34,9 @@ func TestEventNotifier(t *testing.T) {
 			Timestamp:  time.Now(),
 		}
 
+		// イベントを受信するためのサブスクライバーを先に作成
+		ch := notifier.Subscribe()
+
 		// 非ブロッキングで送信
 		if !notifier.Send(event1) {
 			t.Error("Send() should succeed for event1")
@@ -41,9 +44,6 @@ func TestEventNotifier(t *testing.T) {
 		if !notifier.Send(event2) {
 			t.Error("Send() should succeed for event2")
 		}
-
-		// イベントを受信
-		ch := notifier.Subscribe()
 
 		// 受信したイベントのIDを記録
 		receivedIDs := make(map[int]bool)

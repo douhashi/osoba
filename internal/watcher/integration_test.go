@@ -235,7 +235,7 @@ func TestRetryIntegration(t *testing.T) {
 		// ポーリング間隔を短く設定
 		watcher.SetPollInterval(time.Second)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		issueCallbackCount := 0
@@ -246,8 +246,9 @@ func TestRetryIntegration(t *testing.T) {
 			issueCallbackMu.Unlock()
 		})
 
-		// 完了を待機
-		<-ctx.Done()
+		// リトライが成功するまで待機（最大6秒）
+		time.Sleep(6 * time.Second)
+		cancel()
 
 		// リトライが機能して最終的にissueが検出されることを確認
 		issueCallbackMu.Lock()

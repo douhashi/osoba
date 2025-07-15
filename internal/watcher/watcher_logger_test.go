@@ -73,8 +73,8 @@ func TestIssueWatcher_Logging(t *testing.T) {
 		expectedLogs := []string{
 			"Starting issue check cycle",
 			"Completed issue check cycle",
+			"checked issues:",
 			"processed issues:",
-			"new issues detected:",
 			"time taken:",
 		}
 
