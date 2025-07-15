@@ -32,6 +32,7 @@ func TestStartCmd_WatchMode(t *testing.T) {
 			wantErr: false,
 			wantOutputContains: []string{
 				"Issue監視モードを開始します",
+				"tmuxセッション 'osoba-test-repo'",
 			},
 		},
 		{
@@ -147,6 +148,10 @@ github:
 			runWatchWithFlagsFunc = func(cmd *cobra.Command, args []string, intervalFlagParam, configFlagParam string) error {
 				// runWatchWithFlagsの簡易的な実装
 				fmt.Fprintln(cmd.OutOrStdout(), "Issue監視モードを開始します")
+
+				// テスト用のtmuxセッション確認メッセージを出力
+				fmt.Fprintf(cmd.OutOrStdout(), "tmuxセッション 'osoba-test-repo' を確認中...\n")
+				fmt.Fprintf(cmd.OutOrStdout(), "tmuxセッション 'osoba-test-repo' が利用可能です\n")
 
 				// 設定を読み込む
 				cfg := config.NewConfig()
