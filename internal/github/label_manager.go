@@ -198,3 +198,50 @@ func (lm *LabelManager) EnsureLabelsExist(ctx context.Context, owner, repo strin
 
 	return nil
 }
+
+// TransitionLabelWithInfo transitions an issue from a trigger label to an in-progress label and returns transition info
+func (lm *LabelManager) TransitionLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error) {
+	// Get current labels
+	labels, _, err := lm.client.ListLabelsByIssue(ctx, owner, repo, issueNumber, nil)
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to list labels: %w", err)
+	}
+
+	// Check if already has an in-progress label
+	for _, label := range labels {
+		labelName := *label.Name
+		if lm.isInProgressLabel(labelName) {
+			// Already in progress, skip transition
+			return false, nil, nil
+		}
+	}
+
+	// Find trigger label and perform transition
+	for _, label := range labels {
+		labelName := *label.Name
+		if targetLabel, exists := lm.transitionRules[labelName]; exists {
+			// Remove trigger label
+			_, err := lm.client.RemoveLabelForIssue(ctx, owner, repo, issueNumber, labelName)
+			if err != nil {
+				return false, nil, fmt.Errorf("failed to remove label %s: %w", labelName, err)
+			}
+
+			// Add in-progress label
+			_, _, err = lm.client.AddLabelsToIssue(ctx, owner, repo, issueNumber, []string{targetLabel})
+			if err != nil {
+				// Try to restore the original label
+				lm.client.AddLabelsToIssue(ctx, owner, repo, issueNumber, []string{labelName})
+				return false, nil, fmt.Errorf("failed to add label %s: %w", targetLabel, err)
+			}
+
+			// Return transition info
+			return true, &TransitionInfo{
+				From: labelName,
+				To:   targetLabel,
+			}, nil
+		}
+	}
+
+	// No trigger label found
+	return false, nil, nil
+}

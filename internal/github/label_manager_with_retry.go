@@ -52,6 +52,38 @@ func (lm *LabelManagerWithRetry) TransitionLabelWithRetry(ctx context.Context, o
 	return false, fmt.Errorf("failed after %d attempts: %w", lm.maxRetries, lastErr)
 }
 
+// TransitionLabelWithInfoWithRetry performs label transition with retry logic and returns transition info
+func (lm *LabelManagerWithRetry) TransitionLabelWithInfoWithRetry(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error) {
+	var lastErr error
+	var lastInfo *TransitionInfo
+
+	for attempt := 0; attempt < lm.maxRetries; attempt++ {
+		if attempt > 0 {
+			// Wait before retry
+			select {
+			case <-time.After(lm.retryDelay * time.Duration(attempt)):
+			case <-ctx.Done():
+				return false, nil, ctx.Err()
+			}
+		}
+
+		transitioned, info, err := lm.TransitionLabelWithInfo(ctx, owner, repo, issueNumber)
+		if err == nil {
+			return transitioned, info, nil
+		}
+
+		lastErr = err
+		lastInfo = info
+
+		// Check if error is retryable
+		if !isRetryableError(err) {
+			return false, info, err
+		}
+	}
+
+	return false, lastInfo, fmt.Errorf("failed after %d attempts: %w", lm.maxRetries, lastErr)
+}
+
 // EnsureLabelsExistWithRetry ensures labels exist with retry logic
 func (lm *LabelManagerWithRetry) EnsureLabelsExistWithRetry(ctx context.Context, owner, repo string) error {
 	var lastErr error

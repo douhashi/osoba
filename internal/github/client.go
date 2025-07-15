@@ -15,7 +15,7 @@ import (
 type Client struct {
 	github       *github.Client
 	logger       logger.Logger
-	labelManager *LabelManagerWithRetry
+	labelManager LabelManagerInterface
 }
 
 // NewClient は新しいGitHub APIクライアントを作成する
@@ -217,6 +217,53 @@ func (c *Client) TransitionIssueLabel(ctx context.Context, owner, repo string, i
 	}
 
 	return transitioned, nil
+}
+
+// TransitionIssueLabelWithInfo はIssueのラベルをトリガーラベルから実行中ラベルに遷移させ、遷移情報を返す
+func (c *Client) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error) {
+	if owner == "" {
+		return false, nil, errors.New("owner is required")
+	}
+	if repo == "" {
+		return false, nil, errors.New("repo is required")
+	}
+	if issueNumber <= 0 {
+		return false, nil, errors.New("issue number must be positive")
+	}
+
+	// ログ出力
+	if c.logger != nil {
+		c.logger.Debug("transitioning_issue_label_with_info",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+		)
+	}
+
+	transitioned, info, err := c.labelManager.TransitionLabelWithInfoWithRetry(ctx, owner, repo, issueNumber)
+	if err != nil {
+		if c.logger != nil {
+			c.logger.Error("failed_to_transition_label",
+				"owner", owner,
+				"repo", repo,
+				"issue", issueNumber,
+				"error", err.Error(),
+			)
+		}
+		return false, nil, err
+	}
+
+	if c.logger != nil && transitioned && info != nil {
+		c.logger.Info("label_transitioned",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+			"from", info.From,
+			"to", info.To,
+		)
+	}
+
+	return transitioned, info, nil
 }
 
 // EnsureLabelsExist は必要なラベルがリポジトリに存在することを保証する

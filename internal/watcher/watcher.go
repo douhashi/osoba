@@ -219,7 +219,20 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 			}
 
 			// ラベル遷移を試みる
-			if ghClient, ok := w.client.(*github.Client); ok {
+			// TransitionIssueLabelWithInfoメソッドを持つクライアントかチェック
+			type labelTransitioner interface {
+				TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *github.TransitionInfo, error)
+			}
+
+			if client, ok := w.client.(labelTransitioner); ok {
+				transitioned, info, err := client.TransitionIssueLabelWithInfo(ctx, w.owner, w.repo, *issue.Number)
+				if err != nil {
+					log.Printf("Failed to transition label for issue #%d: %v", *issue.Number, err)
+				} else if transitioned && info != nil {
+					log.Printf("Issue #%d: %s → %s", *issue.Number, info.From, info.To)
+				}
+			} else if ghClient, ok := w.client.(*github.Client); ok {
+				// 後方互換性のため、古いメソッドも試す
 				transitioned, err := ghClient.TransitionIssueLabel(ctx, w.owner, w.repo, *issue.Number)
 				if err != nil {
 					log.Printf("Failed to transition label for issue #%d: %v", *issue.Number, err)

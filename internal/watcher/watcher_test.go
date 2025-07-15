@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	gh "github.com/douhashi/osoba/internal/github"
 	"github.com/google/go-github/v67/github"
 )
 
@@ -355,4 +356,16 @@ func (m *mockGitHubClient) GetRateLimit(ctx context.Context) (*github.RateLimits
 			Remaining: 5000,
 		},
 	}, nil
+}
+
+func (m *mockGitHubClient) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
+	return false, nil
+}
+
+func (m *mockGitHubClient) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *gh.TransitionInfo, error) {
+	return false, nil, nil
+}
+
+func (m *mockGitHubClient) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
+	return nil
 }
