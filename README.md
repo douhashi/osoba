@@ -96,30 +96,44 @@ osoba open
 ### ラベル遷移と自動実行フロー
 
 ```mermaid
-graph TB
+flowchart LR
     A[GitHub Issue作成] --> B[status:needs-plan]
     B --> C{osoba監視}
-    C -->|検知| D[tmuxウィンドウ作成]
-    D --> E[git worktree作成]
-    E --> F[Claude実行 - 計画フェーズ]
-    F --> G[Issueに実行計画を投稿]
-    G --> H[status:ready]
+    C -->|検知| D[計画フェーズ]
+    D --> E[実行計画投稿]
+    E --> F[status:ready]
     
-    H --> I{osoba監視}
-    I -->|検知| J[Claude実行 - 実装フェーズ]
-    J --> K[コード実装]
-    K --> L[テスト実行]
-    L --> M[status:review-requested]
+    F --> G{osoba監視}
+    G -->|検知| H[実装フェーズ]
+    H --> I[PR作成]
+    I --> J[status:review-requested]
     
-    M --> N{osoba監視}
-    N -->|検知| O[Claude実行 - レビューフェーズ]
-    O --> P[コードレビュー]
-    P --> Q[PR作成]
-    Q --> R[status:completed]
+    J --> K{osoba監視}
+    K -->|検知| L[レビューフェーズ]
+    L --> M[コードレビュー完了]
     
-    style F fill:#e1f5fe
-    style J fill:#e8f5e8
-    style O fill:#fff3e0
+    subgraph plan [計画フェーズ]
+        D1[tmuxウィンドウ作成]
+        D2[git worktree作成]
+        D3[Claude実行]
+        D1 --> D2 --> D3
+    end
+    
+    subgraph implement [実装フェーズ]
+        H1[コード実装]
+        H2[テスト実行]
+        H3[PR作成]
+        H1 --> H2 --> H3
+    end
+    
+    subgraph review [レビューフェーズ]
+        L1[コードレビュー]
+        L1
+    end
+    
+    D -.-> plan
+    H -.-> implement
+    L -.-> review
 ```
 
 ### 各フェーズの詳細
@@ -140,16 +154,15 @@ graph TB
   - ユニットテストの作成
   - 統合テストの実行
   - コードスタイルの確認
-- **アウトプット**: 実装完了、`status:review-requested`ラベル更新
+- **アウトプット**: PR作成、`status:review-requested`ラベル更新
 
 #### レビューフェーズ（Review）
 - **トリガー**: `status:review-requested`ラベル
 - **実行内容**:
   - コードレビューの実施
   - 品質チェック
-  - ドキュメント生成
-  - プルリクエストの作成
-- **アウトプット**: PR作成、`status:completed`ラベル更新
+  - 改善点の指摘とフィードバック
+- **アウトプット**: レビュー完了（手動でのマージが必要）
 
 ### 内部動作の詳細
 
@@ -170,8 +183,6 @@ graph TB
 - **コンテキスト管理**: Issue情報、コードベース、プロジェクト情報を統合
 - **実行制御**: 非同期実行、進捗監視、エラーハンドリング
 - **結果反映**: Issue更新、コードコミット、ラベル更新
-
-## 実使用例シナリオ
 
 ## 詳細な設定
 
@@ -207,7 +218,7 @@ claude:
 
 ## セキュリティ上の注意事項
 
-⚠️ **重要**: osobaは自律性を最大化するため、Claude実行時に`--dangerously-skip-permissions`オプションを使用します。これにより以下のセキュリティリスクがあることを理解した上で使用してください。
+⚠️ **重要**: osobaは自律性を最大化するため、Claude実行時に`--dangerously-skip-permissions`オプションを使用します。セキュリティリスクがあることを理解した上で使用してください。
 
 devcontainerや隔離された環境で実行するなど、可能な限りのセキュリティ対策を行ったうえで使用してください。
 
@@ -218,7 +229,7 @@ devcontainerや隔離された環境で実行するなど、可能な限りの�
 
 ### 代替案
 
-より安全な使用を希望する場合は、以下の設定変更を検討してください：
+より安全な使用を希望する場合は、`$HOME/.config/osoba/osoba.yml` に以下の設定変更を検討してください：
 
 ```yaml
 claude:
