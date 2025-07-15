@@ -94,7 +94,7 @@ EOF
 ```bash
 # リポジトリでosobaを開始
 cd /path/to/your/repo
-osoba watch
+osoba start
 
 # 別のターミナルでセッションに接続
 osoba open
@@ -205,7 +205,7 @@ graph TB
 2. **osoba起動**
    ```bash
    cd /path/to/your/api-project
-   osoba watch
+   osoba start
    ```
 
 3. **自動実行フロー**
@@ -270,7 +270,7 @@ graph TB
 
 ```bash
 # 複数リポジトリを同時監視
-osoba watch --repos user/frontend,user/backend,user/mobile
+osoba start --repos user/frontend,user/backend,user/mobile
 
 # 各Issue（例：45, 46, 47）が同時に処理される
 # tmuxセッション構成:
@@ -286,7 +286,7 @@ osoba watch --repos user/frontend,user/backend,user/mobile
 1. **朝の作業準備**
    ```bash
    # 夜間に蓄積されたIssueを自動処理
-   osoba watch --background
+   osoba start --background
    
    # 進捗確認
    osoba status
@@ -310,7 +310,7 @@ osoba watch --repos user/frontend,user/backend,user/mobile
 #### 開発者の日常ワークフロー
 ```bash
 # 1. 朝の作業開始
-osoba watch --daemon
+osoba start --daemon
 
 # 2. 進捗確認
 osoba status
