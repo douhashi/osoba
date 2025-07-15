@@ -311,3 +311,65 @@ func (c *Client) EnsureLabelsExist(ctx context.Context, owner, repo string) erro
 
 	return nil
 }
+
+// CreateIssueComment はIssueにコメントを投稿する
+func (c *Client) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
+	if owner == "" {
+		return errors.New("owner is required")
+	}
+	if repo == "" {
+		return errors.New("repo is required")
+	}
+	if issueNumber <= 0 {
+		return errors.New("issue number must be positive")
+	}
+	if comment == "" {
+		return errors.New("comment is required")
+	}
+
+	// ログ出力
+	if c.logger != nil {
+		c.logger.Debug("creating_issue_comment",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+			"comment", comment,
+		)
+	}
+
+	// コメントを作成
+	issueComment := &github.IssueComment{
+		Body: github.String(comment),
+	}
+
+	_, _, err := c.github.Issues.CreateComment(ctx, owner, repo, issueNumber, issueComment)
+	if err != nil {
+		if c.logger != nil {
+			c.logger.Error("failed_to_create_comment",
+				"owner", owner,
+				"repo", repo,
+				"issue", issueNumber,
+				"error", err.Error(),
+			)
+		}
+		return err
+	}
+
+	if c.logger != nil {
+		c.logger.Info("comment_created",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+		)
+	}
+
+	return nil
+}
+
+// GetIssuesService はGitHub APIのIssuesServiceを返す
+func (c *Client) GetIssuesService() *github.IssuesService {
+	if c.github == nil {
+		return nil
+	}
+	return c.github.Issues
+}

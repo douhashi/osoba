@@ -18,9 +18,10 @@ type Config struct {
 
 // GitHubConfig はGitHub関連の設定
 type GitHubConfig struct {
-	Token        string        `mapstructure:"token"`
-	PollInterval time.Duration `mapstructure:"poll_interval"`
-	Labels       LabelConfig   `mapstructure:"labels"`
+	Token        string             `mapstructure:"token"`
+	PollInterval time.Duration      `mapstructure:"poll_interval"`
+	Labels       LabelConfig        `mapstructure:"labels"`
+	Messages     PhaseMessageConfig `mapstructure:"messages"`
 }
 
 // LabelConfig は監視対象のラベル設定
@@ -30,9 +31,25 @@ type LabelConfig struct {
 	Review string `mapstructure:"review"`
 }
 
+// PhaseMessageConfig はフェーズ開始時のコメントメッセージ設定
+type PhaseMessageConfig struct {
+	Plan      string `mapstructure:"plan"`
+	Implement string `mapstructure:"implement"`
+	Review    string `mapstructure:"review"`
+}
+
 // TmuxConfig はtmux関連の設定
 type TmuxConfig struct {
 	SessionPrefix string `mapstructure:"session_prefix"`
+}
+
+// NewDefaultPhaseMessageConfig はデフォルトのフェーズメッセージ設定を返す
+func NewDefaultPhaseMessageConfig() PhaseMessageConfig {
+	return PhaseMessageConfig{
+		Plan:      "osoba: 計画を作成します",
+		Implement: "osoba: 実装を開始します",
+		Review:    "osoba: レビューを開始します",
+	}
 }
 
 // NewConfig は新しいConfigを作成する
@@ -45,6 +62,7 @@ func NewConfig() *Config {
 				Ready:  "status:ready",
 				Review: "status:review-requested",
 			},
+			Messages: NewDefaultPhaseMessageConfig(),
 		},
 		Tmux: TmuxConfig{
 			SessionPrefix: "osoba-",
@@ -72,6 +90,9 @@ func (c *Config) Load(configPath string) error {
 	v.SetDefault("github.labels.plan", "status:needs-plan")
 	v.SetDefault("github.labels.ready", "status:ready")
 	v.SetDefault("github.labels.review", "status:review-requested")
+	v.SetDefault("github.messages.plan", "osoba: 計画を作成します")
+	v.SetDefault("github.messages.implement", "osoba: 実装を開始します")
+	v.SetDefault("github.messages.review", "osoba: レビューを開始します")
 	v.SetDefault("tmux.session_prefix", "osoba-")
 
 	// Claude設定のデフォルト値
@@ -145,5 +166,19 @@ func (c *Config) GetLabels() []string {
 		c.GitHub.Labels.Plan,
 		c.GitHub.Labels.Ready,
 		c.GitHub.Labels.Review,
+	}
+}
+
+// GetPhaseMessage は指定されたフェーズのメッセージを返す
+func (c *Config) GetPhaseMessage(phase string) (string, bool) {
+	switch phase {
+	case "plan":
+		return c.GitHub.Messages.Plan, true
+	case "implement":
+		return c.GitHub.Messages.Implement, true
+	case "review":
+		return c.GitHub.Messages.Review, true
+	default:
+		return "", false
 	}
 }

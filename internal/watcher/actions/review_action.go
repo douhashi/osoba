@@ -14,13 +14,14 @@ import (
 // ReviewAction はレビューフェーズのアクション実装
 type ReviewAction struct {
 	types.BaseAction
-	sessionName     string
-	tmuxClient      TmuxClient
-	stateManager    StateManager
-	labelManager    LabelManager
-	worktreeManager git.WorktreeManager
-	claudeExecutor  claude.ClaudeExecutor
-	claudeConfig    *claude.ClaudeConfig
+	sessionName       string
+	tmuxClient        TmuxClient
+	stateManager      StateManager
+	labelManager      LabelManager
+	phaseTransitioner PhaseTransitioner
+	worktreeManager   git.WorktreeManager
+	claudeExecutor    claude.ClaudeExecutor
+	claudeConfig      *claude.ClaudeConfig
 }
 
 // NewReviewAction は新しいReviewActionを作成する
@@ -42,6 +43,30 @@ func NewReviewAction(
 		worktreeManager: worktreeManager,
 		claudeExecutor:  claudeExecutor,
 		claudeConfig:    claudeConfig,
+	}
+}
+
+// NewReviewActionWithPhaseTransitioner は新しいReviewActionをPhaseTransitionerと共に作成する
+func NewReviewActionWithPhaseTransitioner(
+	sessionName string,
+	tmuxClient TmuxClient,
+	stateManager StateManager,
+	labelManager LabelManager,
+	phaseTransitioner PhaseTransitioner,
+	worktreeManager git.WorktreeManager,
+	claudeExecutor claude.ClaudeExecutor,
+	claudeConfig *claude.ClaudeConfig,
+) *ReviewAction {
+	return &ReviewAction{
+		BaseAction:        types.BaseAction{Type: types.ActionTypeReview},
+		sessionName:       sessionName,
+		tmuxClient:        tmuxClient,
+		stateManager:      stateManager,
+		labelManager:      labelManager,
+		phaseTransitioner: phaseTransitioner,
+		worktreeManager:   worktreeManager,
+		claudeExecutor:    claudeExecutor,
+		claudeConfig:      claudeConfig,
 	}
 }
 
@@ -69,9 +94,17 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	a.stateManager.SetState(issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
 
 	// ラベル遷移（status:review-requested → status:reviewing）
-	if err := a.labelManager.TransitionLabel(ctx, int(issueNumber), "status:review-requested", "status:reviewing"); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
-		return fmt.Errorf("failed to transition label: %w", err)
+	// PhaseTransitionerがある場合はそれを使用、ない場合は従来のLabelManagerを使用
+	if a.phaseTransitioner != nil {
+		if err := a.phaseTransitioner.TransitionPhase(ctx, int(issueNumber), "review", "status:review-requested", "status:reviewing"); err != nil {
+			a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
+			return fmt.Errorf("failed to transition phase: %w", err)
+		}
+	} else {
+		if err := a.labelManager.TransitionLabel(ctx, int(issueNumber), "status:review-requested", "status:reviewing"); err != nil {
+			a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
+			return fmt.Errorf("failed to transition label: %w", err)
+		}
 	}
 
 	// tmuxウィンドウ作成

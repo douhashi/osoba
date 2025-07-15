@@ -47,12 +47,13 @@ func (c *DefaultTmuxClient) WindowExists(sessionName, windowName string) (bool, 
 // PlanAction は計画フェーズのアクション実装
 type PlanAction struct {
 	types.BaseAction
-	sessionName     string
-	tmuxClient      TmuxClient
-	stateManager    StateManager
-	worktreeManager git.WorktreeManager
-	claudeExecutor  claude.ClaudeExecutor
-	claudeConfig    *claude.ClaudeConfig
+	sessionName       string
+	tmuxClient        TmuxClient
+	stateManager      StateManager
+	phaseTransitioner PhaseTransitioner
+	worktreeManager   git.WorktreeManager
+	claudeExecutor    claude.ClaudeExecutor
+	claudeConfig      *claude.ClaudeConfig
 }
 
 // NewPlanAction は新しいPlanActionを作成する
@@ -72,6 +73,28 @@ func NewPlanAction(
 		worktreeManager: worktreeManager,
 		claudeExecutor:  claudeExecutor,
 		claudeConfig:    claudeConfig,
+	}
+}
+
+// NewPlanActionWithPhaseTransitioner は新しいPlanActionをPhaseTransitionerと共に作成する
+func NewPlanActionWithPhaseTransitioner(
+	sessionName string,
+	tmuxClient TmuxClient,
+	stateManager StateManager,
+	phaseTransitioner PhaseTransitioner,
+	worktreeManager git.WorktreeManager,
+	claudeExecutor claude.ClaudeExecutor,
+	claudeConfig *claude.ClaudeConfig,
+) *PlanAction {
+	return &PlanAction{
+		BaseAction:        types.BaseAction{Type: types.ActionTypePlan},
+		sessionName:       sessionName,
+		tmuxClient:        tmuxClient,
+		stateManager:      stateManager,
+		phaseTransitioner: phaseTransitioner,
+		worktreeManager:   worktreeManager,
+		claudeExecutor:    claudeExecutor,
+		claudeConfig:      claudeConfig,
 	}
 }
 
@@ -97,6 +120,15 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 
 	// 処理開始
 	a.stateManager.SetState(issueNumber, types.IssueStatePlan, types.IssueStatusProcessing)
+
+	// ラベル遷移（status:needs-plan → status:planning）
+	// PhaseTransitionerがある場合はそれを使用
+	if a.phaseTransitioner != nil {
+		if err := a.phaseTransitioner.TransitionPhase(ctx, int(issueNumber), "plan", "status:needs-plan", "status:planning"); err != nil {
+			a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
+			return fmt.Errorf("failed to transition phase: %w", err)
+		}
+	}
 
 	// tmuxウィンドウ作成
 	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber), "plan"); err != nil {

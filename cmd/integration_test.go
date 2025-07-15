@@ -68,6 +68,10 @@ func (m *mockGitHubClient) EnsureLabelsExist(ctx context.Context, owner, repo st
 	return nil
 }
 
+func (m *mockGitHubClient) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
+	return nil
+}
+
 // TestIntegration_WatchFlow は監視フロー全体の統合テスト
 func TestIntegration_WatchFlow(t *testing.T) {
 	tests := []struct {
@@ -225,6 +229,26 @@ github:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// 既存の環境変数をバックアップしてクリア
+			envBackup := make(map[string]string)
+			for _, key := range []string{"GITHUB_TOKEN", "OSOBA_GITHUB_TOKEN"} {
+				if val, exists := os.LookupEnv(key); exists {
+					envBackup[key] = val
+				}
+				os.Unsetenv(key)
+			}
+			defer func() {
+				// 環境変数を復元
+				for key, val := range envBackup {
+					os.Setenv(key, val)
+				}
+				for _, key := range []string{"GITHUB_TOKEN", "OSOBA_GITHUB_TOKEN"} {
+					if _, exists := envBackup[key]; !exists {
+						os.Unsetenv(key)
+					}
+				}
+			}()
+
 			// テスト用の設定ファイルを作成
 			tmpDir := t.TempDir()
 			configPath := filepath.Join(tmpDir, "test_config.yml")
@@ -235,7 +259,6 @@ github:
 			// 環境変数を設定
 			for k, v := range tt.envVars {
 				os.Setenv(k, v)
-				defer os.Unsetenv(k)
 			}
 
 			// 設定を読み込む
