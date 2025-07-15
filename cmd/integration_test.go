@@ -9,7 +9,7 @@ import (
 
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/watcher"
-	gh "github.com/google/go-github/v50/github"
+	gh "github.com/google/go-github/v67/github"
 )
 
 // モックGitHubクライアント

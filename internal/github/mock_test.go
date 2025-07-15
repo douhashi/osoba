@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/google/go-github/v50/github"
+	"github.com/google/go-github/v67/github"
 )
 
 // mockGitHubService はテスト用のGitHub APIサービスのモック
