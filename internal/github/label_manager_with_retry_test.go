@@ -204,9 +204,13 @@ func TestLabelManagerWithRetry_EnsureLabelsExistWithRetry(t *testing.T) {
 				m.On("ListLabels", mock.Anything, "owner", "repo", (*github.ListOptions)(nil)).
 					Return([]*github.Label{}, &github.Response{}, nil).Once()
 
-				// 全てのラベルの作成が成功
+				// status:needs-planは既に失敗として設定済みなので、成功時は再設定
+				m.On("CreateLabel", mock.Anything, "owner", "repo", mock.MatchedBy(func(label *github.Label) bool {
+					return *label.Name == "status:needs-plan"
+				})).Return(&github.Label{Name: github.String("status:needs-plan")}, &github.Response{}, nil).Once()
+
+				// 残りのラベルの作成が成功
 				labels := []string{
-					"status:needs-plan",
 					"status:planning",
 					"status:ready",
 					"status:implementing",
