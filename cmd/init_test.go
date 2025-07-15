@@ -391,6 +391,35 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 			},
 		},
 		{
+			name: "正常系: 作成される設定ファイルにClaude phases設定が含まれる",
+			setupMocks: func() {
+				mkdirAllFunc = func(path string, perm os.FileMode) error {
+					return nil
+				}
+
+				writeFileFunc = func(path string, data []byte, perm os.FileMode) error {
+					return nil
+				}
+
+				getRemoteURLFunc = func(remoteName string) (string, error) {
+					return "https://github.com/douhashi/osoba.git", nil
+				}
+
+				mockClient := &mockInitGitHubClient{
+					ensureLabelsFunc: func(ctx context.Context, owner, repo string) error {
+						return nil
+					},
+				}
+				createGitHubClientFunc = func(token string) githubInterface {
+					return mockClient
+				}
+			},
+			wantErr: false,
+			wantOutputContains: []string{
+				"✓ 設定ファイルを作成しました",
+			},
+		},
+		{
 			name: "エラー: GitHubラベル作成失敗（警告として処理）",
 			setupMocks: func() {
 				mkdirAllFunc = func(path string, perm os.FileMode) error {

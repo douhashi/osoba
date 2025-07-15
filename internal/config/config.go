@@ -98,9 +98,9 @@ func (c *Config) Load(configPath string) error {
 	// Claude設定のデフォルト値
 	v.SetDefault("claude.phases.plan.args", []string{"--dangerously-skip-permissions"})
 	v.SetDefault("claude.phases.plan.prompt", "/osoba:plan {{issue-number}}")
-	v.SetDefault("claude.phases.implement.args", []string{})
+	v.SetDefault("claude.phases.implement.args", []string{"--dangerously-skip-permissions"})
 	v.SetDefault("claude.phases.implement.prompt", "/osoba:implement {{issue-number}}")
-	v.SetDefault("claude.phases.review.args", []string{"--read-only"})
+	v.SetDefault("claude.phases.review.args", []string{"--dangerously-skip-permissions"})
 	v.SetDefault("claude.phases.review.prompt", "/osoba:review {{issue-number}}")
 
 	// 設定ファイルを読み込む

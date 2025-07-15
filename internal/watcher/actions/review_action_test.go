@@ -57,7 +57,7 @@ func TestReviewAction_Execute(t *testing.T) {
 
 		// Claude実行
 		phaseConfig := &claude.PhaseConfig{
-			Args:   []string{"--read-only"},
+			Args:   []string{"--dangerously-skip-permissions"},
 			Prompt: "/osoba:review {{issue-number}}",
 		}
 		templateVars := &claude.TemplateVariables{
@@ -217,7 +217,7 @@ func TestReviewAction_Execute(t *testing.T) {
 
 		// Claude実行
 		phaseConfig := &claude.PhaseConfig{
-			Args:   []string{"--read-only"},
+			Args:   []string{"--dangerously-skip-permissions"},
 			Prompt: "/osoba:review {{issue-number}}",
 		}
 		templateVars := &claude.TemplateVariables{
@@ -292,7 +292,7 @@ func TestReviewAction_Execute(t *testing.T) {
 
 		// Claude実行失敗
 		phaseConfig := &claude.PhaseConfig{
-			Args:   []string{"--read-only"},
+			Args:   []string{"--dangerously-skip-permissions"},
 			Prompt: "/osoba:review {{issue-number}}",
 		}
 		templateVars := &claude.TemplateVariables{

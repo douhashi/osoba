@@ -60,12 +60,12 @@ func TestNewDefaultClaudeConfig(t *testing.T) {
 		assert.Equal(t, []string{"--dangerously-skip-permissions"}, config.Phases["plan"].Args)
 		assert.Equal(t, "/osoba:plan {{issue-number}}", config.Phases["plan"].Prompt)
 
-		// Implement phase
-		assert.Empty(t, config.Phases["implement"].Args)
+		// Implement phase - すべてのフェーズで --dangerously-skip-permissions を使用
+		assert.Equal(t, []string{"--dangerously-skip-permissions"}, config.Phases["implement"].Args)
 		assert.Equal(t, "/osoba:implement {{issue-number}}", config.Phases["implement"].Prompt)
 
-		// Review phase
-		assert.Equal(t, []string{"--read-only"}, config.Phases["review"].Args)
+		// Review phase - すべてのフェーズで --dangerously-skip-permissions を使用
+		assert.Equal(t, []string{"--dangerously-skip-permissions"}, config.Phases["review"].Args)
 		assert.Equal(t, "/osoba:review {{issue-number}}", config.Phases["review"].Prompt)
 	})
 }
