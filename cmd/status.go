@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/douhashi/osoba/internal/config"
-	"github.com/douhashi/osoba/internal/git"
 	githubClient "github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/tmux"
@@ -61,10 +60,28 @@ func runStatusCmd(cmd *cobra.Command) error {
 
 	fmt.Fprintln(cmd.OutOrStdout())
 
-	// GitHubリポジトリ情報を取得
-	repoInfo, err := getGitHubRepoInfo()
+	// GitHubリポジトリ情報を取得（共通関数を使用）
+	repoInfo, err := utils.GetGitHubRepoInfo(ctx)
 	if err != nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHubリポジトリ情報取得エラー: %v\n", err)
+		// 詳細なエラーメッセージを表示
+		if repoErr, ok := err.(*utils.GetGitHubRepoInfoError); ok {
+			switch repoErr.Step {
+			case "working_directory":
+				fmt.Fprintf(cmd.OutOrStdout(), "⚠️  作業ディレクトリの取得に失敗しました: %v\n", repoErr.Cause)
+			case "git_directory":
+				fmt.Fprintf(cmd.OutOrStdout(), "⚠️  Gitリポジトリが見つかりません。Gitリポジトリのルートディレクトリで実行してください\n")
+			case "remote_url":
+				fmt.Fprintf(cmd.OutOrStdout(), "⚠️  リモートURL取得に失敗しました: %v\n", repoErr.Cause)
+				fmt.Fprintf(cmd.OutOrStdout(), "   'git remote add origin <URL>' でリモートを設定してください\n")
+			case "url_parsing":
+				fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHub URL解析に失敗しました: %v\n", repoErr.Cause)
+				fmt.Fprintf(cmd.OutOrStdout(), "   GitHubのリポジトリURLが正しく設定されているか確認してください\n")
+			default:
+				fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHubリポジトリ情報取得エラー: %v\n", err)
+			}
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHubリポジトリ情報取得エラー: %v\n", err)
+		}
 		return nil
 	}
 
@@ -238,58 +255,16 @@ func getEmojiForLabel(label string) string {
 	}
 }
 
+// getGitHubRepoInfo は廃止予定です。utils.GetGitHubRepoInfo を使用してください。
+// この関数は後方互換性のためにのみ残されています。
 func getGitHubRepoInfo() (*utils.GitHubRepoInfo, error) {
-	// 現在の作業ディレクトリを取得
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("作業ディレクトリの取得に失敗: %w", err)
-	}
-
-	// .gitディレクトリを探す
-	gitDir := findGitDirectory(cwd)
-	if gitDir == "" {
-		return nil, fmt.Errorf("Gitリポジトリが見つかりません")
-	}
-
-	// リポジトリのルートディレクトリを取得
-	repoRoot := filepath.Dir(gitDir)
-
-	// git remote get-url origin を実行
-	log, _ := logger.New()
-	repo := git.NewRepository(log)
-	remoteURL, err := repo.GetRemoteURL(context.Background(), repoRoot, "origin")
-	if err != nil {
-		return nil, fmt.Errorf("リモートURL取得に失敗: %w", err)
-	}
-
-	// URLからowner/repo情報を抽出
-	repoInfo, err := utils.ParseGitHubURL(remoteURL)
-	if err != nil {
-		return nil, fmt.Errorf("GitHub URL解析に失敗: %w", err)
-	}
-
-	return repoInfo, nil
+	return utils.GetGitHubRepoInfo(context.Background())
 }
 
+// findGitDirectory は廃止予定です。utils.GetGitHubRepoInfo を使用してください。
+// この関数は後方互換性のためにのみ残されています。
 func findGitDirectory(startPath string) string {
-	path := startPath
-	for {
-		gitPath := filepath.Join(path, ".git")
-		if info, err := os.Stat(gitPath); err == nil {
-			if info.IsDir() {
-				return gitPath
-			}
-			// .gitがファイルの場合（worktreeの場合）
-			// ファイルの内容を読んで実際の.gitディレクトリを見つける
-			return gitPath
-		}
-
-		parent := filepath.Dir(path)
-		if parent == path {
-			break
-		}
-		path = parent
-	}
+	// utils パッケージの実装を参照してください
 	return ""
 }
 
