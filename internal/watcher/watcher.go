@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
-	gh "github.com/google/go-github/v50/github"
+	gh "github.com/google/go-github/v67/github"
 )
 
 // IssueCallback はIssue検出時に呼ばれるコールバック関数
@@ -146,6 +146,16 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 					Timestamp:  time.Now(),
 				}
 				w.eventNotifier.Send(event)
+			}
+
+			// ラベル遷移を試みる
+			if ghClient, ok := w.client.(*github.Client); ok {
+				transitioned, err := ghClient.TransitionIssueLabel(ctx, w.owner, w.repo, *issue.Number)
+				if err != nil {
+					log.Printf("Failed to transition label for issue #%d: %v", *issue.Number, err)
+				} else if transitioned {
+					log.Printf("Successfully transitioned label for issue #%d", *issue.Number)
+				}
 			}
 
 			callback(issue)

@@ -4,16 +4,18 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/douhashi/osoba/internal/logger"
-	"github.com/google/go-github/v50/github"
+	"github.com/google/go-github/v67/github"
 	"golang.org/x/oauth2"
 )
 
 // Client はGitHub APIクライアントのラッパー
 type Client struct {
-	github *github.Client
-	logger logger.Logger
+	github       *github.Client
+	logger       logger.Logger
+	labelManager *LabelManagerWithRetry
 }
 
 // NewClient は新しいGitHub APIクライアントを作成する
@@ -28,8 +30,10 @@ func NewClient(token string) (*Client, error) {
 	)
 	tc := oauth2.NewClient(ctx, ts)
 
+	ghClient := github.NewClient(tc)
 	return &Client{
-		github: github.NewClient(tc),
+		github:       ghClient,
+		labelManager: NewLabelManagerWithRetry(ghClient.Issues, 3, 1*time.Second),
 	}, nil
 }
 
@@ -61,9 +65,11 @@ func NewClientWithLogger(token string, logger logger.Logger) (*Client, error) {
 		},
 	}
 
+	ghClient := github.NewClient(httpClient)
 	return &Client{
-		github: github.NewClient(httpClient),
-		logger: logger,
+		github:       ghClient,
+		logger:       logger,
+		labelManager: NewLabelManagerWithRetry(ghClient.Issues, 3, 1*time.Second),
 	}, nil
 }
 
@@ -166,4 +172,88 @@ func (c *Client) GetRateLimit(ctx context.Context) (*github.RateLimits, error) {
 	}
 
 	return rateLimit, nil
+}
+
+// TransitionIssueLabel はIssueのラベルをトリガーラベルから実行中ラベルに遷移させる
+func (c *Client) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
+	if owner == "" {
+		return false, errors.New("owner is required")
+	}
+	if repo == "" {
+		return false, errors.New("repo is required")
+	}
+	if issueNumber <= 0 {
+		return false, errors.New("issue number must be positive")
+	}
+
+	// ログ出力
+	if c.logger != nil {
+		c.logger.Debug("transitioning_issue_label",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+		)
+	}
+
+	transitioned, err := c.labelManager.TransitionLabelWithRetry(ctx, owner, repo, issueNumber)
+	if err != nil {
+		if c.logger != nil {
+			c.logger.Error("failed_to_transition_label",
+				"owner", owner,
+				"repo", repo,
+				"issue", issueNumber,
+				"error", err.Error(),
+			)
+		}
+		return false, err
+	}
+
+	if transitioned && c.logger != nil {
+		c.logger.Info("label_transitioned",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+		)
+	}
+
+	return transitioned, nil
+}
+
+// EnsureLabelsExist は必要なラベルがリポジトリに存在することを保証する
+func (c *Client) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
+	if owner == "" {
+		return errors.New("owner is required")
+	}
+	if repo == "" {
+		return errors.New("repo is required")
+	}
+
+	// ログ出力
+	if c.logger != nil {
+		c.logger.Debug("ensuring_labels_exist",
+			"owner", owner,
+			"repo", repo,
+		)
+	}
+
+	err := c.labelManager.EnsureLabelsExistWithRetry(ctx, owner, repo)
+	if err != nil {
+		if c.logger != nil {
+			c.logger.Error("failed_to_ensure_labels",
+				"owner", owner,
+				"repo", repo,
+				"error", err.Error(),
+			)
+		}
+		return err
+	}
+
+	if c.logger != nil {
+		c.logger.Info("labels_ensured",
+			"owner", owner,
+			"repo", repo,
+		)
+	}
+
+	return nil
 }

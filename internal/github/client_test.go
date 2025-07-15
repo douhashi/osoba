@@ -4,7 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/go-github/v50/github"
+	"github.com/google/go-github/v67/github"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewClient(t *testing.T) {
@@ -144,6 +146,99 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 			}
 			if tt.errCheck != nil && !tt.errCheck(err) {
 				t.Errorf("ListIssuesByLabels() error = %v, want specific error", err)
+			}
+		})
+	}
+}
+
+func TestClient_TransitionIssueLabel(t *testing.T) {
+	tests := []struct {
+		name    string
+		owner   string
+		repo    string
+		issue   int
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "ownerが空でエラー",
+			owner:   "",
+			repo:    "test-repo",
+			issue:   1,
+			wantErr: true,
+			errMsg:  "owner is required",
+		},
+		{
+			name:    "repoが空でエラー",
+			owner:   "test-owner",
+			repo:    "",
+			issue:   1,
+			wantErr: true,
+			errMsg:  "repo is required",
+		},
+		{
+			name:    "issue番号が0以下でエラー",
+			owner:   "test-owner",
+			repo:    "test-repo",
+			issue:   0,
+			wantErr: true,
+			errMsg:  "issue number must be positive",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := NewClient("dummy-token")
+			require.NoError(t, err)
+
+			_, err = client.TransitionIssueLabel(context.Background(), tt.owner, tt.repo, tt.issue)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestClient_EnsureLabelsExist(t *testing.T) {
+	tests := []struct {
+		name    string
+		owner   string
+		repo    string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "ownerが空でエラー",
+			owner:   "",
+			repo:    "test-repo",
+			wantErr: true,
+			errMsg:  "owner is required",
+		},
+		{
+			name:    "repoが空でエラー",
+			owner:   "test-owner",
+			repo:    "",
+			wantErr: true,
+			errMsg:  "repo is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := NewClient("dummy-token")
+			require.NoError(t, err)
+
+			err = client.EnsureLabelsExist(context.Background(), tt.owner, tt.repo)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
