@@ -108,6 +108,232 @@ osoba open
 4. 実装フェーズが自動的に開始
 5. `osoba open`でセッションに接続して進捗を確認
 
+## 動作イメージ
+
+### ラベル遷移と自動実行フロー
+
+```mermaid
+graph TB
+    A[GitHub Issue作成] --> B[status:needs-plan]
+    B --> C{osoba監視}
+    C -->|検知| D[tmuxウィンドウ作成]
+    D --> E[git worktree作成]
+    E --> F[Claude実行 - 計画フェーズ]
+    F --> G[Issueに実行計画を投稿]
+    G --> H[status:ready]
+    
+    H --> I{osoba監視}
+    I -->|検知| J[Claude実行 - 実装フェーズ]
+    J --> K[コード実装]
+    K --> L[テスト実行]
+    L --> M[status:review-requested]
+    
+    M --> N{osoba監視}
+    N -->|検知| O[Claude実行 - レビューフェーズ]
+    O --> P[コードレビュー]
+    P --> Q[PR作成]
+    Q --> R[status:completed]
+    
+    style F fill:#e1f5fe
+    style J fill:#e8f5e8
+    style O fill:#fff3e0
+```
+
+### 各フェーズの詳細
+
+#### 計画フェーズ（Plan）
+- **トリガー**: `status:needs-plan`ラベル
+- **実行内容**:
+  - Issue内容の解析
+  - 実装計画の策定
+  - 技術選定とアーキテクチャ設計
+  - タスクの分解と優先度設定
+- **アウトプット**: Issue本文への実行計画追記、`status:ready`ラベル更新
+
+#### 実装フェーズ（Implementation）
+- **トリガー**: `status:ready`ラベル
+- **実行内容**:
+  - 計画に基づいたコード実装
+  - ユニットテストの作成
+  - 統合テストの実行
+  - コードスタイルの確認
+- **アウトプット**: 実装完了、`status:review-requested`ラベル更新
+
+#### レビューフェーズ（Review）
+- **トリガー**: `status:review-requested`ラベル
+- **実行内容**:
+  - コードレビューの実施
+  - 品質チェック
+  - ドキュメント生成
+  - プルリクエストの作成
+- **アウトプット**: PR作成、`status:completed`ラベル更新
+
+### 内部動作の詳細
+
+#### tmuxセッション管理
+- **セッション作成**: `osoba-{repository-name}`形式
+- **ウィンドウ管理**: Issue番号ごとに独立したウィンドウ
+- **ウィンドウ命名**: `{issue-number}-{phase}`（例: `53-plan`, `53-implement`）
+- **ペイン分割**: Claude実行用、ログ監視用、コード編集用
+
+#### git worktree統合
+- **worktree作成**: `.git/osoba/worktrees/{issue-number}`
+- **ブランチ管理**: `osoba/#{issue-number}-{description}`形式
+- **同期処理**: mainブランチとの自動同期
+- **クリーンアップ**: フェーズ完了後の自動worktree削除
+
+#### Claude AI実行
+- **プロンプト管理**: フェーズごとに最適化されたプロンプト
+- **コンテキスト管理**: Issue情報、コードベース、プロジェクト情報を統合
+- **実行制御**: 非同期実行、進捗監視、エラーハンドリング
+- **結果反映**: Issue更新、コードコミット、ラベル更新
+
+## 実使用例シナリオ
+
+### シナリオ1: 新機能の実装
+
+**状況**: REST APIに新しいエンドポイントを追加したい
+
+1. **Issue作成**
+   ```bash
+   # GitHub上でIssueを作成
+   タイトル: "feat: ユーザー検索APIエンドポイントを追加"
+   説明: "ユーザー名とメールアドレスでユーザーを検索できるAPIエンドポイントを実装する"
+   ラベル: "status:needs-plan"
+   ```
+
+2. **osoba起動**
+   ```bash
+   cd /path/to/your/api-project
+   osoba watch
+   ```
+
+3. **自動実行フロー**
+   - osobaがIssueを検知し、計画フェーズを開始
+   - `osoba-api-project`tmuxセッションに`55-plan`ウィンドウを作成
+   - `.git/osoba/worktrees/55`にworktreeを作成
+   - Claudeが実装計画を作成し、Issueに投稿
+   - `status:ready`ラベルに自動更新
+
+4. **進捗確認**
+   ```bash
+   osoba open  # tmuxセッションに接続
+   # 55-implement ウィンドウで実装進捗を確認
+   ```
+
+5. **完了**
+   - 実装、テスト、レビューが自動実行
+   - PRが自動作成される
+
+### シナリオ2: バグ修正
+
+**状況**: ログイン機能にバグが発見された
+
+1. **Issue作成**
+   ```bash
+   タイトル: "fix: パスワード忘れた場合のリセット機能が動作しない"
+   説明: "パスワードリセットメールが送信されない問題を修正する"
+   ラベル: "status:needs-plan", "bug"
+   ```
+
+2. **自動実行**
+   - 計画フェーズで根本原因分析
+   - 実装フェーズで修正とテスト
+   - レビューフェーズで品質確認
+
+3. **緊急対応**
+   ```bash
+   # 手動でセッションに接続して進捗確認
+   osoba open
+   # 必要に応じて手動介入
+   ```
+
+### シナリオ3: リファクタリング
+
+**状況**: コードの構造改善が必要
+
+1. **Issue作成**
+   ```bash
+   タイトル: "refactor: ユーザー認証ロジックをサービス層に移動"
+   説明: "コントローラーに散在している認証ロジックを整理し、再利用性を向上させる"
+   ラベル: "status:needs-plan", "refactor"
+   ```
+
+2. **段階的実行**
+   - 計画フェーズで影響範囲の分析
+   - 実装フェーズで段階的なリファクタリング
+   - レビューフェーズで品質とテスト確認
+
+### シナリオ4: 複数Issue並行処理
+
+**状況**: 複数の機能を同時に開発
+
+```bash
+# 複数リポジトリを同時監視
+osoba watch --repos user/frontend,user/backend,user/mobile
+
+# 各Issue（例：45, 46, 47）が同時に処理される
+# tmuxセッション構成:
+# - osoba-frontend: 45-plan, 45-implement
+# - osoba-backend: 46-plan, 46-implement  
+# - osoba-mobile: 47-plan, 47-implement
+```
+
+### シナリオ5: チーム開発での活用
+
+**状況**: チームでの開発作業の効率化
+
+1. **朝の作業準備**
+   ```bash
+   # 夜間に蓄積されたIssueを自動処理
+   osoba watch --background
+   
+   # 進捗確認
+   osoba status
+   # 出力例:
+   # Issue #45: ready for review (PR #123 created)
+   # Issue #46: implementing (60% complete)
+   # Issue #47: planning (analyzing requirements)
+   ```
+
+2. **コードレビュー**
+   ```bash
+   # 自動生成されたPRを確認
+   gh pr list --state open
+   
+   # 必要に応じて手動調整
+   osoba open --issue 45
+   ```
+
+### よくある使用パターン
+
+#### 開発者の日常ワークフロー
+```bash
+# 1. 朝の作業開始
+osoba watch --daemon
+
+# 2. 進捗確認
+osoba status
+
+# 3. 必要に応じてセッション接続
+osoba open
+
+# 4. 夕方の作業終了
+osoba pause  # 一時停止
+```
+
+#### プロジェクトマネージャーの監視
+```bash
+# 全プロジェクトの進捗確認
+osoba dashboard
+
+# 特定プロジェクトの詳細確認
+osoba status --project user/important-project
+
+# 週次レポート生成
+osoba report --weekly
+```
+
 ## 詳細な設定
 
 ### 設定ファイルの構造
