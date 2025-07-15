@@ -3,12 +3,11 @@ package cmd
 import (
 	"bytes"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"strings"
 	"testing"
 
-	"github.com/douhashi/osoba/internal/git"
-	"github.com/douhashi/osoba/internal/tmux"
+	"github.com/spf13/cobra"
 )
 
 func TestStartCmd(t *testing.T) {
@@ -26,7 +25,7 @@ func TestStartCmd(t *testing.T) {
 			wantErr: false,
 			wantOutputContains: []string{
 				"start",
-				"tmuxセッションを作成",
+				"GitHub Issueの監視を開始",
 			},
 		},
 	}
@@ -68,59 +67,44 @@ func TestStartCmd(t *testing.T) {
 // 実際の機能をテストするユニットテスト
 func TestStartCmdExecution(t *testing.T) {
 	tests := []struct {
-		name         string
-		setupMock    func(t *testing.T)
-		cleanupMock  func()
-		setupGitRepo func(t *testing.T) (string, func())
-		wantErr      bool
-		wantContains []string
-		wantErrType  error
+		name            string
+		setupMock       func(t *testing.T)
+		cleanupMock     func()
+		setupGitRepo    func(t *testing.T) (string, func())
+		setupEnv        func() func()
+		wantErr         bool
+		wantContains    []string
+		wantErrContains string
 	}{
 		{
-			name: "正常系: 新規セッション作成",
+			name: "正常系: デフォルトでIssue監視モードが開始される",
 			setupMock: func(t *testing.T) {
-				// tmuxがインストールされている
-				origCheckTmux := checkTmuxInstalled
-				checkTmuxInstalled = func() error {
-					return nil
-				}
-
-				// セッションが存在しない
-				origSessionExists := sessionExists
-				sessionExists = func(name string) (bool, error) {
-					return false, nil
-				}
-
-				// セッション作成成功
-				origCreateSession := createSession
-				createSession = func(name string) error {
+				// runWatchWithFlagsをモック
+				origRunWatch := runWatchWithFlagsFunc
+				runWatchWithFlagsFunc = func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
+					// Issue監視モードが呼ばれたことを出力で確認
+					cmd.OutOrStdout().Write([]byte("Issue監視モードを開始します\n"))
 					return nil
 				}
 
 				t.Cleanup(func() {
-					checkTmuxInstalled = origCheckTmux
-					sessionExists = origSessionExists
-					createSession = origCreateSession
+					runWatchWithFlagsFunc = origRunWatch
 				})
 			},
 			setupGitRepo: func(t *testing.T) (string, func()) {
 				tmpDir := t.TempDir()
-				gitDir := filepath.Join(tmpDir, ".git")
-				configDir := filepath.Join(gitDir, "config")
 
-				err := os.MkdirAll(filepath.Dir(configDir), 0755)
-				if err != nil {
-					t.Fatal(err)
+				// git initとremote設定を実行
+				cmd := exec.Command("git", "init")
+				cmd.Dir = tmpDir
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("git init failed: %v", err)
 				}
 
-				configContent := `[core]
-	repositoryformatversion = 0
-[remote "origin"]
-	url = https://github.com/douhashi/test-repo.git
-`
-				err = os.WriteFile(configDir, []byte(configContent), 0644)
-				if err != nil {
-					t.Fatal(err)
+				cmd = exec.Command("git", "remote", "add", "origin", "https://github.com/douhashi/test-repo.git")
+				cmd.Dir = tmpDir
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("git remote add failed: %v", err)
 				}
 
 				cleanup := func() {
@@ -129,62 +113,16 @@ func TestStartCmdExecution(t *testing.T) {
 
 				return tmpDir, cleanup
 			},
-			wantErr: false,
-			wantContains: []string{
-				"tmuxセッション 'osoba-test-repo' を作成しました",
-				"tmux attach -t osoba-test-repo",
-			},
-		},
-		{
-			name: "正常系: 既存セッションがある場合",
-			setupMock: func(t *testing.T) {
-				// tmuxがインストールされている
-				origCheckTmux := checkTmuxInstalled
-				checkTmuxInstalled = func() error {
-					return nil
+			setupEnv: func() func() {
+				// GitHub Tokenを設定
+				os.Setenv("GITHUB_TOKEN", "test-token")
+				return func() {
+					os.Unsetenv("GITHUB_TOKEN")
 				}
-
-				// セッションが既に存在する
-				origSessionExists := sessionExists
-				sessionExists = func(name string) (bool, error) {
-					return true, nil
-				}
-
-				t.Cleanup(func() {
-					checkTmuxInstalled = origCheckTmux
-					sessionExists = origSessionExists
-				})
-			},
-			setupGitRepo: func(t *testing.T) (string, func()) {
-				tmpDir := t.TempDir()
-				gitDir := filepath.Join(tmpDir, ".git")
-				configDir := filepath.Join(gitDir, "config")
-
-				err := os.MkdirAll(filepath.Dir(configDir), 0755)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				configContent := `[core]
-	repositoryformatversion = 0
-[remote "origin"]
-	url = https://github.com/douhashi/test-repo.git
-`
-				err = os.WriteFile(configDir, []byte(configContent), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				cleanup := func() {
-					os.RemoveAll(tmpDir)
-				}
-
-				return tmpDir, cleanup
 			},
 			wantErr: false,
 			wantContains: []string{
-				"tmuxセッション 'osoba-test-repo' は既に存在します",
-				"tmux attach -t osoba-test-repo",
+				"Issue監視モードを開始します",
 			},
 		},
 		{
@@ -199,60 +137,13 @@ func TestStartCmdExecution(t *testing.T) {
 				}
 				return tmpDir, cleanup
 			},
-			wantErr:     true,
-			wantErrType: git.ErrNotGitRepository,
-		},
-		{
-			name: "異常系: tmuxがインストールされていない",
-			setupMock: func(t *testing.T) {
-				// tmuxがインストールされていない
-				origCheckTmux := checkTmuxInstalled
-				checkTmuxInstalled = func() error {
-					return tmux.ErrTmuxNotInstalled
-				}
-
-				t.Cleanup(func() {
-					checkTmuxInstalled = origCheckTmux
-				})
-			},
-			setupGitRepo: func(t *testing.T) (string, func()) {
-				tmpDir := t.TempDir()
-				gitDir := filepath.Join(tmpDir, ".git")
-				configDir := filepath.Join(gitDir, "config")
-
-				err := os.MkdirAll(filepath.Dir(configDir), 0755)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				configContent := `[core]
-	repositoryformatversion = 0
-[remote "origin"]
-	url = https://github.com/douhashi/test-repo.git
-`
-				err = os.WriteFile(configDir, []byte(configContent), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				cleanup := func() {
-					os.RemoveAll(tmpDir)
-				}
-
-				return tmpDir, cleanup
-			},
-			wantErr:     true,
-			wantErrType: tmux.ErrTmuxNotInstalled,
+			wantErr:         true,
+			wantErrContains: "現在のディレクトリはGitリポジトリではありません",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// モックのセットアップ
-			if tt.setupMock != nil {
-				tt.setupMock(t)
-			}
-
 			// Gitリポジトリのセットアップ
 			dir, cleanup := tt.setupGitRepo(t)
 			defer cleanup()
@@ -270,6 +161,17 @@ func TestStartCmdExecution(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			// モックのセットアップ（ディレクトリ移動後に実行）
+			if tt.setupMock != nil {
+				tt.setupMock(t)
+			}
+
+			// 環境変数のセットアップ
+			if tt.setupEnv != nil {
+				cleanup := tt.setupEnv()
+				defer cleanup()
+			}
+
 			// コマンドを実行
 			buf := new(bytes.Buffer)
 			errBuf := new(bytes.Buffer)
@@ -285,10 +187,10 @@ func TestStartCmdExecution(t *testing.T) {
 				return
 			}
 
-			if tt.wantErrType != nil && err != nil {
-				// エラーの型を確認
-				if !strings.Contains(err.Error(), tt.wantErrType.Error()) {
-					t.Errorf("Execute() error = %v, wantErrType %v", err, tt.wantErrType)
+			if tt.wantErrContains != "" && err != nil {
+				// エラーメッセージを確認
+				if !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Errorf("Execute() error = %v, want to contain %v", err, tt.wantErrContains)
 				}
 			}
 

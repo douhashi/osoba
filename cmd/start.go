@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -22,23 +21,21 @@ import (
 
 func newStartCmd() *cobra.Command {
 	var (
-		watchFlag    bool
 		intervalFlag string
 		configFlag   string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "start",
-		Short: "tmuxセッションを作成またはIssue監視を開始",
-		Long: `現在のGitリポジトリ専用のtmuxセッションを作成します。
---watchフラグを指定すると、GitHub Issueの監視モードで起動します。`,
+		Short: "Issue監視を開始",
+		Long: `現在のGitリポジトリでGitHub Issueの監視を開始します。
+tmuxセッションが存在しない場合は自動的に作成されます。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// フラグを構造体に渡して実行
-			return runStartWithFlags(cmd, args, watchFlag, intervalFlag, configFlag)
+			// Issue監視を開始
+			return runWatchWithFlagsFunc(cmd, args, intervalFlag, configFlag)
 		},
 	}
 
-	cmd.Flags().BoolVarP(&watchFlag, "watch", "w", false, "Issue監視モードで起動")
 	cmd.Flags().StringVarP(&intervalFlag, "interval", "i", "5s", "ポーリング間隔")
 	cmd.Flags().StringVarP(&configFlag, "config", "c", "", "設定ファイルのパス")
 
@@ -47,69 +44,6 @@ func newStartCmd() *cobra.Command {
 
 // テスト用にモック可能な関数変数
 var runWatchWithFlagsFunc = runWatchWithFlags
-
-func runStartWithFlags(cmd *cobra.Command, args []string, watchFlag bool, intervalFlag, configFlag string) error {
-	// --watchフラグが指定されている場合はIssue監視モードを開始
-	if watchFlag {
-		return runWatchWithFlagsFunc(cmd, args, intervalFlag, configFlag)
-	}
-
-	// 通常のtmuxセッション作成モード
-	return runTmuxSession(cmd, args)
-}
-
-func runTmuxSession(cmd *cobra.Command, args []string) error {
-	// 1. Gitリポジトリ名を取得
-	repoName, err := git.GetRepositoryName()
-	if err != nil {
-		if errors.Is(err, git.ErrNotGitRepository) {
-			return fmt.Errorf("%w", err)
-		}
-		if errors.Is(err, git.ErrNoRemoteFound) {
-			return fmt.Errorf("%w", err)
-		}
-		return fmt.Errorf("リポジトリ名の取得に失敗: %w", err)
-	}
-
-	// 2. tmuxがインストールされているか確認
-	if err := checkTmuxInstalled(); err != nil {
-		return fmt.Errorf("%w", err)
-	}
-
-	// 3. セッション名を生成
-	sessionName := fmt.Sprintf("osoba-%s", repoName)
-
-	// 4. 既存セッションの確認
-	exists, err := sessionExists(sessionName)
-	if err != nil {
-		return fmt.Errorf("セッションの確認に失敗: %w", err)
-	}
-
-	if exists {
-		// 既存セッションがある場合
-		fmt.Fprintf(cmd.OutOrStdout(), "tmuxセッション '%s' は既に存在します。\n", sessionName)
-		fmt.Fprintf(cmd.OutOrStdout(), "接続するには以下のコマンドを実行してください:\n")
-		fmt.Fprintf(cmd.OutOrStdout(), "  tmux attach -t %s\n", sessionName)
-		return nil
-	}
-
-	// 5. 新規セッションを作成
-	if err := createSession(sessionName); err != nil {
-		return fmt.Errorf("セッションの作成に失敗: %w", err)
-	}
-
-	fmt.Fprintf(cmd.OutOrStdout(), "tmuxセッション '%s' を作成しました。\n", sessionName)
-	fmt.Fprintf(cmd.OutOrStdout(), "接続するには以下のコマンドを実行してください:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "  tmux attach -t %s\n", sessionName)
-
-	return nil
-}
-
-// runWatch はIssue監視モードを実行する（テスト用にモック可能）
-var runWatch = func(cmd *cobra.Command, args []string) error {
-	// この関数は後方互換性のために残す
-	return runWatchWithFlags(cmd, args, "5s", "")
-}
 
 func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
 	fmt.Fprintln(cmd.OutOrStdout(), "Issue監視モードを開始します")
@@ -162,7 +96,7 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	}
 
 	// tmuxがインストールされているか確認
-	if err := checkTmuxInstalled(); err != nil {
+	if err := tmux.CheckTmuxInstalled(); err != nil {
 		return fmt.Errorf("%w", err)
 	}
 
@@ -217,9 +151,6 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 		worktreeManager,
 		claudeExecutor,
 		claudeConfig,
-		cfg,
-		owner,
-		repoName,
 	)
 
 	// Issue監視を作成
@@ -251,10 +182,3 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	issueWatcher.StartWithActions(ctx)
 	return nil
 }
-
-// テスト時にモック可能な関数変数
-var (
-	checkTmuxInstalled = tmux.CheckTmuxInstalled
-	sessionExists      = tmux.SessionExists
-	createSession      = tmux.CreateSession
-)
