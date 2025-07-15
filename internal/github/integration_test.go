@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/douhashi/osoba/internal/logger"
-	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

@@ -189,16 +189,22 @@ func TestLabelManagerWithRetry_EnsureLabelsExistWithRetry(t *testing.T) {
 		{
 			name: "リトライ成功: CreateLabelで一時的に失敗",
 			setupMocks: func(m *MockLabelService) {
-				// ListLabelsは成功
+				// 1回目の試行
+				// ListLabels呼び出しは成功（既存のラベルはなし）
 				m.On("ListLabels", mock.Anything, "owner", "repo", (*github.ListOptions)(nil)).
-					Return([]*github.Label{}, &github.Response{}, nil).Times(2)
+					Return([]*github.Label{}, &github.Response{}, nil).Once()
 
-				// 最初のラベル作成は失敗
+				// 最初のラベル作成（status:needs-plan）は失敗
 				m.On("CreateLabel", mock.Anything, "owner", "repo", mock.MatchedBy(func(label *github.Label) bool {
 					return *label.Name == "status:needs-plan"
 				})).Return(nil, &github.Response{}, errors.New("rate limit")).Once()
 
-				// 2回目の試行で全て成功
+				// 2回目の試行（リトライ）
+				// ListLabels呼び出し（リトライ時）
+				m.On("ListLabels", mock.Anything, "owner", "repo", (*github.ListOptions)(nil)).
+					Return([]*github.Label{}, &github.Response{}, nil).Once()
+
+				// 全てのラベルの作成が成功
 				labels := []string{
 					"status:needs-plan",
 					"status:planning",
