@@ -64,8 +64,9 @@ func TestIssueWatcher_LogsDetailedTransitionInfo(t *testing.T) {
 
 	// Capture log output
 	var logBuf bytes.Buffer
+	originalOutput := log.Writer()
 	log.SetOutput(&logBuf)
-	defer log.SetOutput(nil)
+	defer log.SetOutput(originalOutput)
 
 	// Create mock client
 	mockClient := new(MockGitHubClientWithInfo)
@@ -125,8 +126,9 @@ func TestIssueWatcher_LogsFailedTransition(t *testing.T) {
 
 	// Capture log output
 	var logBuf bytes.Buffer
+	originalOutput := log.Writer()
 	log.SetOutput(&logBuf)
-	defer log.SetOutput(nil)
+	defer log.SetOutput(originalOutput)
 
 	// Create mock client
 	mockClient := new(MockGitHubClientWithInfo)
@@ -176,8 +178,9 @@ func TestIssueWatcher_NoTransitionNeeded(t *testing.T) {
 
 	// Capture log output
 	var logBuf bytes.Buffer
+	originalOutput := log.Writer()
 	log.SetOutput(&logBuf)
-	defer log.SetOutput(nil)
+	defer log.SetOutput(originalOutput)
 
 	// Create mock client
 	mockClient := new(MockGitHubClientWithInfo)
