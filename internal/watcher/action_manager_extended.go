@@ -61,7 +61,7 @@ func (m *ActionManagerExtended) GetActionForIssue(issue *github.Issue) ActionExe
 	if hasLabel(issue, "status:ready") {
 		return m.factory.CreateImplementationAction()
 	}
-	if hasLabel(issue, "status:needs-review") {
+	if hasLabel(issue, "status:review-requested") {
 		return m.factory.CreateReviewAction()
 	}
 
