@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/go-github/v67/github"
 	"github.com/spf13/cobra"
@@ -69,6 +70,11 @@ func runStatusCmd(cmd *cobra.Command) error {
 
 	fmt.Fprintf(cmd.OutOrStdout(), "📂 リポジトリ: %s/%s\n", repoInfo.Owner, repoInfo.Repo)
 	fmt.Fprintln(cmd.OutOrStdout())
+
+	// 設定値を表示
+	if err := displayConfiguration(cmd, cfg); err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  設定表示エラー: %v\n", err)
+	}
 
 	// GitHub APIが利用可能かチェック
 	if cfg.GitHub.Token == "" {
@@ -285,4 +291,91 @@ func findGitDirectory(startPath string) string {
 		path = parent
 	}
 	return ""
+}
+
+// maskSensitiveValue は機密情報をマスクして表示用に変換する
+func maskSensitiveValue(value string) string {
+	if value == "" {
+		return ""
+	}
+
+	if len(value) <= 3 {
+		return strings.Repeat("*", len(value))
+	}
+
+	if len(value) <= 6 {
+		return value[:3] + strings.Repeat("*", len(value)-3)
+	}
+
+	return value[:3] + strings.Repeat("*", len(value)-3)
+}
+
+// displayConfiguration は設定値を表示する
+func displayConfiguration(cmd *cobra.Command, cfg *config.Config) error {
+	configPath := viper.GetString("config")
+
+	fmt.Fprintln(cmd.OutOrStdout())
+	fmt.Fprintln(cmd.OutOrStdout(), "📋 Configuration:")
+
+	// 設定ファイルが指定されているかチェック
+	if configPath != "" {
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			fmt.Fprintf(cmd.OutOrStdout(), "⚠️  Configuration file not found: %s\n", configPath)
+			fmt.Fprintln(cmd.OutOrStdout(), "   Using default values")
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "📄 Config file: %s\n", configPath)
+		}
+	} else {
+		fmt.Fprintln(cmd.OutOrStdout(), "📄 Config file: (using defaults)")
+	}
+
+	fmt.Fprintln(cmd.OutOrStdout())
+
+	// GitHub設定
+	fmt.Fprintln(cmd.OutOrStdout(), "  GitHub:")
+	if cfg.GitHub.Token == "" {
+		fmt.Fprintln(cmd.OutOrStdout(), "    Token: (not set)")
+	} else {
+		maskedToken := maskSensitiveValue(cfg.GitHub.Token)
+		fmt.Fprintf(cmd.OutOrStdout(), "    Token: %s\n", maskedToken)
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "    Poll Interval: %v\n", cfg.GitHub.PollInterval)
+
+	// ラベル設定
+	fmt.Fprintln(cmd.OutOrStdout(), "    Labels:")
+	fmt.Fprintf(cmd.OutOrStdout(), "      Plan: %s\n", cfg.GitHub.Labels.Plan)
+	fmt.Fprintf(cmd.OutOrStdout(), "      Ready: %s\n", cfg.GitHub.Labels.Ready)
+	fmt.Fprintf(cmd.OutOrStdout(), "      Review: %s\n", cfg.GitHub.Labels.Review)
+
+	// メッセージ設定
+	fmt.Fprintln(cmd.OutOrStdout(), "    Messages:")
+	fmt.Fprintf(cmd.OutOrStdout(), "      Plan: %s\n", cfg.GitHub.Messages.Plan)
+	fmt.Fprintf(cmd.OutOrStdout(), "      Implement: %s\n", cfg.GitHub.Messages.Implement)
+	fmt.Fprintf(cmd.OutOrStdout(), "      Review: %s\n", cfg.GitHub.Messages.Review)
+
+	fmt.Fprintln(cmd.OutOrStdout())
+
+	// TMux設定
+	fmt.Fprintln(cmd.OutOrStdout(), "  TMux:")
+	fmt.Fprintf(cmd.OutOrStdout(), "    Session Prefix: %s\n", cfg.Tmux.SessionPrefix)
+
+	fmt.Fprintln(cmd.OutOrStdout())
+
+	// Claude設定
+	if cfg.Claude != nil && cfg.Claude.Phases != nil {
+		fmt.Fprintln(cmd.OutOrStdout(), "  Claude Phases:")
+
+		// フェーズ順序を定義
+		phases := []string{"plan", "implement", "review"}
+
+		for _, phaseName := range phases {
+			if phaseConfig, exists := cfg.Claude.Phases[phaseName]; exists && phaseConfig != nil {
+				fmt.Fprintf(cmd.OutOrStdout(), "    %s:\n", strings.Title(phaseName))
+				fmt.Fprintf(cmd.OutOrStdout(), "      Args: %v\n", phaseConfig.Args)
+				fmt.Fprintf(cmd.OutOrStdout(), "      Prompt: %s\n", phaseConfig.Prompt)
+			}
+		}
+	}
+
+	return nil
 }
