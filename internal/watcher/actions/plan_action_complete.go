@@ -90,7 +90,7 @@ func (a *PlanActionComplete) Execute(ctx context.Context, issue *github.Issue) e
 	}
 
 	// tmuxウィンドウ作成
-	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber)); err != nil {
+	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber), "plan"); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to create tmux window: %w", err)
 	}

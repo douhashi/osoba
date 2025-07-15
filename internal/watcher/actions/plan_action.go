@@ -14,8 +14,8 @@ import (
 
 // TmuxClient はtmux操作のインターフェース
 type TmuxClient interface {
-	CreateWindowForIssue(sessionName string, issueNumber int) error
-	SwitchToIssueWindow(sessionName string, issueNumber int) error
+	CreateWindowForIssue(sessionName string, issueNumber int, phase string) error
+	SwitchToIssueWindow(sessionName string, issueNumber int, phase string) error
 	WindowExists(sessionName, windowName string) (bool, error)
 }
 
@@ -32,12 +32,12 @@ type StateManager interface {
 // DefaultTmuxClient はデフォルトのtmuxクライアント実装
 type DefaultTmuxClient struct{}
 
-func (c *DefaultTmuxClient) CreateWindowForIssue(sessionName string, issueNumber int) error {
-	return tmux.CreateWindowForIssue(sessionName, issueNumber)
+func (c *DefaultTmuxClient) CreateWindowForIssue(sessionName string, issueNumber int, phase string) error {
+	return tmux.CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, &tmux.DefaultCommandExecutor{})
 }
 
-func (c *DefaultTmuxClient) SwitchToIssueWindow(sessionName string, issueNumber int) error {
-	return tmux.SwitchToIssueWindow(sessionName, issueNumber)
+func (c *DefaultTmuxClient) SwitchToIssueWindow(sessionName string, issueNumber int, phase string) error {
+	return tmux.SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, &tmux.DefaultCommandExecutor{})
 }
 
 func (c *DefaultTmuxClient) WindowExists(sessionName, windowName string) (bool, error) {
@@ -99,7 +99,7 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 	a.stateManager.SetState(issueNumber, types.IssueStatePlan, types.IssueStatusProcessing)
 
 	// tmuxウィンドウ作成
-	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber)); err != nil {
+	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber), "plan"); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to create tmux window: %w", err)
 	}
@@ -137,7 +137,7 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	// tmuxウィンドウ内でClaude実行
-	windowName := fmt.Sprintf("issue-%d", issueNumber)
+	windowName := fmt.Sprintf("%d-plan", issueNumber)
 	log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
 	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)

@@ -96,7 +96,7 @@ func TestPlanActionComplete_Execute(t *testing.T) {
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:needs-plan", "status:planning").Return(nil)
 
 		// tmuxウィンドウ作成
-		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber)).Return(nil)
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "plan").Return(nil)
 
 		// git worktree作成
 		workdir := "/tmp/osoba/worktree/28"
@@ -199,7 +199,7 @@ func TestPlanActionComplete_Execute(t *testing.T) {
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:needs-plan", "status:planning").Return(nil)
 
 		// tmuxウィンドウ作成
-		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber)).Return(nil)
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "plan").Return(nil)
 
 		// git worktree作成失敗
 		mockGit.On("CreateWorktreeForIssue", int(issueNumber), "feat/#28-phase-action-execution").Return("", assert.AnError)
