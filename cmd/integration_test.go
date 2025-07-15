@@ -157,9 +157,11 @@ func TestIntegration_WatchFlow(t *testing.T) {
 				t.Errorf("API calls = %d, want at least %d", tt.mockClient.callCount, tt.expectedCalls)
 			}
 
-			// 初回の呼び出しで新しいIssueが検出されることを確認
-			if callbackCount != len(tt.mockClient.issues) {
-				t.Errorf("Callback calls = %d, want %d", callbackCount, len(tt.mockClient.issues))
+			// ステートレス化により、各ポーリングサイクルで同じIssueが処理される
+			// 期待される最小呼び出し回数は Issue数 × API呼び出し回数
+			expectedMinCallbacks := len(tt.mockClient.issues) * tt.expectedCalls
+			if callbackCount < expectedMinCallbacks {
+				t.Errorf("Callback calls = %d, want at least %d", callbackCount, expectedMinCallbacks)
 			}
 		})
 	}

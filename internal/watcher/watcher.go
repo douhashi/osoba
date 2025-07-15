@@ -228,7 +228,16 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 				}
 			}
 
-			callback(issue)
+			// コールバック実行時のパニックを捕捉
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("Panic recovered in callback for issue #%d: %v\nStack trace:\n%s",
+							*issue.Number, r, string(debug.Stack()))
+					}
+				}()
+				callback(issue)
+			}()
 		}
 
 		// ラベル変更の追跡
