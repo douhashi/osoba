@@ -68,6 +68,10 @@ func (m *mockGitHubClient) EnsureLabelsExist(ctx context.Context, owner, repo st
 	return nil
 }
 
+func (m *mockGitHubClient) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
+	return nil
+}
+
 // TestIntegration_WatchFlow は監視フロー全体の統合テスト
 func TestIntegration_WatchFlow(t *testing.T) {
 	tests := []struct {

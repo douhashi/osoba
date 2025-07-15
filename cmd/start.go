@@ -217,6 +217,9 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 		worktreeManager,
 		claudeExecutor,
 		claudeConfig,
+		cfg,
+		owner,
+		repoName,
 	)
 
 	// Issue監視を作成

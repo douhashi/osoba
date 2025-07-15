@@ -14,13 +14,14 @@ import (
 // ImplementationAction は実装フェーズのアクション実装
 type ImplementationAction struct {
 	types.BaseAction
-	sessionName     string
-	tmuxClient      TmuxClient
-	stateManager    StateManager
-	labelManager    LabelManager
-	worktreeManager git.WorktreeManager
-	claudeExecutor  claude.ClaudeExecutor
-	claudeConfig    *claude.ClaudeConfig
+	sessionName       string
+	tmuxClient        TmuxClient
+	stateManager      StateManager
+	labelManager      LabelManager
+	phaseTransitioner PhaseTransitioner
+	worktreeManager   git.WorktreeManager
+	claudeExecutor    claude.ClaudeExecutor
+	claudeConfig      *claude.ClaudeConfig
 }
 
 // NewImplementationAction は新しいImplementationActionを作成する
@@ -42,6 +43,30 @@ func NewImplementationAction(
 		worktreeManager: worktreeManager,
 		claudeExecutor:  claudeExecutor,
 		claudeConfig:    claudeConfig,
+	}
+}
+
+// NewImplementationActionWithPhaseTransitioner は新しいImplementationActionをPhaseTransitionerと共に作成する
+func NewImplementationActionWithPhaseTransitioner(
+	sessionName string,
+	tmuxClient TmuxClient,
+	stateManager StateManager,
+	labelManager LabelManager,
+	phaseTransitioner PhaseTransitioner,
+	worktreeManager git.WorktreeManager,
+	claudeExecutor claude.ClaudeExecutor,
+	claudeConfig *claude.ClaudeConfig,
+) *ImplementationAction {
+	return &ImplementationAction{
+		BaseAction:        types.BaseAction{Type: types.ActionTypeImplementation},
+		sessionName:       sessionName,
+		tmuxClient:        tmuxClient,
+		stateManager:      stateManager,
+		labelManager:      labelManager,
+		phaseTransitioner: phaseTransitioner,
+		worktreeManager:   worktreeManager,
+		claudeExecutor:    claudeExecutor,
+		claudeConfig:      claudeConfig,
 	}
 }
 
@@ -69,9 +94,17 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	a.stateManager.SetState(issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
 
 	// ラベル遷移（status:ready → status:implementing）
-	if err := a.labelManager.TransitionLabel(ctx, int(issueNumber), "status:ready", "status:implementing"); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-		return fmt.Errorf("failed to transition label: %w", err)
+	// PhaseTransitionerがある場合はそれを使用、ない場合は従来のLabelManagerを使用
+	if a.phaseTransitioner != nil {
+		if err := a.phaseTransitioner.TransitionPhase(ctx, int(issueNumber), "implement", "status:ready", "status:implementing"); err != nil {
+			a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
+			return fmt.Errorf("failed to transition phase: %w", err)
+		}
+	} else {
+		if err := a.labelManager.TransitionLabel(ctx, int(issueNumber), "status:ready", "status:implementing"); err != nil {
+			a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
+			return fmt.Errorf("failed to transition label: %w", err)
+		}
 	}
 
 	// tmuxウィンドウ作成

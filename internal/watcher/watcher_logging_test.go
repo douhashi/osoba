@@ -59,6 +59,11 @@ func (m *MockGitHubClientWithInfo) EnsureLabelsExist(ctx context.Context, owner,
 	return args.Error(0)
 }
 
+func (m *MockGitHubClientWithInfo) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
+	args := m.Called(ctx, owner, repo, issueNumber, comment)
+	return args.Error(0)
+}
+
 func TestIssueWatcher_LogsDetailedTransitionInfo(t *testing.T) {
 	ctx := context.Background()
 

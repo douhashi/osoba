@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/douhashi/osoba/internal/claude"
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/stretchr/testify/assert"
@@ -57,6 +58,9 @@ func TestActionFactory(t *testing.T) {
 			worktreeManager,
 			claudeExecutor,
 			claudeConfig,
+			config.NewConfig(),
+			"test-owner",
+			"test-repo",
 		)
 
 		// Assert
