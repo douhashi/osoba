@@ -393,6 +393,11 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 		{
 			name: "正常系: 作成される設定ファイルにClaude phases設定が含まれる",
 			setupMocks: func() {
+				// 設定ファイルが存在しないことをシミュレート
+				statFunc = func(name string) (os.FileInfo, error) {
+					return nil, os.ErrNotExist
+				}
+
 				mkdirAllFunc = func(path string, perm os.FileMode) error {
 					return nil
 				}
