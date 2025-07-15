@@ -519,7 +519,6 @@ osoba/
 ├── go.mod
 ├── go.sum
 ├── .gitignore
-├── .golangci.yml   # linter設定
 ├── Makefile
 └── README.md
 ```
@@ -529,35 +528,25 @@ osoba/
 ### 必須ツール
 
 - **gofmt/goimports**: コードフォーマッター
-- **golangci-lint**: 統合リンター
 - **go vet**: 静的解析
+- **go test**: テストランナー
 
-### golangci-lint設定例
+### 標準ツールの活用
 
-```yaml
-# .golangci.yml
-run:
-  timeout: 5m
+標準のGoツールを活用してコード品質を維持します：
 
-linters:
-  enable:
-    - gofmt
-    - goimports
-    - govet
-    - errcheck
-    - staticcheck
-    - gosimple
-    - ineffassign
-    - unused
-    - misspell
-    - gocyclo
-    - gosec
+```bash
+# コードフォーマット
+go fmt ./...
 
-linters-settings:
-  gocyclo:
-    min-complexity: 15
-  goimports:
-    local-prefixes: github.com/douhashi/osoba
+# 静的解析
+go vet ./...
+
+# インポートの整理
+goimports -w .
+
+# テスト実行
+go test -v ./...
 ```
 
 ## まとめ

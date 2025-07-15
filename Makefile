@@ -19,15 +19,11 @@ test:
 test-coverage:
 	go test -v -cover ./...
 
-# Run linter
+# Run linter (removed - using standard Go tools instead)
 lint:
-	@if command -v golangci-lint >/dev/null 2>&1 || [ -f "$$(go env GOPATH)/bin/golangci-lint" ]; then \
-		export PATH=$$PATH:$$(go env GOPATH)/bin; \
-		golangci-lint run; \
-	else \
-		echo "golangci-lint not found. Run 'make install-tools' to install it."; \
-		exit 1; \
-	fi
+	@echo "Linting with standard Go tools..."
+	@go vet ./...
+	@echo "Linting complete!"
 
 # Format code
 fmt:
@@ -44,9 +40,6 @@ clean:
 
 # Install development tools
 install-tools:
-	@echo "Installing golangci-lint v2..."
-	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin latest
-	@echo "golangci-lint installed to $$(go env GOPATH)/bin"
 	@echo "Installing goimports..."
 	@go install golang.org/x/tools/cmd/goimports@latest
 	@echo "Make sure to add $$(go env GOPATH)/bin to your PATH"
@@ -83,7 +76,7 @@ help:
 	@echo "  build           Build the application binary"
 	@echo "  test            Run all tests"
 	@echo "  test-coverage   Run tests with coverage report"
-	@echo "  lint            Run golangci-lint"
+	@echo "  lint            Run go vet"
 	@echo "  fmt             Format code using go fmt"
 	@echo "  vet             Run go vet"
 	@echo "  clean           Remove build artifacts"

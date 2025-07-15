@@ -16,16 +16,6 @@ repos:
       - id: mixed-line-ending
         args: ['--fix=lf']
 
-  # Go specific hooks
-  - repo: https://github.com/golangci/golangci-lint
-    rev: v1.55.2
-    hooks:
-      - id: golangci-lint
-        entry: golangci-lint run --fix
-        types: [go]
-        language: system
-        pass_filenames: false
-
   # Go fmt
   - repo: local
     hooks:

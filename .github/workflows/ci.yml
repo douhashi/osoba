@@ -79,11 +79,6 @@ jobs:
           exit 1
         fi
 
-    # - name: Run golangci-lint
-    #   uses: golangci/golangci-lint-action@v8
-    #   with:
-    #     version: v2.1
-    #     args: --timeout=5m
 
   cross-build:
     name: Cross Platform Build
