@@ -11,7 +11,6 @@ import (
 	"github.com/douhashi/osoba/internal/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestIntegration_GitHubClientLogging(t *testing.T) {
@@ -24,9 +23,8 @@ func TestIntegration_GitHubClientLogging(t *testing.T) {
 		t.Skip("GITHUB_TOKEN not set, skipping integration test")
 	}
 
-	zapLogger, err := zap.NewDevelopment()
+	log, err := logger.New(logger.WithLevel("debug"))
 	require.NoError(t, err)
-	log := logger.NewZapLogger(zapLogger)
 
 	t.Run("実際のGitHub APIリクエストでログが出力される", func(t *testing.T) {
 		client, err := NewClientWithLogger(token, log)
@@ -71,5 +69,52 @@ func TestIntegration_GitHubClientLogging(t *testing.T) {
 
 		// ログが出力されることを視覚的に確認
 		t.Logf("Rate limit: %d/%d", rateLimit.Core.Remaining, rateLimit.Core.Limit)
+	})
+}
+
+func TestLabelManagerIntegration(t *testing.T) {
+	// 環境変数からGitHubトークンとテストリポジトリ情報を取得
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		t.Skip("GITHUB_TOKEN is not set")
+	}
+
+	owner := os.Getenv("TEST_GITHUB_OWNER")
+	if owner == "" {
+		owner = "douhashi"
+	}
+
+	repo := os.Getenv("TEST_GITHUB_REPO")
+	if repo == "" {
+		repo = "osoba-test"
+	}
+
+	// GitHubクライアントを作成
+	client, err := NewClient(token)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("ラベル自動作成と遷移のテスト", func(t *testing.T) {
+		// 必要なラベルが存在することを確認
+		err := client.EnsureLabelsExist(ctx, owner, repo)
+		assert.NoError(t, err)
+
+		// ラベルが作成されたことを確認するため、各ラベルでIssueを検索してみる
+		// （ラベルが存在しない場合はエラーになる）
+		expectedLabels := []string{
+			"status:needs-plan",
+			"status:planning",
+			"status:ready",
+			"status:implementing",
+			"status:needs-review",
+			"status:reviewing",
+		}
+
+		for _, label := range expectedLabels {
+			// 各ラベルでIssueを検索（ラベルが存在することの確認）
+			_, err := client.ListIssuesByLabels(ctx, owner, repo, []string{label})
+			assert.NoError(t, err, "Label %s should exist", label)
+		}
 	})
 }

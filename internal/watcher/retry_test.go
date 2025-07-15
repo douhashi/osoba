@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v50/github"
+	"github.com/google/go-github/v67/github"
 )
 
 func TestRetryWithBackoff(t *testing.T) {

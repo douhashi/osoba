@@ -15,7 +15,7 @@ import (
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/douhashi/osoba/internal/watcher"
-	gh "github.com/google/go-github/v50/github"
+	gh "github.com/google/go-github/v67/github"
 	"github.com/spf13/cobra"
 )
 
@@ -162,6 +162,15 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 
 	// セッション名を生成
 	sessionName := fmt.Sprintf("osoba-%s", repoName)
+
+	// 必要なラベルが存在することを確認
+	fmt.Fprintln(cmd.OutOrStdout(), "必要なラベルを確認中...")
+	if err := githubClient.EnsureLabelsExist(context.Background(), owner, repoName); err != nil {
+		// エラーでも処理は続行（ラベル作成権限がない場合もあるため）
+		fmt.Fprintf(cmd.OutOrStderr(), "警告: ラベルの確認/作成に失敗しました: %v\n", err)
+	} else {
+		fmt.Fprintln(cmd.OutOrStdout(), "ラベルの確認が完了しました")
+	}
 
 	// Issue監視を作成
 	issueWatcher, err := watcher.NewIssueWatcher(githubClient, owner, repoName, sessionName, cfg.GetLabels())

@@ -7,7 +7,7 @@ import (
 
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/douhashi/osoba/internal/watcher"
-	"github.com/google/go-github/v50/github"
+	"github.com/google/go-github/v67/github"
 )
 
 // TmuxClient はtmux操作のインターフェース
