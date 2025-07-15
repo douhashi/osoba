@@ -6,7 +6,7 @@ import (
 
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/git"
-	"github.com/douhashi/osoba/internal/watcher"
+	"github.com/douhashi/osoba/internal/types"
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,11 +33,11 @@ func TestReviewAction_Execute(t *testing.T) {
 		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateReview).Return(false)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStateReview).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(false)
 
 		// 処理開始
-		mockState.On("SetState", issueNumber, watcher.IssueStateReview, watcher.IssueStatusProcessing)
+		mockState.On("SetState", issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
 
 		// ラベル遷移
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:review-requested", "status:reviewing").Return(nil)
@@ -71,7 +71,7 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockLabel.On("AddLabel", ctx, int(issueNumber), "status:completed").Return(nil)
 
 		// 処理完了
-		mockState.On("MarkAsCompleted", issueNumber, watcher.IssueStateReview)
+		mockState.On("MarkAsCompleted", issueNumber, types.IssueStateReview)
 
 		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 
@@ -108,7 +108,7 @@ func TestReviewAction_Execute(t *testing.T) {
 		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 既に処理済み
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateReview).Return(true)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStateReview).Return(true)
 
 		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 
@@ -145,17 +145,17 @@ func TestReviewAction_Execute(t *testing.T) {
 		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateReview).Return(false)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStateReview).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(false)
 
 		// 処理開始
-		mockState.On("SetState", issueNumber, watcher.IssueStateReview, watcher.IssueStatusProcessing)
+		mockState.On("SetState", issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
 
 		// ラベル遷移失敗
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:review-requested", "status:reviewing").Return(assert.AnError)
 
 		// 処理失敗
-		mockState.On("MarkAsFailed", issueNumber, watcher.IssueStateReview)
+		mockState.On("MarkAsFailed", issueNumber, types.IssueStateReview)
 
 		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 
@@ -193,11 +193,11 @@ func TestReviewAction_Execute(t *testing.T) {
 		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateReview).Return(false)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStateReview).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(false)
 
 		// 処理開始
-		mockState.On("SetState", issueNumber, watcher.IssueStateReview, watcher.IssueStatusProcessing)
+		mockState.On("SetState", issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
 
 		// ラベル遷移
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:review-requested", "status:reviewing").Return(nil)
@@ -228,7 +228,7 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "issue-28", workdir).Return(assert.AnError)
 
 		// 処理失敗
-		mockState.On("MarkAsFailed", issueNumber, watcher.IssueStateReview)
+		mockState.On("MarkAsFailed", issueNumber, types.IssueStateReview)
 
 		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 

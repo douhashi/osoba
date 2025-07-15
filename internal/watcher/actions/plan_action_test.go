@@ -7,7 +7,7 @@ import (
 
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/git"
-	"github.com/douhashi/osoba/internal/watcher"
+	"github.com/douhashi/osoba/internal/types"
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -38,15 +38,15 @@ type MockStateManager struct {
 	mock.Mock
 }
 
-func (m *MockStateManager) GetState(issueNumber int64) (*watcher.IssueState, bool) {
+func (m *MockStateManager) GetState(issueNumber int64) (*types.IssueState, bool) {
 	args := m.Called(issueNumber)
 	if args.Get(0) == nil {
 		return nil, args.Bool(1)
 	}
-	return args.Get(0).(*watcher.IssueState), args.Bool(1)
+	return args.Get(0).(*types.IssueState), args.Bool(1)
 }
 
-func (m *MockStateManager) SetState(issueNumber int64, phase watcher.IssuePhase, status watcher.IssueStatus) {
+func (m *MockStateManager) SetState(issueNumber int64, phase types.IssuePhase, status types.IssueStatus) {
 	m.Called(issueNumber, phase, status)
 }
 
@@ -55,16 +55,16 @@ func (m *MockStateManager) IsProcessing(issueNumber int64) bool {
 	return args.Bool(0)
 }
 
-func (m *MockStateManager) HasBeenProcessed(issueNumber int64, phase watcher.IssuePhase) bool {
+func (m *MockStateManager) HasBeenProcessed(issueNumber int64, phase types.IssuePhase) bool {
 	args := m.Called(issueNumber, phase)
 	return args.Bool(0)
 }
 
-func (m *MockStateManager) MarkAsCompleted(issueNumber int64, phase watcher.IssuePhase) {
+func (m *MockStateManager) MarkAsCompleted(issueNumber int64, phase types.IssuePhase) {
 	m.Called(issueNumber, phase)
 }
 
-func (m *MockStateManager) MarkAsFailed(issueNumber int64, phase watcher.IssuePhase) {
+func (m *MockStateManager) MarkAsFailed(issueNumber int64, phase types.IssuePhase) {
 	m.Called(issueNumber, phase)
 }
 
@@ -171,11 +171,11 @@ func TestPlanAction_Execute(t *testing.T) {
 		config := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStatePlan).Return(false)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStatePlan).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(false)
 
 		// 処理開始
-		mockState.On("SetState", issueNumber, watcher.IssueStatePlan, watcher.IssueStatusProcessing)
+		mockState.On("SetState", issueNumber, types.IssueStatePlan, types.IssueStatusProcessing)
 
 		// tmuxウィンドウ作成
 		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber)).Return(nil)
@@ -189,7 +189,7 @@ func TestPlanAction_Execute(t *testing.T) {
 		mockClaude.On("ExecuteInTmux", ctx, config.Phases["plan"], mock.AnythingOfType("*claude.TemplateVariables"), sessionName, "issue-13", "/tmp/worktree/13-plan").Return(nil)
 
 		// 処理完了
-		mockState.On("MarkAsCompleted", issueNumber, watcher.IssueStatePlan)
+		mockState.On("MarkAsCompleted", issueNumber, types.IssueStatePlan)
 
 		action := NewPlanAction(sessionName, mockTmux, mockState, mockWorktree, mockClaude, config)
 
@@ -224,7 +224,7 @@ func TestPlanAction_Execute(t *testing.T) {
 		config := claude.NewDefaultClaudeConfig()
 
 		// 既に処理済み
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStatePlan).Return(true)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStatePlan).Return(true)
 
 		action := NewPlanAction(sessionName, mockTmux, mockState, mockWorktree, mockClaude, config)
 
@@ -257,7 +257,7 @@ func TestPlanAction_Execute(t *testing.T) {
 		config := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStatePlan).Return(false)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStatePlan).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(true)
 
 		action := NewPlanAction(sessionName, mockTmux, mockState, mockWorktree, mockClaude, config)
