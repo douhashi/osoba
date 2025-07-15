@@ -152,7 +152,6 @@ log:
    ```bash
    make install-tools
    # または手動で:
-   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
    go install golang.org/x/tools/cmd/goimports@latest
    export PATH=$PATH:$(go env GOPATH)/bin
    ```
@@ -178,7 +177,9 @@ go test ./...
 ### Lint
 
 ```bash
-golangci-lint run
+make lint
+# または
+go vet ./...
 ```
 
 ## 開発
@@ -188,7 +189,7 @@ golangci-lint run
 Git pre-commit hookが自動的に以下をチェックします:
 - `go fmt` - コードフォーマット
 - `go vet` - 静的解析
-- `golangci-lint` - 統合リンター
+- `go mod tidy` - 依存関係の整理
 
 ### プロジェクト構造
 
@@ -198,7 +199,7 @@ osoba/
 ├── internal/    # 内部パッケージ
 ├── pkg/         # 公開パッケージ
 ├── .githooks/   # Git hooks
-└── .golangci.yml # golangci-lint設定
+└── Makefile      # ビルドタスク
 ```
 
 ## CI/CD
