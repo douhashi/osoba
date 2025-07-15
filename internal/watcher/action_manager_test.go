@@ -128,7 +128,7 @@ func TestActionManagerExtended_ExecuteAction(t *testing.T) {
 		issue := &github.Issue{
 			Number: github.Int(issueNumber),
 			Labels: []*github.Label{
-				{Name: github.String("status:needs-review")},
+				{Name: github.String("status:review-requested")},
 			},
 		}
 
