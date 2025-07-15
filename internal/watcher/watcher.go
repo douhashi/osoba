@@ -3,7 +3,10 @@ package watcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
@@ -12,6 +15,27 @@ import (
 
 // IssueCallback はIssue検出時に呼ばれるコールバック関数
 type IssueCallback func(issue *gh.Issue)
+
+// 定数定義
+const (
+	// MaxSeenIssues はseenIssuesマップの最大サイズ
+	MaxSeenIssues = 500
+)
+
+// HealthStats はwatcherの健全性統計情報
+type HealthStats struct {
+	TotalExecutions      int
+	SuccessfulExecutions int
+	FailedExecutions     int
+	LastExecutionTime    time.Time
+	StartTime            time.Time
+}
+
+// HealthStatus はヘルスチェックの結果
+type HealthStatus struct {
+	IsHealthy bool
+	Message   string
+}
 
 // IssueWatcher はGitHub Issueを監視する構造体
 type IssueWatcher struct {
@@ -25,6 +49,14 @@ type IssueWatcher struct {
 	eventNotifier       *EventNotifier     // イベント通知システム
 	labelChangeTracking bool               // ラベル変更追跡が有効かどうか
 	issueLabels         map[int64][]string // Issue IDとラベルのマッピング
+
+	// ヘルスチェック用のフィールド
+	lastExecutionTime    time.Time
+	totalExecutions      int
+	successfulExecutions int
+	failedExecutions     int
+	startTime            time.Time
+	mu                   sync.Mutex // ヘルスチェックフィールドの保護用
 }
 
 // NewIssueWatcher は新しいIssueWatcherを作成する
@@ -52,6 +84,7 @@ func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string
 		actionManager:       NewActionManager(sessionName),
 		labelChangeTracking: false,
 		issueLabels:         make(map[int64][]string),
+		startTime:           time.Now(),
 	}, nil
 }
 
@@ -105,6 +138,41 @@ func (w *IssueWatcher) StartWithActions(ctx context.Context) {
 
 // checkIssues は現在のIssueをチェックし、新しいIssueがあればコールバックを呼ぶ
 func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) {
+	// サイクル開始時刻
+	startTime := time.Now()
+	log.Printf("Starting issue check cycle at %s", startTime.Format(time.RFC3339))
+
+	// 統計情報の更新
+	w.mu.Lock()
+	w.totalExecutions++
+	w.mu.Unlock()
+
+	// 処理統計の記録
+	var processedCount, newIssueCount int
+	var executionSuccessful bool
+	defer func() {
+		elapsed := time.Since(startTime)
+		log.Printf("Completed issue check cycle: processed issues: %d, new issues detected: %d, time taken: %v",
+			processedCount, newIssueCount, elapsed)
+
+		// ヘルスチェック情報の更新
+		w.mu.Lock()
+		if executionSuccessful {
+			w.successfulExecutions++
+		} else {
+			w.failedExecutions++
+		}
+		w.lastExecutionTime = time.Now()
+		w.mu.Unlock()
+	}()
+
+	// パニックリカバリー
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic recovered in checkIssues: %v\nStack trace:\n%s", r, string(debug.Stack()))
+		}
+	}()
+
 	var issues []*gh.Issue
 
 	// リトライ付きでAPIを呼び出し
@@ -115,21 +183,39 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 	})
 
 	if err != nil {
-		log.Printf("Failed to list issues: %v", err)
+		log.Printf("Failed to list issues: %v (owner=%s, repo=%s, labels=%v)",
+			err, w.owner, w.repo, w.labels)
 		return
 	}
+
+	// API呼び出しが成功
+	executionSuccessful = true
 
 	for _, issue := range issues {
 		if issue.Number == nil {
 			continue
 		}
 
+		processedCount++
 		issueID := int64(*issue.Number)
 		currentLabels := getLabels(issue)
 
 		// 新しいIssueの検出
-		if !w.seenIssues[issueID] {
+		w.mu.Lock()
+		alreadySeen := w.seenIssues[issueID]
+		if !alreadySeen {
+			// メモリ管理: seenIssuesのサイズ制限
+			if len(w.seenIssues) >= MaxSeenIssues {
+				// 最も古いエントリを削除
+				w.cleanupSeenIssues()
+			}
+
 			w.seenIssues[issueID] = true
+			newIssueCount++
+		}
+		w.mu.Unlock()
+
+		if !alreadySeen {
 			log.Printf("New issue detected: #%d - %s (labels: %v)",
 				*issue.Number,
 				safeString(issue.Title),
@@ -163,7 +249,12 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 
 		// ラベル変更の追跡
 		if w.labelChangeTracking {
+			w.mu.Lock()
 			previousLabels, exists := w.issueLabels[issueID]
+			// 現在のラベルを保存
+			w.issueLabels[issueID] = currentLabels
+			w.mu.Unlock()
+
 			if exists {
 				// ラベル変更をチェック
 				events := DetectLabelChanges(previousLabels, currentLabels)
@@ -183,16 +274,125 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 					}
 				}
 			}
-
-			// 現在のラベルを保存
-			w.issueLabels[issueID] = currentLabels
 		}
 	}
+}
+
+// cleanupSeenIssues は最も古いエントリを削除してメモリを解放する
+// 注意: このメソッドは呼び出し元でmutexがロックされていることを前提としている
+func (w *IssueWatcher) cleanupSeenIssues() {
+	// 削除するエントリ数（全体の20%）
+	toDelete := len(w.seenIssues) / 5
+	if toDelete < 1 {
+		toDelete = 1
+	}
+
+	// Issue IDのリストを取得してソート（古いIDほど小さいと仮定）
+	var issueIDs []int64
+	for id := range w.seenIssues {
+		issueIDs = append(issueIDs, id)
+	}
+	// 昇順でソート
+	for i := 0; i < len(issueIDs)-1; i++ {
+		for j := i + 1; j < len(issueIDs); j++ {
+			if issueIDs[i] > issueIDs[j] {
+				issueIDs[i], issueIDs[j] = issueIDs[j], issueIDs[i]
+			}
+		}
+	}
+
+	// 古いエントリを削除
+	for i := 0; i < toDelete && i < len(issueIDs); i++ {
+		delete(w.seenIssues, issueIDs[i])
+		// 関連するラベル情報も削除
+		delete(w.issueLabels, issueIDs[i])
+	}
+
+	log.Printf("Cleaned up %d old entries from seenIssues (current size: %d)", toDelete, len(w.seenIssues))
 }
 
 // GetRateLimit はGitHub APIのレート制限情報を取得する
 func (w *IssueWatcher) GetRateLimit(ctx context.Context) (*gh.RateLimits, error) {
 	return w.client.GetRateLimit(ctx)
+}
+
+// GetSeenIssuesCount はseenIssuesマップのサイズを取得する
+func (w *IssueWatcher) GetSeenIssuesCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.seenIssues)
+}
+
+// HasSeenIssue は指定されたIssue IDが既に処理されているかを確認する
+func (w *IssueWatcher) HasSeenIssue(issueID int64) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.seenIssues[issueID]
+}
+
+// GetLastExecutionTime は最後の実行時刻を取得する
+func (w *IssueWatcher) GetLastExecutionTime() time.Time {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.lastExecutionTime
+}
+
+// GetHealthStats はヘルスチェック統計情報を取得する
+func (w *IssueWatcher) GetHealthStats() HealthStats {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return HealthStats{
+		TotalExecutions:      w.totalExecutions,
+		SuccessfulExecutions: w.successfulExecutions,
+		FailedExecutions:     w.failedExecutions,
+		LastExecutionTime:    w.lastExecutionTime,
+		StartTime:            w.startTime,
+	}
+}
+
+// CheckHealth はwatcherの健全性をチェックする
+func (w *IssueWatcher) CheckHealth(maxInactivity time.Duration) HealthStatus {
+	w.mu.Lock()
+	lastExecution := w.lastExecutionTime
+	totalExecutions := w.totalExecutions
+	successRate := float64(0)
+	if totalExecutions > 0 {
+		successRate = float64(w.successfulExecutions) / float64(totalExecutions) * 100
+	}
+	w.mu.Unlock()
+
+	// 一度も実行されていない場合
+	if lastExecution.IsZero() {
+		return HealthStatus{
+			IsHealthy: false,
+			Message:   "Watcher has never been executed",
+		}
+	}
+
+	// 最後の実行からの経過時間をチェック
+	timeSinceLastExecution := time.Since(lastExecution)
+	if timeSinceLastExecution > maxInactivity {
+		return HealthStatus{
+			IsHealthy: false,
+			Message:   fmt.Sprintf("Watcher has been inactive for %v (threshold: %v)", timeSinceLastExecution, maxInactivity),
+		}
+	}
+
+	// 成功率が極端に低い場合
+	if totalExecutions > 10 && successRate < 10 {
+		return HealthStatus{
+			IsHealthy: false,
+			Message: fmt.Sprintf("Success rate is too low: %.2f%% (%d/%d executions)",
+				successRate, w.successfulExecutions, totalExecutions),
+		}
+	}
+
+	return HealthStatus{
+		IsHealthy: true,
+		Message: fmt.Sprintf("Watcher is healthy (success rate: %.2f%%, last execution: %v ago)",
+			successRate, timeSinceLastExecution),
+	}
 }
 
 // ヘルパー関数

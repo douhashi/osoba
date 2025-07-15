@@ -204,21 +204,19 @@ func TestLabelManagerWithRetry_EnsureLabelsExistWithRetry(t *testing.T) {
 				m.On("ListLabels", mock.Anything, "owner", "repo", (*github.ListOptions)(nil)).
 					Return([]*github.Label{}, &github.Response{}, nil).Once()
 
-				// 全てのラベルの作成が成功
-				labels := []string{
-					"status:needs-plan",
-					"status:planning",
-					"status:ready",
-					"status:implementing",
-					"status:needs-review",
-					"status:reviewing",
-				}
-
-				for _, labelName := range labels {
-					m.On("CreateLabel", mock.Anything, "owner", "repo", mock.MatchedBy(func(label *github.Label) bool {
-						return *label.Name == labelName
-					})).Return(&github.Label{Name: github.String(labelName)}, &github.Response{}, nil).Once()
-				}
+				// 2回目のCreateLabel呼び出し（リトライ時、すべて成功）
+				// mapの反復順序は不定なので、任意のラベルの作成を受け入れる
+				m.On("CreateLabel", mock.Anything, "owner", "repo", mock.MatchedBy(func(label *github.Label) bool {
+					validLabels := map[string]bool{
+						"status:needs-plan":   true,
+						"status:planning":     true,
+						"status:ready":        true,
+						"status:implementing": true,
+						"status:needs-review": true,
+						"status:reviewing":    true,
+					}
+					return validLabels[*label.Name]
+				})).Return(&github.Label{}, &github.Response{}, nil).Times(6)
 			},
 			wantErr: false,
 		},

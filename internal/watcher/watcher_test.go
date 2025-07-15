@@ -239,6 +239,58 @@ func TestIssueWatcher_Start(t *testing.T) {
 			t.Error("Issue #1 was not detected after retry")
 		}
 	})
+
+	t.Run("異常系: パニック発生時もwatcherは継続する", func(t *testing.T) {
+		callCount := 0
+		var callMu sync.Mutex
+		mockClient := &mockGitHubClient{
+			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
+				callMu.Lock()
+				callCount++
+				callMu.Unlock()
+
+				// 正常な結果を返す
+				return testIssues, nil
+			},
+		}
+
+		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"})
+		if err != nil {
+			t.Fatalf("failed to create watcher: %v", err)
+		}
+
+		panicCount := 0
+		var panicMu sync.Mutex
+		callback := func(issue *github.Issue) {
+			panicMu.Lock()
+			defer panicMu.Unlock()
+			if panicCount == 0 && *issue.Number == 1 {
+				panicCount++
+				panic("test panic")
+			}
+		}
+
+		if err := watcher.SetPollInterval(100 * time.Millisecond); err != nil {
+			// テスト環境では1秒未満を許可
+			watcher.pollInterval = 100 * time.Millisecond
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+
+		go watcher.Start(ctx, callback)
+
+		// パニック後も継続することを確認
+		time.Sleep(350 * time.Millisecond)
+
+		callMu.Lock()
+		finalCallCount := callCount
+		callMu.Unlock()
+
+		if finalCallCount < 3 {
+			t.Errorf("watcher did not continue after panic, call count: %d", finalCallCount)
+		}
+	})
 }
 
 func TestIssueWatcher_GetRateLimit(t *testing.T) {
