@@ -191,13 +191,12 @@ func setupConfigFile(out io.Writer) error {
 
 github:
   token: "${GITHUB_TOKEN}"
-  poll_interval: 5m
+  poll_interval: 10s
 
 tmux:
   session_prefix: "osoba-"
 
 claude:
-  model: "claude-3-opus-20240229"
   phases:
     plan:
       args: ["--dangerously-skip-permissions"]

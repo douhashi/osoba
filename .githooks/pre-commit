@@ -39,19 +39,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Run golangci-lint if available
-if command -v golangci-lint &> /dev/null || [ -f "$(go env GOPATH)/bin/golangci-lint" ]; then
-    echo "Running golangci-lint..."
-    export PATH=$PATH:$(go env GOPATH)/bin
-    # Run with default linters only for v2 compatibility
-    golangci-lint run --timeout=5m || {
-        echo "Warning: golangci-lint found issues (continuing anyway)"
-        # Don't fail on golangci-lint errors for now
-    }
-else
-    echo "golangci-lint not found, skipping..."
-fi
-
 # Run additional checks
 echo "Running goimports check..."
 if command -v goimports &> /dev/null; then
