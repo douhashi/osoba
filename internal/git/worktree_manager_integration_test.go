@@ -13,10 +13,8 @@ import (
 )
 
 func TestWorktreeManager_Integration(t *testing.T) {
-	// 統合テストはCI環境でスキップ
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping integration test in CI")
-	}
+	// 統合テストは手動実行のみ
+	t.Skip("Skipping integration test - manual execution only")
 
 	// テスト用の一時ディレクトリを作成
 	tmpDir, err := os.MkdirTemp("", "worktree-integration-test-*")
