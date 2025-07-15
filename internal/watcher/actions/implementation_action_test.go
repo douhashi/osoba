@@ -48,12 +48,12 @@ func TestImplementationAction_Execute(t *testing.T) {
 		// mainブランチの更新
 		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
 
-		// worktreeの存在確認（既存のworktreeを使用）
-		mockWorktree.On("WorktreeExists", ctx, int(issueNumber), git.PhasePlan).Return(true, nil)
+		// worktreeの新規作成
+		mockWorktree.On("CreateWorktree", ctx, int(issueNumber), git.PhaseImplementation).Return(nil)
 
 		// worktreeパスの取得
-		workdir := "/tmp/osoba/worktree/28"
-		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhasePlan).Return(workdir)
+		workdir := "/tmp/osoba/worktree/28-implementation"
+		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseImplementation).Return(workdir)
 
 		// Claude実行
 		phaseConfig := &claude.PhaseConfig{
@@ -169,6 +169,78 @@ func TestImplementationAction_Execute(t *testing.T) {
 		mockLabel.AssertExpectations(t)
 	})
 
+	t.Run("正常系: 独立したImplementationフェーズのworktreeを作成", func(t *testing.T) {
+		// Arrange
+		ctx := context.Background()
+		sessionName := "osoba-test"
+		issueNumber := int64(28)
+		issue := &github.Issue{
+			Number: github.Int(int(issueNumber)),
+			Title:  github.String("Test Issue"),
+			Labels: []*github.Label{
+				{Name: github.String("status:ready")},
+			},
+		}
+
+		mockTmux := new(MockTmuxClient)
+		mockState := new(MockStateManager)
+		mockLabel := new(MockLabelManager)
+		mockWorktree := new(MockWorktreeManager)
+		mockClaude := new(MockClaudeExecutor)
+		claudeConfig := claude.NewDefaultClaudeConfig()
+
+		// 状態確認
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStateImplementation).Return(false)
+		mockState.On("IsProcessing", issueNumber).Return(false)
+
+		// 処理開始
+		mockState.On("SetState", issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
+
+		// ラベル遷移
+		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:ready", "status:implementing").Return(nil)
+
+		// tmuxウィンドウへの切り替え
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "implement").Return(nil)
+
+		// mainブランチの更新
+		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
+
+		// worktreeの新規作成（独立したImplementationフェーズのworktree）
+		mockWorktree.On("CreateWorktree", ctx, int(issueNumber), git.PhaseImplementation).Return(nil)
+
+		// worktreeパスの取得（Implementationフェーズ用）
+		workdir := "/tmp/osoba/worktree/28-implementation"
+		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseImplementation).Return(workdir)
+
+		// Claude実行
+		phaseConfig := &claude.PhaseConfig{
+			Args:   []string{},
+			Prompt: "/osoba:implement {{issue-number}}",
+		}
+		templateVars := &claude.TemplateVariables{
+			IssueNumber: int(issueNumber),
+			IssueTitle:  "Test Issue",
+			RepoName:    "douhashi/osoba",
+		}
+		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "28-implement", workdir).Return(nil)
+
+		// 処理完了
+		mockState.On("MarkAsCompleted", issueNumber, types.IssueStateImplementation)
+
+		action := NewImplementationAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
+
+		// Act
+		err := action.Execute(ctx, issue)
+
+		// Assert
+		assert.NoError(t, err)
+		mockTmux.AssertExpectations(t)
+		mockState.AssertExpectations(t)
+		mockLabel.AssertExpectations(t)
+		mockWorktree.AssertExpectations(t)
+		mockClaude.AssertExpectations(t)
+	})
+
 	t.Run("異常系: Claude実行失敗", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
@@ -205,12 +277,12 @@ func TestImplementationAction_Execute(t *testing.T) {
 		// mainブランチの更新
 		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
 
-		// worktreeの存在確認
-		mockWorktree.On("WorktreeExists", ctx, int(issueNumber), git.PhasePlan).Return(true, nil)
+		// worktreeの新規作成
+		mockWorktree.On("CreateWorktree", ctx, int(issueNumber), git.PhaseImplementation).Return(nil)
 
 		// worktreeパスの取得
-		workdir := "/tmp/osoba/worktree/28"
-		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhasePlan).Return(workdir)
+		workdir := "/tmp/osoba/worktree/28-implementation"
+		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseImplementation).Return(workdir)
 
 		// Claude実行失敗
 		phaseConfig := &claude.PhaseConfig{
