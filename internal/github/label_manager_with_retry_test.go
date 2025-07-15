@@ -204,7 +204,7 @@ func TestLabelManagerWithRetry_EnsureLabelsExistWithRetry(t *testing.T) {
 				m.On("ListLabels", mock.Anything, "owner", "repo", (*github.ListOptions)(nil)).
 					Return([]*github.Label{}, &github.Response{}, nil).Once()
 
-				// 全てのラベルの作成が成功（リトライ時は最初から全て作成し直す）
+				// 2回目のCreateLabel呼び出し（リトライ時、すべて成功）
 				// mapの反復順序は不定なので、任意のラベルの作成を受け入れる
 				m.On("CreateLabel", mock.Anything, "owner", "repo", mock.MatchedBy(func(label *github.Label) bool {
 					validLabels := map[string]bool{
