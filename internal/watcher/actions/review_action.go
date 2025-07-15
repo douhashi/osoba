@@ -63,8 +63,8 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	// 処理開始
 	a.stateManager.SetState(issueNumber, watcher.IssueStateReview, watcher.IssueStatusProcessing)
 
-	// ラベル遷移（status:needs-review → status:reviewing）
-	if err := a.labelManager.TransitionLabel(ctx, int(issueNumber), "status:needs-review", "status:reviewing"); err != nil {
+	// ラベル遷移（status:review-requested → status:reviewing）
+	if err := a.labelManager.TransitionLabel(ctx, int(issueNumber), "status:review-requested", "status:reviewing"); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
 		return fmt.Errorf("failed to transition label: %w", err)
 	}
@@ -99,5 +99,5 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 
 // CanExecute はレビューフェーズのアクションが実行可能かを判定する
 func (a *ReviewAction) CanExecute(issue *github.Issue) bool {
-	return hasLabel(issue, "status:needs-review")
+	return hasLabel(issue, "status:review-requested")
 }

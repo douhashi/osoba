@@ -19,7 +19,7 @@ func TestReviewAction_Execute(t *testing.T) {
 			Number: github.Int(int(issueNumber)),
 			Title:  github.String("Test Issue"),
 			Labels: []*github.Label{
-				{Name: github.String("status:needs-review")},
+				{Name: github.String("status:review-requested")},
 			},
 		}
 
@@ -37,7 +37,7 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockState.On("SetState", issueNumber, watcher.IssueStateReview, watcher.IssueStatusProcessing)
 
 		// ラベル遷移
-		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:needs-review", "status:reviewing").Return(nil)
+		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:review-requested", "status:reviewing").Return(nil)
 
 		// tmuxウィンドウへの切り替え
 		mockTmux.On("SwitchToIssueWindow", sessionName, int(issueNumber)).Return(nil)
@@ -78,7 +78,7 @@ func TestReviewAction_Execute(t *testing.T) {
 			Number: github.Int(int(issueNumber)),
 			Title:  github.String("Test Issue"),
 			Labels: []*github.Label{
-				{Name: github.String("status:needs-review")},
+				{Name: github.String("status:review-requested")},
 			},
 		}
 
@@ -113,7 +113,7 @@ func TestReviewAction_Execute(t *testing.T) {
 			Number: github.Int(int(issueNumber)),
 			Title:  github.String("Test Issue"),
 			Labels: []*github.Label{
-				{Name: github.String("status:needs-review")},
+				{Name: github.String("status:review-requested")},
 			},
 		}
 
@@ -131,7 +131,7 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockState.On("SetState", issueNumber, watcher.IssueStateReview, watcher.IssueStatusProcessing)
 
 		// ラベル遷移失敗
-		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:needs-review", "status:reviewing").Return(assert.AnError)
+		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:review-requested", "status:reviewing").Return(assert.AnError)
 
 		// 処理失敗
 		mockState.On("MarkAsFailed", issueNumber, watcher.IssueStateReview)
@@ -159,7 +159,7 @@ func TestReviewAction_Execute(t *testing.T) {
 			Number: github.Int(int(issueNumber)),
 			Title:  github.String("Test Issue"),
 			Labels: []*github.Label{
-				{Name: github.String("status:needs-review")},
+				{Name: github.String("status:review-requested")},
 			},
 		}
 
@@ -177,7 +177,7 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockState.On("SetState", issueNumber, watcher.IssueStateReview, watcher.IssueStatusProcessing)
 
 		// ラベル遷移
-		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:needs-review", "status:reviewing").Return(nil)
+		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:review-requested", "status:reviewing").Return(nil)
 
 		// tmuxウィンドウへの切り替え
 		mockTmux.On("SwitchToIssueWindow", sessionName, int(issueNumber)).Return(nil)
@@ -206,12 +206,12 @@ func TestReviewAction_Execute(t *testing.T) {
 }
 
 func TestReviewAction_CanExecute(t *testing.T) {
-	t.Run("実行可能: status:needs-reviewラベルあり", func(t *testing.T) {
+	t.Run("実行可能: status:review-requestedラベルあり", func(t *testing.T) {
 		// Arrange
 		issue := &github.Issue{
 			Number: github.Int(28),
 			Labels: []*github.Label{
-				{Name: github.String("status:needs-review")},
+				{Name: github.String("status:review-requested")},
 				{Name: github.String("enhancement")},
 			},
 		}
@@ -225,7 +225,7 @@ func TestReviewAction_CanExecute(t *testing.T) {
 		assert.True(t, canExecute)
 	})
 
-	t.Run("実行不可: status:needs-reviewラベルなし", func(t *testing.T) {
+	t.Run("実行不可: status:review-requestedラベルなし", func(t *testing.T) {
 		// Arrange
 		issue := &github.Issue{
 			Number: github.Int(28),
