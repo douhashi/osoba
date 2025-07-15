@@ -137,8 +137,15 @@ func TestStartCmdExecution(t *testing.T) {
 				}
 				return tmpDir, cleanup
 			},
+			setupEnv: func() func() {
+				// GitHub Tokenを設定（gitエラーを先に発生させるため）
+				os.Setenv("GITHUB_TOKEN", "test-token")
+				return func() {
+					os.Unsetenv("GITHUB_TOKEN")
+				}
+			},
 			wantErr:         true,
-			wantErrContains: "現在のディレクトリはGitリポジトリではありません",
+			wantErrContains: "リポジトリ名の取得に失敗",
 		},
 	}
 
