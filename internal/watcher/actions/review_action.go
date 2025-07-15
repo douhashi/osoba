@@ -87,26 +87,14 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 		return fmt.Errorf("failed to update main branch: %w", err)
 	}
 
-	// 既存のworktreeを確認して使用
-	var worktreePath string
-	phases := []git.Phase{git.PhaseImplementation, git.PhasePlan}
-	for _, phase := range phases {
-		exists, err := a.worktreeManager.WorktreeExists(ctx, int(issueNumber), phase)
-		if err != nil {
-			a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
-			return fmt.Errorf("failed to check worktree existence: %w", err)
-		}
-		if exists {
-			worktreePath = a.worktreeManager.GetWorktreePath(int(issueNumber), phase)
-			log.Printf("Using existing worktree at: %s", worktreePath)
-			break
-		}
-	}
-
-	if worktreePath == "" {
+	// worktreeを作成（Reviewフェーズ用の独立したworktree）
+	log.Printf("Creating worktree for issue #%d", issueNumber)
+	if err := a.worktreeManager.CreateWorktree(ctx, int(issueNumber), git.PhaseReview); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
-		return fmt.Errorf("no worktree found for issue #%d", issueNumber)
+		return fmt.Errorf("failed to create worktree: %w", err)
 	}
+	worktreePath := a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhaseReview)
+	log.Printf("Worktree created at: %s", worktreePath)
 
 	// Claude実行用の変数を準備
 	templateVars := &claude.TemplateVariables{

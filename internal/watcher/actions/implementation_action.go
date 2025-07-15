@@ -87,28 +87,14 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 		return fmt.Errorf("failed to update main branch: %w", err)
 	}
 
-	// 既存のworktreeが存在しない場合は作成（planフェーズがスキップされた場合）
-	exists, err := a.worktreeManager.WorktreeExists(ctx, int(issueNumber), git.PhasePlan)
-	if err != nil {
+	// worktreeを作成（Implementationフェーズ用の独立したworktree）
+	log.Printf("Creating worktree for issue #%d", issueNumber)
+	if err := a.worktreeManager.CreateWorktree(ctx, int(issueNumber), git.PhaseImplementation); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-		return fmt.Errorf("failed to check worktree existence: %w", err)
+		return fmt.Errorf("failed to create worktree: %w", err)
 	}
-
-	var worktreePath string
-	if exists {
-		// 既存のworktreeを使用
-		worktreePath = a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhasePlan)
-		log.Printf("Using existing worktree at: %s", worktreePath)
-	} else {
-		// worktreeを新規作成
-		log.Printf("Creating worktree for issue #%d", issueNumber)
-		if err := a.worktreeManager.CreateWorktree(ctx, int(issueNumber), git.PhaseImplementation); err != nil {
-			a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-			return fmt.Errorf("failed to create worktree: %w", err)
-		}
-		worktreePath = a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhaseImplementation)
-		log.Printf("Worktree created at: %s", worktreePath)
-	}
+	worktreePath := a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhaseImplementation)
+	log.Printf("Worktree created at: %s", worktreePath)
 
 	// Claude実行用の変数を準備
 	templateVars := &claude.TemplateVariables{

@@ -48,12 +48,12 @@ func TestReviewAction_Execute(t *testing.T) {
 		// mainブランチの更新
 		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
 
-		// worktreeの存在確認（実装フェーズのworktreeを使用）
-		mockWorktree.On("WorktreeExists", ctx, int(issueNumber), git.PhaseImplementation).Return(true, nil)
+		// worktreeの新規作成
+		mockWorktree.On("CreateWorktree", ctx, int(issueNumber), git.PhaseReview).Return(nil)
 
 		// worktreeパスの取得
-		workdir := "/tmp/osoba/worktree/28"
-		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseImplementation).Return(workdir)
+		workdir := "/tmp/osoba/worktree/28-review"
+		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseReview).Return(workdir)
 
 		// Claude実行
 		phaseConfig := &claude.PhaseConfig{
@@ -172,6 +172,81 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockLabel.AssertExpectations(t)
 	})
 
+	t.Run("正常系: 独立したReviewフェーズのworktreeを作成", func(t *testing.T) {
+		// Arrange
+		ctx := context.Background()
+		sessionName := "osoba-test"
+		issueNumber := int64(28)
+		issue := &github.Issue{
+			Number: github.Int(int(issueNumber)),
+			Title:  github.String("Test Issue"),
+			Labels: []*github.Label{
+				{Name: github.String("status:review-requested")},
+			},
+		}
+
+		mockTmux := new(MockTmuxClient)
+		mockState := new(MockStateManager)
+		mockLabel := new(MockLabelManager)
+		mockWorktree := new(MockWorktreeManager)
+		mockClaude := new(MockClaudeExecutor)
+		claudeConfig := claude.NewDefaultClaudeConfig()
+
+		// 状態確認
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStateReview).Return(false)
+		mockState.On("IsProcessing", issueNumber).Return(false)
+
+		// 処理開始
+		mockState.On("SetState", issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
+
+		// ラベル遷移
+		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:review-requested", "status:reviewing").Return(nil)
+
+		// tmuxウィンドウへの切り替え
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "review").Return(nil)
+
+		// mainブランチの更新
+		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
+
+		// worktreeの新規作成（独立したReviewフェーズのworktree）
+		mockWorktree.On("CreateWorktree", ctx, int(issueNumber), git.PhaseReview).Return(nil)
+
+		// worktreeパスの取得（Reviewフェーズ用）
+		workdir := "/tmp/osoba/worktree/28-review"
+		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseReview).Return(workdir)
+
+		// Claude実行
+		phaseConfig := &claude.PhaseConfig{
+			Args:   []string{"--read-only"},
+			Prompt: "/osoba:review {{issue-number}}",
+		}
+		templateVars := &claude.TemplateVariables{
+			IssueNumber: int(issueNumber),
+			IssueTitle:  "Test Issue",
+			RepoName:    "douhashi/osoba",
+		}
+		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "28-review", workdir).Return(nil)
+
+		// レビュー完了後のラベル追加
+		mockLabel.On("AddLabel", ctx, int(issueNumber), "status:completed").Return(nil)
+
+		// 処理完了
+		mockState.On("MarkAsCompleted", issueNumber, types.IssueStateReview)
+
+		action := NewReviewAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
+
+		// Act
+		err := action.Execute(ctx, issue)
+
+		// Assert
+		assert.NoError(t, err)
+		mockTmux.AssertExpectations(t)
+		mockState.AssertExpectations(t)
+		mockLabel.AssertExpectations(t)
+		mockWorktree.AssertExpectations(t)
+		mockClaude.AssertExpectations(t)
+	})
+
 	t.Run("異常系: Claude実行失敗", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
@@ -208,12 +283,12 @@ func TestReviewAction_Execute(t *testing.T) {
 		// mainブランチの更新
 		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
 
-		// worktreeの存在確認
-		mockWorktree.On("WorktreeExists", ctx, int(issueNumber), git.PhaseImplementation).Return(true, nil)
+		// worktreeの新規作成
+		mockWorktree.On("CreateWorktree", ctx, int(issueNumber), git.PhaseReview).Return(nil)
 
 		// worktreeパスの取得
-		workdir := "/tmp/osoba/worktree/28"
-		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseImplementation).Return(workdir)
+		workdir := "/tmp/osoba/worktree/28-review"
+		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseReview).Return(workdir)
 
 		// Claude実行失敗
 		phaseConfig := &claude.PhaseConfig{
