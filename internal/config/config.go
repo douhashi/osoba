@@ -5,13 +5,15 @@ import (
 	"os"
 	"time"
 
+	"github.com/douhashi/osoba/internal/claude"
 	"github.com/spf13/viper"
 )
 
 // Config はアプリケーション全体の設定
 type Config struct {
-	GitHub GitHubConfig `mapstructure:"github"`
-	Tmux   TmuxConfig   `mapstructure:"tmux"`
+	GitHub GitHubConfig         `mapstructure:"github"`
+	Tmux   TmuxConfig           `mapstructure:"tmux"`
+	Claude *claude.ClaudeConfig `mapstructure:"claude"`
 }
 
 // GitHubConfig はGitHub関連の設定
@@ -47,6 +49,7 @@ func NewConfig() *Config {
 		Tmux: TmuxConfig{
 			SessionPrefix: "osoba-",
 		},
+		Claude: claude.NewDefaultClaudeConfig(),
 	}
 }
 
@@ -71,6 +74,14 @@ func (c *Config) Load(configPath string) error {
 	v.SetDefault("github.labels.review", "status:review-requested")
 	v.SetDefault("tmux.session_prefix", "osoba-")
 
+	// Claude設定のデフォルト値
+	v.SetDefault("claude.phases.plan.args", []string{"--dangerously-skip-permissions"})
+	v.SetDefault("claude.phases.plan.prompt", "/osoba:plan {{issue-number}}")
+	v.SetDefault("claude.phases.implement.args", []string{})
+	v.SetDefault("claude.phases.implement.prompt", "/osoba:implement {{issue-number}}")
+	v.SetDefault("claude.phases.review.args", []string{"--read-only"})
+	v.SetDefault("claude.phases.review.prompt", "/osoba:review {{issue-number}}")
+
 	// 設定ファイルを読み込む
 	if err := v.ReadInConfig(); err != nil {
 		return err
@@ -88,11 +99,20 @@ func (c *Config) Load(configPath string) error {
 func (c *Config) LoadOrDefault(configPath string) {
 	// ファイルが存在しない場合はデフォルト値を使用
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// Claudeのデフォルト設定を確保
+		if c.Claude == nil {
+			c.Claude = claude.NewDefaultClaudeConfig()
+		}
 		return
 	}
 
 	// 設定ファイルを読み込む（エラーは無視）
 	_ = c.Load(configPath)
+
+	// Claudeのデフォルト設定を確保
+	if c.Claude == nil {
+		c.Claude = claude.NewDefaultClaudeConfig()
+	}
 }
 
 // Validate は設定の妥当性を検証する

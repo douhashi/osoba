@@ -2,8 +2,11 @@ package actions
 
 import (
 	"context"
+	"os/exec"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/claude"
+	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/watcher"
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/assert"
@@ -65,21 +68,85 @@ func (m *MockStateManager) MarkAsFailed(issueNumber int64, phase watcher.IssuePh
 	m.Called(issueNumber, phase)
 }
 
+// MockWorktreeManager はWorktreeManagerのモック
+type MockWorktreeManager struct {
+	mock.Mock
+}
+
+func (m *MockWorktreeManager) UpdateMainBranch(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockWorktreeManager) CreateWorktree(ctx context.Context, issueNumber int, phase git.Phase) error {
+	args := m.Called(ctx, issueNumber, phase)
+	return args.Error(0)
+}
+
+func (m *MockWorktreeManager) RemoveWorktree(ctx context.Context, issueNumber int, phase git.Phase) error {
+	args := m.Called(ctx, issueNumber, phase)
+	return args.Error(0)
+}
+
+func (m *MockWorktreeManager) GetWorktreePath(issueNumber int, phase git.Phase) string {
+	args := m.Called(issueNumber, phase)
+	return args.String(0)
+}
+
+func (m *MockWorktreeManager) WorktreeExists(ctx context.Context, issueNumber int, phase git.Phase) (bool, error) {
+	args := m.Called(ctx, issueNumber, phase)
+	return args.Bool(0), args.Error(1)
+}
+
+// MockClaudeExecutor はClaudeExecutorのモック
+type MockClaudeExecutor struct {
+	mock.Mock
+}
+
+func (m *MockClaudeExecutor) CheckClaudeExists() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockClaudeExecutor) BuildCommand(ctx context.Context, args []string, prompt string, workdir string) *exec.Cmd {
+	argList := m.Called(ctx, args, prompt, workdir)
+	if cmd := argList.Get(0); cmd != nil {
+		return cmd.(*exec.Cmd)
+	}
+	return nil
+}
+
+func (m *MockClaudeExecutor) ExecuteInWorktree(ctx context.Context, config *claude.PhaseConfig, vars *claude.TemplateVariables, workdir string) error {
+	args := m.Called(ctx, config, vars, workdir)
+	return args.Error(0)
+}
+
+func (m *MockClaudeExecutor) ExecuteInTmux(ctx context.Context, config *claude.PhaseConfig, vars *claude.TemplateVariables, sessionName, windowName, workdir string) error {
+	args := m.Called(ctx, config, vars, sessionName, windowName, workdir)
+	return args.Error(0)
+}
+
 func TestNewPlanAction(t *testing.T) {
 	t.Run("PlanActionの作成", func(t *testing.T) {
 		// Arrange
 		sessionName := "osoba-test"
 		mockTmux := new(MockTmuxClient)
 		mockState := new(MockStateManager)
+		mockWorktree := new(MockWorktreeManager)
+		mockClaude := new(MockClaudeExecutor)
+		config := claude.NewDefaultClaudeConfig()
 
 		// Act
-		action := NewPlanAction(sessionName, mockTmux, mockState)
+		action := NewPlanAction(sessionName, mockTmux, mockState, mockWorktree, mockClaude, config)
 
 		// Assert
 		assert.NotNil(t, action)
 		assert.Equal(t, sessionName, action.sessionName)
 		assert.Equal(t, mockTmux, action.tmuxClient)
 		assert.Equal(t, mockState, action.stateManager)
+		assert.Equal(t, mockWorktree, action.worktreeManager)
+		assert.Equal(t, mockClaude, action.claudeExecutor)
+		assert.Equal(t, config, action.claudeConfig)
 	})
 }
 
@@ -99,6 +166,9 @@ func TestPlanAction_Execute(t *testing.T) {
 
 		mockTmux := new(MockTmuxClient)
 		mockState := new(MockStateManager)
+		mockWorktree := new(MockWorktreeManager)
+		mockClaude := new(MockClaudeExecutor)
+		config := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
 		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStatePlan).Return(false)
@@ -110,12 +180,18 @@ func TestPlanAction_Execute(t *testing.T) {
 		// tmuxウィンドウ作成
 		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber)).Return(nil)
 
-		// TODO: git worktree作成のモック
+		// mainブランチ更新とworktree作成
+		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
+		mockWorktree.On("CreateWorktree", ctx, int(issueNumber), git.PhasePlan).Return(nil)
+		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhasePlan).Return("/tmp/worktree/13-plan")
+
+		// Claude実行
+		mockClaude.On("ExecuteInTmux", ctx, config.Phases["plan"], mock.AnythingOfType("*claude.TemplateVariables"), sessionName, "issue-13", "/tmp/worktree/13-plan").Return(nil)
 
 		// 処理完了
 		mockState.On("MarkAsCompleted", issueNumber, watcher.IssueStatePlan)
 
-		action := NewPlanAction(sessionName, mockTmux, mockState)
+		action := NewPlanAction(sessionName, mockTmux, mockState, mockWorktree, mockClaude, config)
 
 		// Act
 		err := action.Execute(ctx, issue)
@@ -124,6 +200,8 @@ func TestPlanAction_Execute(t *testing.T) {
 		assert.NoError(t, err)
 		mockTmux.AssertExpectations(t)
 		mockState.AssertExpectations(t)
+		mockWorktree.AssertExpectations(t)
+		mockClaude.AssertExpectations(t)
 	})
 
 	t.Run("異常系: 既に処理済み", func(t *testing.T) {
@@ -141,11 +219,14 @@ func TestPlanAction_Execute(t *testing.T) {
 
 		mockTmux := new(MockTmuxClient)
 		mockState := new(MockStateManager)
+		mockWorktree := new(MockWorktreeManager)
+		mockClaude := new(MockClaudeExecutor)
+		config := claude.NewDefaultClaudeConfig()
 
 		// 既に処理済み
 		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStatePlan).Return(true)
 
-		action := NewPlanAction(sessionName, mockTmux, mockState)
+		action := NewPlanAction(sessionName, mockTmux, mockState, mockWorktree, mockClaude, config)
 
 		// Act
 		err := action.Execute(ctx, issue)
@@ -171,12 +252,15 @@ func TestPlanAction_Execute(t *testing.T) {
 
 		mockTmux := new(MockTmuxClient)
 		mockState := new(MockStateManager)
+		mockWorktree := new(MockWorktreeManager)
+		mockClaude := new(MockClaudeExecutor)
+		config := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
 		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStatePlan).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(true)
 
-		action := NewPlanAction(sessionName, mockTmux, mockState)
+		action := NewPlanAction(sessionName, mockTmux, mockState, mockWorktree, mockClaude, config)
 
 		// Act
 		err := action.Execute(ctx, issue)

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/douhashi/osoba/internal/claude"
+	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/douhashi/osoba/internal/watcher"
 	"github.com/google/go-github/v67/github"
@@ -45,18 +47,31 @@ func (c *DefaultTmuxClient) WindowExists(sessionName, windowName string) (bool, 
 // PlanAction は計画フェーズのアクション実装
 type PlanAction struct {
 	watcher.BaseAction
-	sessionName  string
-	tmuxClient   TmuxClient
-	stateManager StateManager
+	sessionName     string
+	tmuxClient      TmuxClient
+	stateManager    StateManager
+	worktreeManager git.WorktreeManager
+	claudeExecutor  claude.ClaudeExecutor
+	claudeConfig    *claude.ClaudeConfig
 }
 
 // NewPlanAction は新しいPlanActionを作成する
-func NewPlanAction(sessionName string, tmuxClient TmuxClient, stateManager StateManager) *PlanAction {
+func NewPlanAction(
+	sessionName string,
+	tmuxClient TmuxClient,
+	stateManager StateManager,
+	worktreeManager git.WorktreeManager,
+	claudeExecutor claude.ClaudeExecutor,
+	claudeConfig *claude.ClaudeConfig,
+) *PlanAction {
 	return &PlanAction{
-		BaseAction:   watcher.BaseAction{Type: watcher.ActionTypePlan},
-		sessionName:  sessionName,
-		tmuxClient:   tmuxClient,
-		stateManager: stateManager,
+		BaseAction:      watcher.BaseAction{Type: watcher.ActionTypePlan},
+		sessionName:     sessionName,
+		tmuxClient:      tmuxClient,
+		stateManager:    stateManager,
+		worktreeManager: worktreeManager,
+		claudeExecutor:  claudeExecutor,
+		claudeConfig:    claudeConfig,
 	}
 }
 
@@ -89,8 +104,45 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 		return fmt.Errorf("failed to create tmux window: %w", err)
 	}
 
-	// TODO: git worktree作成
-	// TODO: claudeプロンプト実行
+	// mainブランチを最新化
+	log.Printf("Updating main branch for issue #%d", issueNumber)
+	if err := a.worktreeManager.UpdateMainBranch(ctx); err != nil {
+		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStatePlan)
+		return fmt.Errorf("failed to update main branch: %w", err)
+	}
+
+	// worktree作成
+	log.Printf("Creating worktree for issue #%d", issueNumber)
+	if err := a.worktreeManager.CreateWorktree(ctx, int(issueNumber), git.PhasePlan); err != nil {
+		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStatePlan)
+		return fmt.Errorf("failed to create worktree: %w", err)
+	}
+
+	// worktreeパスを取得
+	worktreePath := a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhasePlan)
+	log.Printf("Worktree created at: %s", worktreePath)
+
+	// Claude実行用の変数を準備
+	templateVars := &claude.TemplateVariables{
+		IssueNumber: int(issueNumber),
+		IssueTitle:  getIssueTitle(issue),
+		RepoName:    getRepoName(),
+	}
+
+	// Claude設定を取得
+	phaseConfig, exists := a.claudeConfig.GetPhase("plan")
+	if !exists {
+		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStatePlan)
+		return fmt.Errorf("plan phase config not found")
+	}
+
+	// tmuxウィンドウ内でClaude実行
+	windowName := fmt.Sprintf("issue-%d", issueNumber)
+	log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
+	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
+		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStatePlan)
+		return fmt.Errorf("failed to execute claude: %w", err)
+	}
 
 	// 処理完了
 	a.stateManager.MarkAsCompleted(issueNumber, watcher.IssueStatePlan)
@@ -116,4 +168,18 @@ func hasLabel(issue *github.Issue, labelName string) bool {
 		}
 	}
 	return false
+}
+
+// getIssueTitle はIssueのタイトルを取得する
+func getIssueTitle(issue *github.Issue) string {
+	if issue == nil || issue.Title == nil {
+		return ""
+	}
+	return *issue.Title
+}
+
+// getRepoName はリポジトリ名を取得する（現在は固定値）
+func getRepoName() string {
+	// TODO: 実際のリポジトリ名を動的に取得
+	return "douhashi/osoba"
 }

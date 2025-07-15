@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/douhashi/osoba/internal/claude"
+	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/watcher"
 	"github.com/google/go-github/v67/github"
 )
@@ -12,12 +14,13 @@ import (
 // ReviewAction はレビューフェーズのアクション実装
 type ReviewAction struct {
 	watcher.BaseAction
-	sessionName   string
-	tmuxClient    TmuxClient
-	stateManager  StateManager
-	labelManager  LabelManager
-	gitManager    GitManager
-	claudeManager ClaudeManager
+	sessionName     string
+	tmuxClient      TmuxClient
+	stateManager    StateManager
+	labelManager    LabelManager
+	worktreeManager git.WorktreeManager
+	claudeExecutor  claude.ClaudeExecutor
+	claudeConfig    *claude.ClaudeConfig
 }
 
 // NewReviewAction は新しいReviewActionを作成する
@@ -26,17 +29,19 @@ func NewReviewAction(
 	tmuxClient TmuxClient,
 	stateManager StateManager,
 	labelManager LabelManager,
-	gitManager GitManager,
-	claudeManager ClaudeManager,
+	worktreeManager git.WorktreeManager,
+	claudeExecutor claude.ClaudeExecutor,
+	claudeConfig *claude.ClaudeConfig,
 ) *ReviewAction {
 	return &ReviewAction{
-		BaseAction:    watcher.BaseAction{Type: watcher.ActionTypeReview},
-		sessionName:   sessionName,
-		tmuxClient:    tmuxClient,
-		stateManager:  stateManager,
-		labelManager:  labelManager,
-		gitManager:    gitManager,
-		claudeManager: claudeManager,
+		BaseAction:      watcher.BaseAction{Type: watcher.ActionTypeReview},
+		sessionName:     sessionName,
+		tmuxClient:      tmuxClient,
+		stateManager:    stateManager,
+		labelManager:    labelManager,
+		worktreeManager: worktreeManager,
+		claudeExecutor:  claudeExecutor,
+		claudeConfig:    claudeConfig,
 	}
 }
 
@@ -75,13 +80,54 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 		return fmt.Errorf("failed to switch tmux window: %w", err)
 	}
 
-	// 既存のworktreeパスを使用（計画フェーズで作成済み）
-	workdir := fmt.Sprintf("/tmp/osoba/worktree/%d", issueNumber)
-
-	// claudeプロンプト実行
-	if err := a.claudeManager.ExecuteReviewPrompt(ctx, int(issueNumber), workdir); err != nil {
+	// mainブランチを最新化
+	log.Printf("Updating main branch for issue #%d", issueNumber)
+	if err := a.worktreeManager.UpdateMainBranch(ctx); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
-		return fmt.Errorf("failed to execute claude prompt: %w", err)
+		return fmt.Errorf("failed to update main branch: %w", err)
+	}
+
+	// 既存のworktreeを確認して使用
+	var worktreePath string
+	phases := []git.Phase{git.PhaseImplementation, git.PhasePlan}
+	for _, phase := range phases {
+		exists, err := a.worktreeManager.WorktreeExists(ctx, int(issueNumber), phase)
+		if err != nil {
+			a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
+			return fmt.Errorf("failed to check worktree existence: %w", err)
+		}
+		if exists {
+			worktreePath = a.worktreeManager.GetWorktreePath(int(issueNumber), phase)
+			log.Printf("Using existing worktree at: %s", worktreePath)
+			break
+		}
+	}
+
+	if worktreePath == "" {
+		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
+		return fmt.Errorf("no worktree found for issue #%d", issueNumber)
+	}
+
+	// Claude実行用の変数を準備
+	templateVars := &claude.TemplateVariables{
+		IssueNumber: int(issueNumber),
+		IssueTitle:  getIssueTitle(issue),
+		RepoName:    getRepoName(),
+	}
+
+	// Claude設定を取得
+	phaseConfig, exists := a.claudeConfig.GetPhase("review")
+	if !exists {
+		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
+		return fmt.Errorf("review phase config not found")
+	}
+
+	// tmuxウィンドウ内でClaude実行
+	windowName := fmt.Sprintf("issue-%d", issueNumber)
+	log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
+	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
+		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
+		return fmt.Errorf("failed to execute claude: %w", err)
 	}
 
 	// レビュー完了後、status:completedラベルを追加

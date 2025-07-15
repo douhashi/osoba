@@ -20,6 +20,16 @@ func TestNewConfig(t *testing.T) {
 		if cfg.Tmux.SessionPrefix != "osoba-" {
 			t.Errorf("default session prefix = %v, want osoba-", cfg.Tmux.SessionPrefix)
 		}
+		// Claude設定のデフォルト値確認
+		if cfg.Claude == nil {
+			t.Error("Claude config is nil")
+		}
+		if cfg.Claude.Phases == nil {
+			t.Error("Claude phases is nil")
+		}
+		if _, exists := cfg.Claude.Phases["plan"]; !exists {
+			t.Error("Claude plan phase not found")
+		}
 	})
 }
 
@@ -45,6 +55,14 @@ github:
     review: "status:review-requested"
 tmux:
   session_prefix: "test-osoba-"
+claude:
+  phases:
+    plan:
+      args: ["--skip-confirmation"]
+      prompt: "/osoba:plan {{issue-number}}"
+    implement:
+      args: []
+      prompt: "/osoba:implement {{issue-number}}"
 `,
 			wantErr: false,
 			checkFunc: func(cfg *Config, t *testing.T) {
@@ -59,6 +77,17 @@ tmux:
 				}
 				if cfg.Tmux.SessionPrefix != "test-osoba-" {
 					t.Errorf("session prefix = %v, want test-osoba-", cfg.Tmux.SessionPrefix)
+				}
+				// Claude設定の確認
+				if cfg.Claude == nil || cfg.Claude.Phases == nil {
+					t.Error("Claude config not loaded properly")
+				}
+				if planPhase, exists := cfg.Claude.Phases["plan"]; exists {
+					if len(planPhase.Args) != 1 || planPhase.Args[0] != "--skip-confirmation" {
+						t.Errorf("Claude plan args = %v, want [--skip-confirmation]", planPhase.Args)
+					}
+				} else {
+					t.Error("Claude plan phase not found")
 				}
 			},
 		},

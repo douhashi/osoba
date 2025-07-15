@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/douhashi/osoba/internal/claude"
+	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/watcher"
 	"github.com/google/go-github/v67/github"
 )
@@ -12,12 +14,13 @@ import (
 // ImplementationAction は実装フェーズのアクション実装
 type ImplementationAction struct {
 	watcher.BaseAction
-	sessionName   string
-	tmuxClient    TmuxClient
-	stateManager  StateManager
-	labelManager  LabelManager
-	gitManager    GitManager
-	claudeManager ClaudeManager
+	sessionName     string
+	tmuxClient      TmuxClient
+	stateManager    StateManager
+	labelManager    LabelManager
+	worktreeManager git.WorktreeManager
+	claudeExecutor  claude.ClaudeExecutor
+	claudeConfig    *claude.ClaudeConfig
 }
 
 // NewImplementationAction は新しいImplementationActionを作成する
@@ -26,17 +29,19 @@ func NewImplementationAction(
 	tmuxClient TmuxClient,
 	stateManager StateManager,
 	labelManager LabelManager,
-	gitManager GitManager,
-	claudeManager ClaudeManager,
+	worktreeManager git.WorktreeManager,
+	claudeExecutor claude.ClaudeExecutor,
+	claudeConfig *claude.ClaudeConfig,
 ) *ImplementationAction {
 	return &ImplementationAction{
-		BaseAction:    watcher.BaseAction{Type: watcher.ActionTypeImplementation},
-		sessionName:   sessionName,
-		tmuxClient:    tmuxClient,
-		stateManager:  stateManager,
-		labelManager:  labelManager,
-		gitManager:    gitManager,
-		claudeManager: claudeManager,
+		BaseAction:      watcher.BaseAction{Type: watcher.ActionTypeImplementation},
+		sessionName:     sessionName,
+		tmuxClient:      tmuxClient,
+		stateManager:    stateManager,
+		labelManager:    labelManager,
+		worktreeManager: worktreeManager,
+		claudeExecutor:  claudeExecutor,
+		claudeConfig:    claudeConfig,
 	}
 }
 
@@ -75,13 +80,56 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 		return fmt.Errorf("failed to switch tmux window: %w", err)
 	}
 
-	// 既存のworktreeパスを使用（計画フェーズで作成済み）
-	workdir := fmt.Sprintf("/tmp/osoba/worktree/%d", issueNumber)
-
-	// claudeプロンプト実行
-	if err := a.claudeManager.ExecuteImplementationPrompt(ctx, int(issueNumber), workdir); err != nil {
+	// mainブランチを最新化
+	log.Printf("Updating main branch for issue #%d", issueNumber)
+	if err := a.worktreeManager.UpdateMainBranch(ctx); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateImplementation)
-		return fmt.Errorf("failed to execute claude prompt: %w", err)
+		return fmt.Errorf("failed to update main branch: %w", err)
+	}
+
+	// 既存のworktreeが存在しない場合は作成（planフェーズがスキップされた場合）
+	exists, err := a.worktreeManager.WorktreeExists(ctx, int(issueNumber), git.PhasePlan)
+	if err != nil {
+		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateImplementation)
+		return fmt.Errorf("failed to check worktree existence: %w", err)
+	}
+
+	var worktreePath string
+	if exists {
+		// 既存のworktreeを使用
+		worktreePath = a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhasePlan)
+		log.Printf("Using existing worktree at: %s", worktreePath)
+	} else {
+		// worktreeを新規作成
+		log.Printf("Creating worktree for issue #%d", issueNumber)
+		if err := a.worktreeManager.CreateWorktree(ctx, int(issueNumber), git.PhaseImplementation); err != nil {
+			a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateImplementation)
+			return fmt.Errorf("failed to create worktree: %w", err)
+		}
+		worktreePath = a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhaseImplementation)
+		log.Printf("Worktree created at: %s", worktreePath)
+	}
+
+	// Claude実行用の変数を準備
+	templateVars := &claude.TemplateVariables{
+		IssueNumber: int(issueNumber),
+		IssueTitle:  getIssueTitle(issue),
+		RepoName:    getRepoName(),
+	}
+
+	// Claude設定を取得
+	phaseConfig, exists := a.claudeConfig.GetPhase("implement")
+	if !exists {
+		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateImplementation)
+		return fmt.Errorf("implement phase config not found")
+	}
+
+	// tmuxウィンドウ内でClaude実行
+	windowName := fmt.Sprintf("issue-%d", issueNumber)
+	log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
+	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
+		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateImplementation)
+		return fmt.Errorf("failed to execute claude: %w", err)
 	}
 
 	// 処理完了
