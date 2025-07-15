@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/douhashi/osoba/internal/watcher"
+	"github.com/douhashi/osoba/internal/types"
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -86,11 +86,11 @@ func TestPlanActionComplete_Execute(t *testing.T) {
 		mockClaude := new(MockClaudeManager)
 
 		// 状態確認
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStatePlan).Return(false)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStatePlan).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(false)
 
 		// 処理開始
-		mockState.On("SetState", issueNumber, watcher.IssueStatePlan, watcher.IssueStatusProcessing)
+		mockState.On("SetState", issueNumber, types.IssueStatePlan, types.IssueStatusProcessing)
 
 		// ラベル遷移
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:needs-plan", "status:planning").Return(nil)
@@ -106,7 +106,7 @@ func TestPlanActionComplete_Execute(t *testing.T) {
 		mockClaude.On("ExecutePlanPrompt", ctx, int(issueNumber), workdir).Return(nil)
 
 		// 処理完了
-		mockState.On("MarkAsCompleted", issueNumber, watcher.IssueStatePlan)
+		mockState.On("MarkAsCompleted", issueNumber, types.IssueStatePlan)
 
 		action := NewPlanActionComplete(sessionName, mockTmux, mockState, mockLabel, mockGit, mockClaude)
 
@@ -142,17 +142,17 @@ func TestPlanActionComplete_Execute(t *testing.T) {
 		mockClaude := new(MockClaudeManager)
 
 		// 状態確認
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStatePlan).Return(false)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStatePlan).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(false)
 
 		// 処理開始
-		mockState.On("SetState", issueNumber, watcher.IssueStatePlan, watcher.IssueStatusProcessing)
+		mockState.On("SetState", issueNumber, types.IssueStatePlan, types.IssueStatusProcessing)
 
 		// ラベル遷移失敗
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:needs-plan", "status:planning").Return(assert.AnError)
 
 		// 処理失敗
-		mockState.On("MarkAsFailed", issueNumber, watcher.IssueStatePlan)
+		mockState.On("MarkAsFailed", issueNumber, types.IssueStatePlan)
 
 		action := NewPlanActionComplete(sessionName, mockTmux, mockState, mockLabel, mockGit, mockClaude)
 
@@ -189,11 +189,11 @@ func TestPlanActionComplete_Execute(t *testing.T) {
 		mockClaude := new(MockClaudeManager)
 
 		// 状態確認
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStatePlan).Return(false)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStatePlan).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(false)
 
 		// 処理開始
-		mockState.On("SetState", issueNumber, watcher.IssueStatePlan, watcher.IssueStatusProcessing)
+		mockState.On("SetState", issueNumber, types.IssueStatePlan, types.IssueStatusProcessing)
 
 		// ラベル遷移
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:needs-plan", "status:planning").Return(nil)
@@ -205,7 +205,7 @@ func TestPlanActionComplete_Execute(t *testing.T) {
 		mockGit.On("CreateWorktreeForIssue", int(issueNumber), "feat/#28-phase-action-execution").Return("", assert.AnError)
 
 		// 処理失敗
-		mockState.On("MarkAsFailed", issueNumber, watcher.IssueStatePlan)
+		mockState.On("MarkAsFailed", issueNumber, types.IssueStatePlan)
 
 		action := NewPlanActionComplete(sessionName, mockTmux, mockState, mockLabel, mockGit, mockClaude)
 

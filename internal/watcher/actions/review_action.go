@@ -7,13 +7,13 @@ import (
 
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/git"
-	"github.com/douhashi/osoba/internal/watcher"
+	"github.com/douhashi/osoba/internal/types"
 	"github.com/google/go-github/v67/github"
 )
 
 // ReviewAction はレビューフェーズのアクション実装
 type ReviewAction struct {
-	watcher.BaseAction
+	types.BaseAction
 	sessionName     string
 	tmuxClient      TmuxClient
 	stateManager    StateManager
@@ -34,7 +34,7 @@ func NewReviewAction(
 	claudeConfig *claude.ClaudeConfig,
 ) *ReviewAction {
 	return &ReviewAction{
-		BaseAction:      watcher.BaseAction{Type: watcher.ActionTypeReview},
+		BaseAction:      types.BaseAction{Type: types.ActionTypeReview},
 		sessionName:     sessionName,
 		tmuxClient:      tmuxClient,
 		stateManager:    stateManager,
@@ -55,7 +55,7 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	log.Printf("Executing review action for issue #%d", issueNumber)
 
 	// 既に処理済みかチェック
-	if a.stateManager.HasBeenProcessed(issueNumber, watcher.IssueStateReview) {
+	if a.stateManager.HasBeenProcessed(issueNumber, types.IssueStateReview) {
 		log.Printf("Issue #%d has already been processed for review phase", issueNumber)
 		return nil
 	}
@@ -66,24 +66,24 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	// 処理開始
-	a.stateManager.SetState(issueNumber, watcher.IssueStateReview, watcher.IssueStatusProcessing)
+	a.stateManager.SetState(issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
 
 	// ラベル遷移（status:review-requested → status:reviewing）
 	if err := a.labelManager.TransitionLabel(ctx, int(issueNumber), "status:review-requested", "status:reviewing"); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to transition label: %w", err)
 	}
 
 	// tmuxウィンドウへの切り替え（既存のウィンドウを使用）
 	if err := a.tmuxClient.SwitchToIssueWindow(a.sessionName, int(issueNumber)); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to switch tmux window: %w", err)
 	}
 
 	// mainブランチを最新化
 	log.Printf("Updating main branch for issue #%d", issueNumber)
 	if err := a.worktreeManager.UpdateMainBranch(ctx); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to update main branch: %w", err)
 	}
 
@@ -93,7 +93,7 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	for _, phase := range phases {
 		exists, err := a.worktreeManager.WorktreeExists(ctx, int(issueNumber), phase)
 		if err != nil {
-			a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
+			a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 			return fmt.Errorf("failed to check worktree existence: %w", err)
 		}
 		if exists {
@@ -104,7 +104,7 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	if worktreePath == "" {
-		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("no worktree found for issue #%d", issueNumber)
 	}
 
@@ -118,7 +118,7 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	// Claude設定を取得
 	phaseConfig, exists := a.claudeConfig.GetPhase("review")
 	if !exists {
-		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("review phase config not found")
 	}
 
@@ -126,7 +126,7 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	windowName := fmt.Sprintf("issue-%d", issueNumber)
 	log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
 	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStateReview)
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to execute claude: %w", err)
 	}
 
@@ -137,7 +137,7 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	// 処理完了
-	a.stateManager.MarkAsCompleted(issueNumber, watcher.IssueStateReview)
+	a.stateManager.MarkAsCompleted(issueNumber, types.IssueStateReview)
 	log.Printf("Successfully completed review action for issue #%d", issueNumber)
 
 	return nil

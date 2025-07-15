@@ -3,50 +3,25 @@ package watcher
 import (
 	"sync"
 	"time"
+
+	"github.com/douhashi/osoba/internal/types"
 )
-
-// IssuePhase はIssueの処理フェーズを表す型
-type IssuePhase string
-
-const (
-	IssueStatePlan           IssuePhase = "plan"
-	IssueStateImplementation IssuePhase = "implementation"
-	IssueStateReview         IssuePhase = "review"
-)
-
-// IssueStatus はIssueの処理状態を表す型
-type IssueStatus string
-
-const (
-	IssueStatusPending    IssueStatus = "pending"
-	IssueStatusProcessing IssueStatus = "processing"
-	IssueStatusCompleted  IssueStatus = "completed"
-	IssueStatusFailed     IssueStatus = "failed"
-)
-
-// IssueState はIssueの処理状態を表す構造体
-type IssueState struct {
-	IssueNumber int64
-	Phase       IssuePhase
-	LastAction  time.Time
-	Status      IssueStatus
-}
 
 // IssueStateManager はIssueの状態を管理する構造体
 type IssueStateManager struct {
 	mu     sync.RWMutex
-	states map[int64]*IssueState
+	states map[int64]*types.IssueState
 }
 
 // NewIssueStateManager は新しいIssueStateManagerを作成する
 func NewIssueStateManager() *IssueStateManager {
 	return &IssueStateManager{
-		states: make(map[int64]*IssueState),
+		states: make(map[int64]*types.IssueState),
 	}
 }
 
 // GetState は指定されたIssueの状態を取得する
-func (m *IssueStateManager) GetState(issueNumber int64) (*IssueState, bool) {
+func (m *IssueStateManager) GetState(issueNumber int64) (*types.IssueState, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -56,7 +31,7 @@ func (m *IssueStateManager) GetState(issueNumber int64) (*IssueState, bool) {
 	}
 
 	// 状態のコピーを返す（安全のため）
-	stateCopy := &IssueState{
+	stateCopy := &types.IssueState{
 		IssueNumber: state.IssueNumber,
 		Phase:       state.Phase,
 		LastAction:  state.LastAction,
@@ -67,11 +42,11 @@ func (m *IssueStateManager) GetState(issueNumber int64) (*IssueState, bool) {
 }
 
 // SetState は指定されたIssueの状態を設定する
-func (m *IssueStateManager) SetState(issueNumber int64, phase IssuePhase, status IssueStatus) {
+func (m *IssueStateManager) SetState(issueNumber int64, phase types.IssuePhase, status types.IssueStatus) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.states[issueNumber] = &IssueState{
+	m.states[issueNumber] = &types.IssueState{
 		IssueNumber: issueNumber,
 		Phase:       phase,
 		LastAction:  time.Now(),
@@ -89,11 +64,11 @@ func (m *IssueStateManager) IsProcessing(issueNumber int64) bool {
 		return false
 	}
 
-	return state.Status == IssueStatusProcessing
+	return state.Status == types.IssueStatusProcessing
 }
 
 // HasBeenProcessed は指定されたIssueの特定フェーズが処理済みかを確認する
-func (m *IssueStateManager) HasBeenProcessed(issueNumber int64, phase IssuePhase) bool {
+func (m *IssueStateManager) HasBeenProcessed(issueNumber int64, phase types.IssuePhase) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -102,28 +77,28 @@ func (m *IssueStateManager) HasBeenProcessed(issueNumber int64, phase IssuePhase
 		return false
 	}
 
-	return state.Phase == phase && state.Status == IssueStatusCompleted
+	return state.Phase == phase && state.Status == types.IssueStatusCompleted
 }
 
 // MarkAsCompleted は指定されたIssueのフェーズを完了状態にする
-func (m *IssueStateManager) MarkAsCompleted(issueNumber int64, phase IssuePhase) {
-	m.SetState(issueNumber, phase, IssueStatusCompleted)
+func (m *IssueStateManager) MarkAsCompleted(issueNumber int64, phase types.IssuePhase) {
+	m.SetState(issueNumber, phase, types.IssueStatusCompleted)
 }
 
 // MarkAsFailed は指定されたIssueのフェーズを失敗状態にする
-func (m *IssueStateManager) MarkAsFailed(issueNumber int64, phase IssuePhase) {
-	m.SetState(issueNumber, phase, IssueStatusFailed)
+func (m *IssueStateManager) MarkAsFailed(issueNumber int64, phase types.IssuePhase) {
+	m.SetState(issueNumber, phase, types.IssueStatusFailed)
 }
 
 // GetAllStates はすべてのIssueの状態を取得する
-func (m *IssueStateManager) GetAllStates() map[int64]*IssueState {
+func (m *IssueStateManager) GetAllStates() map[int64]*types.IssueState {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	// 状態のコピーを作成
-	statesCopy := make(map[int64]*IssueState)
+	statesCopy := make(map[int64]*types.IssueState)
 	for k, v := range m.states {
-		statesCopy[k] = &IssueState{
+		statesCopy[k] = &types.IssueState{
 			IssueNumber: v.IssueNumber,
 			Phase:       v.Phase,
 			LastAction:  v.LastAction,
@@ -142,7 +117,7 @@ func (m *IssueStateManager) CleanupOldStates(olderThan time.Duration) {
 	cutoff := time.Now().Add(-olderThan)
 	for issueNumber, state := range m.states {
 		if state.LastAction.Before(cutoff) &&
-			(state.Status == IssueStatusCompleted || state.Status == IssueStatusFailed) {
+			(state.Status == types.IssueStatusCompleted || state.Status == types.IssueStatusFailed) {
 			delete(m.states, issueNumber)
 		}
 	}

@@ -10,12 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/douhashi/osoba/internal/watcher"
-	gh "github.com/google/go-github/v67/github"
 	"github.com/spf13/cobra"
 )
 
@@ -184,12 +185,51 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 		fmt.Fprintln(cmd.OutOrStdout(), "ラベルの確認が完了しました")
 	}
 
+	// ロガーを作成
+	appLogger, err := logger.New(logger.WithLevel("info"))
+	if err != nil {
+		return fmt.Errorf("ロガーの作成に失敗: %w", err)
+	}
+
+	// Git関連のコンポーネントを作成
+	gitRepository := git.NewRepository(appLogger)
+	gitWorktree := git.NewWorktree(appLogger)
+	gitBranch := git.NewBranch(appLogger)
+	gitSync := git.NewSync(appLogger)
+
+	// WorktreeManagerを作成
+	worktreeManager, err := git.NewWorktreeManager(gitRepository, gitWorktree, gitBranch, gitSync)
+	if err != nil {
+		return fmt.Errorf("WorktreeManagerの作成に失敗: %w", err)
+	}
+
+	// Claude関連の設定とExecutorを作成
+	claudeConfig := cfg.Claude
+	if claudeConfig == nil {
+		claudeConfig = claude.NewDefaultClaudeConfig()
+	}
+	claudeExecutor := claude.NewClaudeExecutor()
+
+	// ActionFactoryを作成
+	actionFactory := watcher.NewDefaultActionFactory(
+		sessionName,
+		githubClient,
+		worktreeManager,
+		claudeExecutor,
+		claudeConfig,
+	)
+
 	// Issue監視を作成
 	issueWatcher, err := watcher.NewIssueWatcher(githubClient, owner, repoName, sessionName, cfg.GetLabels())
 	if err != nil {
 		return fmt.Errorf("Issue監視の作成に失敗: %w", err)
 	}
-	issueWatcher.SetPollInterval(cfg.GitHub.PollInterval)
+	if err := issueWatcher.SetPollInterval(cfg.GitHub.PollInterval); err != nil {
+		return fmt.Errorf("ポーリング間隔の設定に失敗: %w", err)
+	}
+
+	// ActionManagerにActionFactoryを設定
+	issueWatcher.GetActionManager().SetActionFactory(actionFactory)
 
 	// シグナルハンドリング
 	ctx, cancel := context.WithCancel(context.Background())
@@ -204,42 +244,8 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 		cancel()
 	}()
 
-	// Issue監視を開始
-	issueWatcher.Start(ctx, func(issue *gh.Issue) {
-		log.Printf("Issue detected: #%d - %s", *issue.Number, *issue.Title)
-
-		// フェーズを判定（ラベルから推測）
-		phase := "plan" // デフォルト
-		for _, label := range issue.Labels {
-			labelName := label.GetName()
-			switch labelName {
-			case "status:needs-plan":
-				phase = "plan"
-			case "status:ready":
-				phase = "implement"
-			case "status:review-requested":
-				phase = "review"
-			}
-		}
-
-		// ウィンドウ名を生成
-		windowName, err := tmux.GetWindowNameWithPhase(*issue.Number, phase)
-		if err != nil {
-			log.Printf("ウィンドウ名の生成に失敗: %v", err)
-			return
-		}
-
-		// tmuxウィンドウを作成または置換
-		log.Printf("tmuxウィンドウ '%s' を作成中...", windowName)
-		if err := tmux.CreateOrReplaceWindow(sessionName, windowName); err != nil {
-			log.Printf("tmuxウィンドウの作成に失敗: %v", err)
-			return
-		}
-		log.Printf("tmuxウィンドウ '%s' を作成しました", windowName)
-
-		// TODO: git worktree作成やClaude実行などの処理を追加
-	})
-
+	// Issue監視を開始（StartWithActionsを使用）
+	issueWatcher.StartWithActions(ctx)
 	return nil
 }
 

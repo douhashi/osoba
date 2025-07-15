@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/douhashi/osoba/internal/types"
 	"github.com/google/go-github/v67/github"
 )
 
@@ -13,34 +14,15 @@ type ActionExecutor interface {
 	CanExecute(issue *github.Issue) bool
 }
 
-// ActionType はアクションの種類を表す型
-type ActionType string
-
-const (
-	ActionTypePlan           ActionType = "plan"
-	ActionTypeImplementation ActionType = "implementation"
-	ActionTypeReview         ActionType = "review"
-)
-
-// BaseAction はActionExecutorの基本実装
-type BaseAction struct {
-	Type ActionType
-}
-
-// ActionType はアクションの種類を返す
-func (a *BaseAction) ActionType() string {
-	return string(a.Type)
-}
-
 // PlanAction は計画フェーズのアクション実装
 type PlanAction struct {
-	BaseAction
+	types.BaseAction
 }
 
 // NewPlanAction は新しいPlanActionを作成する
 func NewPlanAction() *PlanAction {
 	return &PlanAction{
-		BaseAction: BaseAction{Type: ActionTypePlan},
+		BaseAction: types.BaseAction{Type: types.ActionTypePlan},
 	}
 }
 
@@ -57,13 +39,13 @@ func (a *PlanAction) CanExecute(issue *github.Issue) bool {
 
 // ImplementationAction は実装フェーズのアクション実装
 type ImplementationAction struct {
-	BaseAction
+	types.BaseAction
 }
 
 // NewImplementationAction は新しいImplementationActionを作成する
 func NewImplementationAction() *ImplementationAction {
 	return &ImplementationAction{
-		BaseAction: BaseAction{Type: ActionTypeImplementation},
+		BaseAction: types.BaseAction{Type: types.ActionTypeImplementation},
 	}
 }
 
@@ -80,13 +62,13 @@ func (a *ImplementationAction) CanExecute(issue *github.Issue) bool {
 
 // ReviewAction はレビューフェーズのアクション実装
 type ReviewAction struct {
-	BaseAction
+	types.BaseAction
 }
 
 // NewReviewAction は新しいReviewActionを作成する
 func NewReviewAction() *ReviewAction {
 	return &ReviewAction{
-		BaseAction: BaseAction{Type: ActionTypeReview},
+		BaseAction: types.BaseAction{Type: types.ActionTypeReview},
 	}
 }
 
@@ -137,8 +119,9 @@ func hasLabel(issue *github.Issue, labelName string) bool {
 
 // ActionManager はアクション実行を管理する構造体
 type ActionManager struct {
-	sessionName  string
-	stateManager *IssueStateManager
+	sessionName   string
+	stateManager  *IssueStateManager
+	actionFactory ActionFactory
 }
 
 // NewActionManager は新しいActionManagerを作成する
@@ -147,6 +130,11 @@ func NewActionManager(sessionName string) *ActionManager {
 		sessionName:  sessionName,
 		stateManager: NewIssueStateManager(),
 	}
+}
+
+// SetActionFactory はActionFactoryを設定する
+func (m *ActionManager) SetActionFactory(factory ActionFactory) {
+	m.actionFactory = factory
 }
 
 // ExecuteAction はIssueに対して適切なアクションを実行する
@@ -169,9 +157,23 @@ func (m *ActionManager) ExecuteAction(ctx context.Context, issue *github.Issue) 
 
 // GetActionForIssue はIssueのラベルに基づいて適切なアクションを返す
 func (m *ActionManager) GetActionForIssue(issue *github.Issue) ActionExecutor {
-	// actions パッケージをインポートして使用する必要があるため、
-	// 一時的に簡易実装を使用
-	return GetActionForIssue(issue)
+	if m.actionFactory == nil {
+		// 後方互換性のため、factoryがない場合は簡易実装を使用
+		return GetActionForIssue(issue)
+	}
+
+	// ラベルを確認して適切なアクションを返す
+	if hasLabel(issue, "status:needs-plan") {
+		return m.actionFactory.CreatePlanAction()
+	}
+	if hasLabel(issue, "status:ready") {
+		return m.actionFactory.CreateImplementationAction()
+	}
+	if hasLabel(issue, "status:review-requested") {
+		return m.actionFactory.CreateReviewAction()
+	}
+
+	return nil
 }
 
 // GetStateManager は状態管理オブジェクトを返す

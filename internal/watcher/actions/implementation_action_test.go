@@ -6,7 +6,7 @@ import (
 
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/git"
-	"github.com/douhashi/osoba/internal/watcher"
+	"github.com/douhashi/osoba/internal/types"
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,11 +33,11 @@ func TestImplementationAction_Execute(t *testing.T) {
 		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateImplementation).Return(false)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStateImplementation).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(false)
 
 		// 処理開始
-		mockState.On("SetState", issueNumber, watcher.IssueStateImplementation, watcher.IssueStatusProcessing)
+		mockState.On("SetState", issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
 
 		// ラベル遷移
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:ready", "status:implementing").Return(nil)
@@ -68,7 +68,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "issue-28", workdir).Return(nil)
 
 		// 処理完了
-		mockState.On("MarkAsCompleted", issueNumber, watcher.IssueStateImplementation)
+		mockState.On("MarkAsCompleted", issueNumber, types.IssueStateImplementation)
 
 		action := NewImplementationAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 
@@ -105,7 +105,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 既に処理済み
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateImplementation).Return(true)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStateImplementation).Return(true)
 
 		action := NewImplementationAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 
@@ -142,17 +142,17 @@ func TestImplementationAction_Execute(t *testing.T) {
 		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateImplementation).Return(false)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStateImplementation).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(false)
 
 		// 処理開始
-		mockState.On("SetState", issueNumber, watcher.IssueStateImplementation, watcher.IssueStatusProcessing)
+		mockState.On("SetState", issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
 
 		// ラベル遷移失敗
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:ready", "status:implementing").Return(assert.AnError)
 
 		// 処理失敗
-		mockState.On("MarkAsFailed", issueNumber, watcher.IssueStateImplementation)
+		mockState.On("MarkAsFailed", issueNumber, types.IssueStateImplementation)
 
 		action := NewImplementationAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 
@@ -190,11 +190,11 @@ func TestImplementationAction_Execute(t *testing.T) {
 		claudeConfig := claude.NewDefaultClaudeConfig()
 
 		// 状態確認
-		mockState.On("HasBeenProcessed", issueNumber, watcher.IssueStateImplementation).Return(false)
+		mockState.On("HasBeenProcessed", issueNumber, types.IssueStateImplementation).Return(false)
 		mockState.On("IsProcessing", issueNumber).Return(false)
 
 		// 処理開始
-		mockState.On("SetState", issueNumber, watcher.IssueStateImplementation, watcher.IssueStatusProcessing)
+		mockState.On("SetState", issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
 
 		// ラベル遷移
 		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:ready", "status:implementing").Return(nil)
@@ -225,7 +225,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "issue-28", workdir).Return(assert.AnError)
 
 		// 処理失敗
-		mockState.On("MarkAsFailed", issueNumber, watcher.IssueStateImplementation)
+		mockState.On("MarkAsFailed", issueNumber, types.IssueStateImplementation)
 
 		action := NewImplementationAction(sessionName, mockTmux, mockState, mockLabel, mockWorktree, mockClaude, claudeConfig)
 

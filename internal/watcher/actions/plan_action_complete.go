@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/douhashi/osoba/internal/watcher"
+	"github.com/douhashi/osoba/internal/types"
 	"github.com/google/go-github/v67/github"
 )
 
@@ -31,7 +31,7 @@ type ClaudeManager interface {
 
 // PlanActionComplete は完全な計画フェーズのアクション実装
 type PlanActionComplete struct {
-	watcher.BaseAction
+	types.BaseAction
 	sessionName   string
 	tmuxClient    TmuxClient
 	stateManager  StateManager
@@ -50,7 +50,7 @@ func NewPlanActionComplete(
 	claudeManager ClaudeManager,
 ) *PlanActionComplete {
 	return &PlanActionComplete{
-		BaseAction:    watcher.BaseAction{Type: watcher.ActionTypePlan},
+		BaseAction:    types.BaseAction{Type: types.ActionTypePlan},
 		sessionName:   sessionName,
 		tmuxClient:    tmuxClient,
 		stateManager:  stateManager,
@@ -70,7 +70,7 @@ func (a *PlanActionComplete) Execute(ctx context.Context, issue *github.Issue) e
 	log.Printf("Executing plan action for issue #%d", issueNumber)
 
 	// 既に処理済みかチェック
-	if a.stateManager.HasBeenProcessed(issueNumber, watcher.IssueStatePlan) {
+	if a.stateManager.HasBeenProcessed(issueNumber, types.IssueStatePlan) {
 		log.Printf("Issue #%d has already been processed for plan phase", issueNumber)
 		return nil
 	}
@@ -81,17 +81,17 @@ func (a *PlanActionComplete) Execute(ctx context.Context, issue *github.Issue) e
 	}
 
 	// 処理開始
-	a.stateManager.SetState(issueNumber, watcher.IssueStatePlan, watcher.IssueStatusProcessing)
+	a.stateManager.SetState(issueNumber, types.IssueStatePlan, types.IssueStatusProcessing)
 
 	// ラベル遷移（status:needs-plan → status:planning）
 	if err := a.labelManager.TransitionLabel(ctx, int(issueNumber), "status:needs-plan", "status:planning"); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStatePlan)
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to transition label: %w", err)
 	}
 
 	// tmuxウィンドウ作成
 	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber)); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStatePlan)
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to create tmux window: %w", err)
 	}
 
@@ -99,18 +99,18 @@ func (a *PlanActionComplete) Execute(ctx context.Context, issue *github.Issue) e
 	branchName := fmt.Sprintf("feat/#%d-phase-action-execution", issueNumber)
 	workdir, err := a.gitManager.CreateWorktreeForIssue(int(issueNumber), branchName)
 	if err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStatePlan)
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
 	// claudeプロンプト実行
 	if err := a.claudeManager.ExecutePlanPrompt(ctx, int(issueNumber), workdir); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, watcher.IssueStatePlan)
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to execute claude prompt: %w", err)
 	}
 
 	// 処理完了
-	a.stateManager.MarkAsCompleted(issueNumber, watcher.IssueStatePlan)
+	a.stateManager.MarkAsCompleted(issueNumber, types.IssueStatePlan)
 	log.Printf("Successfully completed plan action for issue #%d", issueNumber)
 
 	return nil

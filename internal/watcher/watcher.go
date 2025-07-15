@@ -89,6 +89,11 @@ func (w *IssueWatcher) SetPollInterval(interval time.Duration) error {
 	return nil
 }
 
+// GetActionManager はActionManagerを取得する
+func (w *IssueWatcher) GetActionManager() *ActionManager {
+	return w.actionManager
+}
+
 // GetPollInterval は現在のポーリング間隔を取得する
 func (w *IssueWatcher) GetPollInterval() time.Duration {
 	return w.pollInterval

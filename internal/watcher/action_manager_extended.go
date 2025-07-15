@@ -7,12 +7,7 @@ import (
 	"github.com/google/go-github/v67/github"
 )
 
-// ActionFactory はアクションを生成するインターフェース
-type ActionFactory interface {
-	CreatePlanAction() ActionExecutor
-	CreateImplementationAction() ActionExecutor
-	CreateReviewAction() ActionExecutor
-}
+// ActionFactory インターフェースは action_factory.go で定義済み
 
 // ActionManagerExtended は拡張されたアクション実行管理構造体
 type ActionManagerExtended struct {
