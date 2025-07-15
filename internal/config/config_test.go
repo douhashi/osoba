@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/douhashi/osoba/internal/claude"
 )
 
 func TestNewConfig(t *testing.T) {
@@ -333,4 +335,280 @@ github:
 			t.Errorf("poll interval = %v, want 15s", cfg.GitHub.PollInterval)
 		}
 	})
+}
+
+// TestConfigSettingsReflection は設定値が各コンポーネントに正しく反映されることを確認する
+func TestConfigSettingsReflection(t *testing.T) {
+	tests := []struct {
+		name          string
+		configContent string
+		checkFunc     func(*Config, *testing.T)
+	}{
+		{
+			name: "GitHub設定値の反映確認",
+			configContent: `
+github:
+  token: "${GITHUB_TOKEN}"
+  poll_interval: 15s
+  labels:
+    plan: "status:needs-planning"
+    ready: "status:implementation-ready"
+    review: "status:review-needed"
+tmux:
+  session_prefix: "custom-osoba-"
+claude:
+  phases:
+    plan:
+      args: ["--custom-arg", "--verbose"]
+      prompt: "/custom:plan {{issue-number}}"
+    implement:
+      args: ["--skip-permissions", "--force"]
+      prompt: "/custom:implement {{issue-number}}"
+    review:
+      args: ["--review-mode"]
+      prompt: "/custom:review {{issue-number}}"
+`,
+			checkFunc: func(cfg *Config, t *testing.T) {
+				// GitHub設定の確認
+				expectedPollInterval := 15 * time.Second
+				if cfg.GitHub.PollInterval != expectedPollInterval {
+					t.Errorf("GitHub.PollInterval = %v, want %v", cfg.GitHub.PollInterval, expectedPollInterval)
+				}
+
+				if cfg.GitHub.Labels.Plan != "status:needs-planning" {
+					t.Errorf("GitHub.Labels.Plan = %v, want status:needs-planning", cfg.GitHub.Labels.Plan)
+				}
+
+				if cfg.GitHub.Labels.Ready != "status:implementation-ready" {
+					t.Errorf("GitHub.Labels.Ready = %v, want status:implementation-ready", cfg.GitHub.Labels.Ready)
+				}
+
+				if cfg.GitHub.Labels.Review != "status:review-needed" {
+					t.Errorf("GitHub.Labels.Review = %v, want status:review-needed", cfg.GitHub.Labels.Review)
+				}
+
+				// tmux設定の確認
+				if cfg.Tmux.SessionPrefix != "custom-osoba-" {
+					t.Errorf("Tmux.SessionPrefix = %v, want custom-osoba-", cfg.Tmux.SessionPrefix)
+				}
+
+				// Claude設定の確認
+				if cfg.Claude == nil {
+					t.Fatal("Claude config is nil")
+				}
+
+				// Plan フェーズの確認
+				if planPhase, exists := cfg.Claude.Phases["plan"]; exists {
+					expectedArgs := []string{"--custom-arg", "--verbose"}
+					if len(planPhase.Args) != len(expectedArgs) {
+						t.Errorf("Claude plan args length = %d, want %d", len(planPhase.Args), len(expectedArgs))
+					} else {
+						for i, arg := range expectedArgs {
+							if planPhase.Args[i] != arg {
+								t.Errorf("Claude plan args[%d] = %v, want %v", i, planPhase.Args[i], arg)
+							}
+						}
+					}
+
+					expectedPrompt := "/custom:plan {{issue-number}}"
+					if planPhase.Prompt != expectedPrompt {
+						t.Errorf("Claude plan prompt = %v, want %v", planPhase.Prompt, expectedPrompt)
+					}
+				} else {
+					t.Error("Claude plan phase not found")
+				}
+
+				// Implement フェーズの確認
+				if implPhase, exists := cfg.Claude.Phases["implement"]; exists {
+					expectedArgs := []string{"--skip-permissions", "--force"}
+					if len(implPhase.Args) != len(expectedArgs) {
+						t.Errorf("Claude implement args length = %d, want %d", len(implPhase.Args), len(expectedArgs))
+					} else {
+						for i, arg := range expectedArgs {
+							if implPhase.Args[i] != arg {
+								t.Errorf("Claude implement args[%d] = %v, want %v", i, implPhase.Args[i], arg)
+							}
+						}
+					}
+
+					expectedPrompt := "/custom:implement {{issue-number}}"
+					if implPhase.Prompt != expectedPrompt {
+						t.Errorf("Claude implement prompt = %v, want %v", implPhase.Prompt, expectedPrompt)
+					}
+				} else {
+					t.Error("Claude implement phase not found")
+				}
+
+				// Review フェーズの確認
+				if reviewPhase, exists := cfg.Claude.Phases["review"]; exists {
+					expectedArgs := []string{"--review-mode"}
+					if len(reviewPhase.Args) != len(expectedArgs) {
+						t.Errorf("Claude review args length = %d, want %d", len(reviewPhase.Args), len(expectedArgs))
+					} else {
+						for i, arg := range expectedArgs {
+							if reviewPhase.Args[i] != arg {
+								t.Errorf("Claude review args[%d] = %v, want %v", i, reviewPhase.Args[i], arg)
+							}
+						}
+					}
+
+					expectedPrompt := "/custom:review {{issue-number}}"
+					if reviewPhase.Prompt != expectedPrompt {
+						t.Errorf("Claude review prompt = %v, want %v", reviewPhase.Prompt, expectedPrompt)
+					}
+				} else {
+					t.Error("Claude review phase not found")
+				}
+			},
+		},
+		{
+			name: "環境変数展開の確認",
+			configContent: `
+github:
+  token: "${GITHUB_TOKEN}"
+  poll_interval: 10s
+`,
+			checkFunc: func(cfg *Config, t *testing.T) {
+				// 環境変数が設定されている場合のテスト（このテストでは実際の値の確認は行わない）
+				// 設定読み込み自体が成功していることを確認
+				if cfg.GitHub.PollInterval != 10*time.Second {
+					t.Errorf("GitHub.PollInterval = %v, want 10s", cfg.GitHub.PollInterval)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// テスト用設定ファイルを作成
+			filename := "test_config_reflection_" + tt.name + ".yml"
+			err := os.WriteFile(filename, []byte(tt.configContent), 0644)
+			if err != nil {
+				t.Fatalf("設定ファイル作成に失敗: %v", err)
+			}
+			defer os.Remove(filename)
+
+			// 設定を読み込み
+			cfg := NewConfig()
+			if err := cfg.Load(filename); err != nil {
+				t.Fatalf("設定読み込みに失敗: %v", err)
+			}
+
+			// テスト関数を実行
+			tt.checkFunc(cfg, t)
+		})
+	}
+}
+
+// TestConfig_ValidateClaudeConfig はClaude設定のバリデーションをテストする
+func TestConfig_ValidateClaudeConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      *Config
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "正常系: 全てのフェーズが適切に設定されている",
+			config: &Config{
+				Claude: &claude.ClaudeConfig{
+					Phases: map[string]*claude.PhaseConfig{
+						"plan": {
+							Args:   []string{"--arg1"},
+							Prompt: "/osoba:plan {{issue-number}}",
+						},
+						"implement": {
+							Args:   []string{"--arg2"},
+							Prompt: "/osoba:implement {{issue-number}}",
+						},
+						"review": {
+							Args:   []string{"--arg3"},
+							Prompt: "/osoba:review {{issue-number}}",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "異常系: planフェーズが不足",
+			config: &Config{
+				Claude: &claude.ClaudeConfig{
+					Phases: map[string]*claude.PhaseConfig{
+						"implement": {
+							Prompt: "/osoba:implement {{issue-number}}",
+						},
+						"review": {
+							Prompt: "/osoba:review {{issue-number}}",
+						},
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: "required phase 'plan' is missing",
+		},
+		{
+			name: "異常系: プロンプトが空",
+			config: &Config{
+				Claude: &claude.ClaudeConfig{
+					Phases: map[string]*claude.PhaseConfig{
+						"plan": {
+							Prompt: "",
+						},
+						"implement": {
+							Prompt: "/osoba:implement {{issue-number}}",
+						},
+						"review": {
+							Prompt: "/osoba:review {{issue-number}}",
+						},
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: "phase 'plan' prompt is empty",
+		},
+		{
+			name: "異常系: テンプレート変数が不足",
+			config: &Config{
+				Claude: &claude.ClaudeConfig{
+					Phases: map[string]*claude.PhaseConfig{
+						"plan": {
+							Prompt: "/osoba:plan",
+						},
+						"implement": {
+							Prompt: "/osoba:implement {{issue-number}}",
+						},
+						"review": {
+							Prompt: "/osoba:review {{issue-number}}",
+						},
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: "phase 'plan' prompt must contain {{issue-number}} template variable",
+		},
+		{
+			name: "正常系: Claude設定がnil",
+			config: &Config{
+				Claude: nil,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.validateClaudeConfig()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateClaudeConfig() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr && tt.errContains != "" {
+				if err == nil || !findSubstring(err.Error(), tt.errContains) {
+					t.Errorf("validateClaudeConfig() error = %v, want error containing %v", err, tt.errContains)
+				}
+			}
+		})
+	}
 }

@@ -53,7 +53,7 @@ type IssueWatcher struct {
 }
 
 // NewIssueWatcher は新しいIssueWatcherを作成する
-func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string, labels []string) (*IssueWatcher, error) {
+func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string, labels []string, pollInterval time.Duration) (*IssueWatcher, error) {
 	if owner == "" {
 		return nil, errors.New("owner is required")
 	}
@@ -66,13 +66,16 @@ func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string
 	if len(labels) == 0 {
 		return nil, errors.New("at least one label is required")
 	}
+	if pollInterval < time.Second {
+		return nil, errors.New("poll interval must be at least 1 second")
+	}
 
 	return &IssueWatcher{
 		client:              client,
 		owner:               owner,
 		repo:                repo,
 		labels:              labels,
-		pollInterval:        5 * time.Second, // デフォルト5秒
+		pollInterval:        pollInterval,
 		actionManager:       NewActionManager(sessionName),
 		labelChangeTracking: false,
 		issueLabels:         make(map[int64][]string),
@@ -388,8 +391,8 @@ func (w *IssueWatcher) EnableLabelChangeTracking(enable bool) {
 }
 
 // NewIssueWatcherWithLabelTracking はラベル変更追跡機能付きのIssueWatcherを作成する
-func NewIssueWatcherWithLabelTracking(client github.GitHubClient, owner, repo, sessionName string, labels []string) (*IssueWatcher, error) {
-	watcher, err := NewIssueWatcher(client, owner, repo, sessionName, labels)
+func NewIssueWatcherWithLabelTracking(client github.GitHubClient, owner, repo, sessionName string, labels []string, pollInterval time.Duration) (*IssueWatcher, error) {
+	watcher, err := NewIssueWatcher(client, owner, repo, sessionName, labels, pollInterval)
 	if err != nil {
 		return nil, err
 	}

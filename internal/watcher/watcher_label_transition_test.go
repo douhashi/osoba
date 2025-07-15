@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/douhashi/osoba/internal/github"
 	gogithub "github.com/google/go-github/v67/github"
@@ -84,7 +85,7 @@ func TestIssueWatcher_CurrentProblemWithLabelTransition(t *testing.T) {
 		}
 
 		// IssueWatcherを作成
-		watcher, err := NewIssueWatcher(mockClient, "test-owner", "test-repo", "test-session", []string{"status:needs-plan"})
+		watcher, err := NewIssueWatcher(mockClient, "test-owner", "test-repo", "test-session", []string{"status:needs-plan"}, 5*time.Second)
 		if err != nil {
 			t.Fatalf("NewIssueWatcher failed: %v", err)
 		}
@@ -112,7 +113,7 @@ func TestIssueWatcher_FixedLabelTransition(t *testing.T) {
 		}
 
 		// IssueWatcherを作成
-		watcher, err := NewIssueWatcher(mockClient, "test-owner", "test-repo", "test-session", []string{"status:needs-plan"})
+		watcher, err := NewIssueWatcher(mockClient, "test-owner", "test-repo", "test-session", []string{"status:needs-plan"}, 5*time.Second)
 		if err != nil {
 			t.Fatalf("NewIssueWatcher failed: %v", err)
 		}

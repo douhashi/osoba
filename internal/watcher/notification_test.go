@@ -166,7 +166,7 @@ func TestWatcherWithEventNotification(t *testing.T) {
 			issues: testIssues,
 		}
 
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:ready"})
+		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:ready"}, 5*time.Second)
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
@@ -258,7 +258,7 @@ func TestLabelChangeEventNotification(t *testing.T) {
 			},
 		}
 
-		watcher, err := NewIssueWatcherWithLabelTracking(mockClient, "douhashi", "osoba", "test-session", []string{"bug", "status:ready"})
+		watcher, err := NewIssueWatcherWithLabelTracking(mockClient, "douhashi", "osoba", "test-session", []string{"bug", "status:ready"}, 5*time.Second)
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
 		}

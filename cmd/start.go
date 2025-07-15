@@ -101,7 +101,7 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	}
 
 	// セッション名を生成
-	sessionName := fmt.Sprintf("osoba-%s", repoName)
+	sessionName := fmt.Sprintf("%s%s", cfg.Tmux.SessionPrefix, repoName)
 
 	// tmuxセッションを確保（存在しない場合は作成）
 	fmt.Fprintf(cmd.OutOrStdout(), "tmuxセッション '%s' を確認中...\n", sessionName)
@@ -157,12 +157,9 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	)
 
 	// Issue監視を作成
-	issueWatcher, err := watcher.NewIssueWatcher(githubClient, owner, repoName, sessionName, cfg.GetLabels())
+	issueWatcher, err := watcher.NewIssueWatcher(githubClient, owner, repoName, sessionName, cfg.GetLabels(), cfg.GitHub.PollInterval)
 	if err != nil {
 		return fmt.Errorf("Issue監視の作成に失敗: %w", err)
-	}
-	if err := issueWatcher.SetPollInterval(cfg.GitHub.PollInterval); err != nil {
-		return fmt.Errorf("ポーリング間隔の設定に失敗: %w", err)
 	}
 
 	// ActionManagerにActionFactoryを設定
