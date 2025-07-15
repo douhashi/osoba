@@ -28,6 +28,10 @@ func TestIssueWatcher_MemoryManagement(t *testing.T) {
 				callCount++
 				// 毎回異なるIssueを返す
 				start := (callCount - 1) * 100
+				if start >= len(testIssues) {
+					// すべてのIssueを返し終えたら空のスライスを返す
+					return []*github.Issue{}, nil
+				}
 				end := start + 100
 				if end > len(testIssues) {
 					end = len(testIssues)
