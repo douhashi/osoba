@@ -248,7 +248,6 @@ github:
 					}
 				}
 			}()
-
 			// テスト用の設定ファイルを作成
 			tmpDir := t.TempDir()
 			configPath := filepath.Join(tmpDir, "test_config.yml")
@@ -256,7 +255,7 @@ github:
 				t.Fatalf("Failed to write config file: %v", err)
 			}
 
-			// 環境変数を設定
+			// テスト用の環境変数を設定
 			for k, v := range tt.envVars {
 				os.Setenv(k, v)
 			}
