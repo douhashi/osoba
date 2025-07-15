@@ -30,6 +30,25 @@ func TestNewConfig(t *testing.T) {
 		if _, exists := cfg.Claude.Phases["plan"]; !exists {
 			t.Error("Claude plan phase not found")
 		}
+
+		// すべてのフェーズで --dangerously-skip-permissions が設定されていることを確認
+		phases := []string{"plan", "implement", "review"}
+		for _, phase := range phases {
+			if phaseConfig, exists := cfg.Claude.Phases[phase]; exists {
+				found := false
+				for _, arg := range phaseConfig.Args {
+					if arg == "--dangerously-skip-permissions" {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Claude %s phase should have --dangerously-skip-permissions", phase)
+				}
+			} else {
+				t.Errorf("Claude %s phase not found", phase)
+			}
+		}
 	})
 }
 

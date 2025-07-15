@@ -30,7 +30,7 @@ description: "TDDによる実装作業"
 5. **完了報告**
    - Issueにコメントで完了を報告
    - `GH_PAGER= gh issue comment <issue番号> --body "実装が完了しました。PRを作成しました: #<PR番号>"`
-   - `GH_PAGER= gh issue edit <issue番号>  --remove-label "status:implementing" --add-label "status:review-requested"` でラベルを付与/削除
+   - `GH_PAGER= gh issue edit <issue番号>  --remove-label "status:implementing" --add-label "status:needs-review"` でラベルを付与/削除
 
 ## 基本ルール
 

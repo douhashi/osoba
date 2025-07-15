@@ -57,7 +57,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 
 		// Claude実行
 		phaseConfig := &claude.PhaseConfig{
-			Args:   []string{},
+			Args:   []string{"--dangerously-skip-permissions"},
 			Prompt: "/osoba:implement {{issue-number}}",
 		}
 		templateVars := &claude.TemplateVariables{
@@ -214,7 +214,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 
 		// Claude実行
 		phaseConfig := &claude.PhaseConfig{
-			Args:   []string{},
+			Args:   []string{"--dangerously-skip-permissions"},
 			Prompt: "/osoba:implement {{issue-number}}",
 		}
 		templateVars := &claude.TemplateVariables{
@@ -286,7 +286,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 
 		// Claude実行失敗
 		phaseConfig := &claude.PhaseConfig{
-			Args:   []string{},
+			Args:   []string{"--dangerously-skip-permissions"},
 			Prompt: "/osoba:implement {{issue-number}}",
 		}
 		templateVars := &claude.TemplateVariables{

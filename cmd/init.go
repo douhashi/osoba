@@ -198,6 +198,16 @@ tmux:
 
 claude:
   model: "claude-3-opus-20240229"
+  phases:
+    plan:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:plan {{issue-number}}"
+    implement:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:implement {{issue-number}}"
+    review:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:review {{issue-number}}"
 `
 
 	if err := writeFileFunc(configPath, []byte(defaultConfig), 0644); err != nil {

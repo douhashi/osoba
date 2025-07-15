@@ -20,11 +20,11 @@ func NewDefaultClaudeConfig() *ClaudeConfig {
 				Prompt: "/osoba:plan {{issue-number}}",
 			},
 			"implement": {
-				Args:   []string{},
+				Args:   []string{"--dangerously-skip-permissions"},
 				Prompt: "/osoba:implement {{issue-number}}",
 			},
 			"review": {
-				Args:   []string{"--read-only"},
+				Args:   []string{"--dangerously-skip-permissions"},
 				Prompt: "/osoba:review {{issue-number}}",
 			},
 		},
