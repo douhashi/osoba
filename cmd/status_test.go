@@ -27,7 +27,7 @@ func TestStatusCmd(t *testing.T) {
 			args:    []string{"status"},
 			wantErr: false,
 			wantOutputContains: []string{
-				"現在のステータス:",
+				"osobaステータス",
 			},
 		},
 	}

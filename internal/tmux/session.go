@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
 var (
@@ -142,4 +143,82 @@ func EnsureSession(sessionName string) error {
 	}
 
 	return nil
+}
+
+// SessionInfo はtmuxセッションの情報を保持する構造体
+type SessionInfo struct {
+	Name     string
+	Windows  int
+	Created  string
+	Attached bool
+}
+
+// ListSessions は存在するtmuxセッションの一覧を取得する
+func ListSessions(prefix string) ([]*SessionInfo, error) {
+	if logger := GetLogger(); logger != nil {
+		logger.Debug("tmuxセッション一覧取得",
+			"operation", "list_sessions",
+			"prefix", prefix,
+			"command", "tmux list-sessions")
+	}
+
+	// tmux list-sessions -F "#{session_name}:#{session_windows}:#{session_created}:#{session_attached}"
+	cmd := execCommand("tmux", "list-sessions", "-F", "#{session_name}:#{session_windows}:#{session_created}:#{session_attached}")
+	output, err := cmd.Output()
+
+	if err != nil {
+		// セッションが存在しない場合もエラーになるが、それは正常な状態
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if exitErr.ExitCode() == 1 {
+				if logger := GetLogger(); logger != nil {
+					logger.Debug("tmuxセッションが存在しません")
+				}
+				return []*SessionInfo{}, nil
+			}
+		}
+		if logger := GetLogger(); logger != nil {
+			logger.Error("tmuxセッション一覧取得失敗", "error", err)
+		}
+		return nil, fmt.Errorf("tmuxセッション一覧の取得に失敗: %w", err)
+	}
+
+	sessions := []*SessionInfo{}
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Split(line, ":")
+		if len(parts) >= 4 {
+			sessionName := parts[0]
+
+			// prefixが指定されている場合は、そのprefixで始まるセッションのみ抽出
+			if prefix != "" && !strings.HasPrefix(sessionName, prefix) {
+				continue
+			}
+
+			windows := 0
+			if n, err := fmt.Sscanf(parts[1], "%d", &windows); err == nil && n == 1 {
+				// windows数を正常に取得
+			}
+
+			attached := parts[3] == "1"
+
+			sessions = append(sessions, &SessionInfo{
+				Name:     sessionName,
+				Windows:  windows,
+				Created:  parts[2],
+				Attached: attached,
+			})
+		}
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Debug("tmuxセッション一覧取得完了",
+			"count", len(sessions))
+	}
+
+	return sessions, nil
 }

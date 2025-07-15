@@ -1,9 +1,21 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
+	"github.com/google/go-github/v67/github"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
+	"github.com/douhashi/osoba/internal/config"
+	"github.com/douhashi/osoba/internal/git"
+	githubClient "github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/logger"
+	"github.com/douhashi/osoba/internal/tmux"
+	"github.com/douhashi/osoba/internal/utils"
 )
 
 func newStatusCmd() *cobra.Command {
@@ -12,10 +24,265 @@ func newStatusCmd() *cobra.Command {
 		Short: "現在の状態を表示",
 		Long:  `実行中の開発セッションとその状態を表示します。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "現在のステータス:")
-			fmt.Fprintln(cmd.OutOrStdout(), "  実行中のセッションはありません")
-			return nil
+			return runStatusCmd(cmd)
 		},
 	}
 	return cmd
+}
+
+func runStatusCmd(cmd *cobra.Command) error {
+	ctx := context.Background()
+
+	fmt.Fprintln(cmd.OutOrStdout(), "=== osobaステータス ===")
+	fmt.Fprintln(cmd.OutOrStdout())
+
+	// 設定を読み込み
+	cfg := config.NewConfig()
+	configPath := viper.GetString("config")
+	if configPath != "" {
+		cfg.LoadOrDefault(configPath)
+	}
+
+	// tmuxがインストールされているかチェック
+	if err := tmux.CheckTmuxInstalled(); err != nil {
+		fmt.Fprintln(cmd.OutOrStdout(), "⚠️  tmuxがインストールされていません")
+		fmt.Fprintln(cmd.OutOrStdout(), "   ", err.Error())
+		return nil
+	}
+
+	// tmuxセッション一覧を取得
+	sessions, err := tmux.ListSessions(cfg.Tmux.SessionPrefix)
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  tmuxセッション取得エラー: %v\n", err)
+	} else {
+		displayTmuxSessions(cmd, sessions)
+	}
+
+	fmt.Fprintln(cmd.OutOrStdout())
+
+	// GitHubリポジトリ情報を取得
+	repoInfo, err := getGitHubRepoInfo()
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHubリポジトリ情報取得エラー: %v\n", err)
+		return nil
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "📂 リポジトリ: %s/%s\n", repoInfo.Owner, repoInfo.Repo)
+	fmt.Fprintln(cmd.OutOrStdout())
+
+	// GitHub APIが利用可能かチェック
+	if cfg.GitHub.Token == "" {
+		fmt.Fprintln(cmd.OutOrStdout(), "⚠️  GitHub APIトークンが設定されていません")
+		fmt.Fprintln(cmd.OutOrStdout(), "   詳細なステータス情報を表示するには、設定ファイルでGitHubトークンを設定してください")
+		return nil
+	}
+
+	// GitHub クライアントを作成
+	client, err := githubClient.NewClient(cfg.GitHub.Token)
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHub クライアント作成エラー: %v\n", err)
+		return nil
+	}
+
+	// 各ステータスラベルのIssueを取得して表示
+	if err := displayGitHubIssues(cmd, ctx, client, repoInfo, cfg); err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHub Issue取得エラー: %v\n", err)
+	}
+
+	return nil
+}
+
+func displayTmuxSessions(cmd *cobra.Command, sessions []*tmux.SessionInfo) {
+	fmt.Fprintln(cmd.OutOrStdout(), "🖥️  tmuxセッション:")
+	if len(sessions) == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "   実行中のセッションはありません")
+		return
+	}
+
+	for _, session := range sessions {
+		status := "detached"
+		if session.Attached {
+			status = "attached"
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "   📺 %s (%d windows, %s)\n",
+			session.Name, session.Windows, status)
+
+		// セッション内のウィンドウ詳細を表示
+		displaySessionWindows(cmd, session.Name)
+	}
+}
+
+func displaySessionWindows(cmd *cobra.Command, sessionName string) {
+	// ウィンドウ詳細情報を取得
+	details, err := tmux.GetSortedWindowDetails(sessionName)
+	if err != nil {
+		// エラーが発生した場合はログに記録するが、表示は継続
+		if logger := getLogger(); logger != nil {
+			logger.Debug("ウィンドウ詳細取得エラー",
+				"session_name", sessionName,
+				"error", err)
+		}
+		return
+	}
+
+	if len(details) == 0 {
+		return
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "\n     Windows (%d):\n", len(details))
+	for _, detail := range details {
+		activeMarker := ""
+		if detail.Active {
+			activeMarker = " [active]"
+		}
+
+		// Issue番号とフェーズが取得できた場合は詳細表示
+		if detail.IssueNumber > 0 && detail.Phase != "" {
+			phaseDisplay := getPhaseDisplay(detail.Phase)
+			fmt.Fprintf(cmd.OutOrStdout(), "       %s  Issue #%d (%s)%s\n",
+				detail.Name, detail.IssueNumber, phaseDisplay, activeMarker)
+		} else {
+			// パースできない場合はウィンドウ名のみ表示
+			fmt.Fprintf(cmd.OutOrStdout(), "       %s%s\n", detail.Name, activeMarker)
+		}
+	}
+	fmt.Fprintln(cmd.OutOrStdout())
+}
+
+func getPhaseDisplay(phase string) string {
+	switch phase {
+	case "plan":
+		return "Planning"
+	case "implement":
+		return "Implementing"
+	case "review":
+		return "Reviewing"
+	default:
+		return phase
+	}
+}
+
+func getLogger() logger.Logger {
+	// ロガーを取得
+	log, _ := logger.New()
+	return log
+}
+
+func displayGitHubIssues(cmd *cobra.Command, ctx context.Context, client *githubClient.Client, repoInfo *utils.GitHubRepoInfo, cfg *config.Config) error {
+	statusLabels := []string{
+		"status:planning",
+		"status:implementing",
+		"status:reviewing",
+		"status:needs-plan",
+		"status:ready",
+		"status:review-requested",
+	}
+
+	fmt.Fprintln(cmd.OutOrStdout(), "📋 Issues:")
+
+	hasIssues := false
+	for _, label := range statusLabels {
+		issues, err := client.ListIssuesByLabels(ctx, repoInfo.Owner, repoInfo.Repo, []string{label})
+		if err != nil {
+			return fmt.Errorf("ラベル '%s' のIssue取得に失敗: %w", label, err)
+		}
+
+		if len(issues) > 0 {
+			hasIssues = true
+			displayIssuesForLabel(cmd, label, issues)
+		}
+	}
+
+	if !hasIssues {
+		fmt.Fprintln(cmd.OutOrStdout(), "   処理中のIssueはありません")
+	}
+
+	return nil
+}
+
+func displayIssuesForLabel(cmd *cobra.Command, label string, issues []*github.Issue) {
+	emoji := getEmojiForLabel(label)
+	fmt.Fprintf(cmd.OutOrStdout(), "   %s %s:\n", emoji, label)
+
+	for _, issue := range issues {
+		title := *issue.Title
+		if len(title) > 50 {
+			title = title[:47] + "..."
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "     #%d %s\n", *issue.Number, title)
+	}
+}
+
+func getEmojiForLabel(label string) string {
+	switch label {
+	case "status:needs-plan":
+		return "📝"
+	case "status:planning":
+		return "🔄"
+	case "status:ready":
+		return "✅"
+	case "status:implementing":
+		return "🔨"
+	case "status:review-requested":
+		return "👀"
+	case "status:reviewing":
+		return "🔍"
+	default:
+		return "📌"
+	}
+}
+
+func getGitHubRepoInfo() (*utils.GitHubRepoInfo, error) {
+	// 現在の作業ディレクトリを取得
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("作業ディレクトリの取得に失敗: %w", err)
+	}
+
+	// .gitディレクトリを探す
+	gitDir := findGitDirectory(cwd)
+	if gitDir == "" {
+		return nil, fmt.Errorf("Gitリポジトリが見つかりません")
+	}
+
+	// リポジトリのルートディレクトリを取得
+	repoRoot := filepath.Dir(gitDir)
+
+	// git remote get-url origin を実行
+	log, _ := logger.New()
+	repo := git.NewRepository(log)
+	remoteURL, err := repo.GetRemoteURL(context.Background(), repoRoot, "origin")
+	if err != nil {
+		return nil, fmt.Errorf("リモートURL取得に失敗: %w", err)
+	}
+
+	// URLからowner/repo情報を抽出
+	repoInfo, err := utils.ParseGitHubURL(remoteURL)
+	if err != nil {
+		return nil, fmt.Errorf("GitHub URL解析に失敗: %w", err)
+	}
+
+	return repoInfo, nil
+}
+
+func findGitDirectory(startPath string) string {
+	path := startPath
+	for {
+		gitPath := filepath.Join(path, ".git")
+		if info, err := os.Stat(gitPath); err == nil {
+			if info.IsDir() {
+				return gitPath
+			}
+			// .gitがファイルの場合（worktreeの場合）
+			// ファイルの内容を読んで実際の.gitディレクトリを見つける
+			return gitPath
+		}
+
+		parent := filepath.Dir(path)
+		if parent == path {
+			break
+		}
+		path = parent
+	}
+	return ""
 }

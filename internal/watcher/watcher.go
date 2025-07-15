@@ -173,7 +173,13 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 	var issues []*gh.Issue
 
 	// リトライ付きでAPIを呼び出し
-	err := RetryWithBackoff(ctx, 3, time.Second, func() error {
+	// テスト環境では短いリトライ間隔を使用
+	retryDelay := time.Second
+	if w.pollInterval < time.Second {
+		// ポーリング間隔が1秒未満の場合（テスト環境）は短いリトライ間隔を使用
+		retryDelay = 100 * time.Millisecond
+	}
+	err := RetryWithBackoff(ctx, 3, retryDelay, func() error {
 		var err error
 		issues, err = w.client.ListIssuesByLabels(ctx, w.owner, w.repo, w.labels)
 		return err
