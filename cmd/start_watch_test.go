@@ -84,10 +84,29 @@ github:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// 既存の環境変数をバックアップしてクリア
+			envBackup := make(map[string]string)
+			for _, key := range []string{"GITHUB_TOKEN", "OSOBA_GITHUB_TOKEN"} {
+				if val, exists := os.LookupEnv(key); exists {
+					envBackup[key] = val
+				}
+				os.Unsetenv(key)
+			}
+			defer func() {
+				// 環境変数を復元
+				for key, val := range envBackup {
+					os.Setenv(key, val)
+				}
+				for _, key := range []string{"GITHUB_TOKEN", "OSOBA_GITHUB_TOKEN"} {
+					if _, exists := envBackup[key]; !exists {
+						os.Unsetenv(key)
+					}
+				}
+			}()
+
 			// 環境変数を設定
 			for k, v := range tt.envVars {
 				os.Setenv(k, v)
-				defer os.Unsetenv(k)
 			}
 
 			// Gitリポジトリのモックを作成
