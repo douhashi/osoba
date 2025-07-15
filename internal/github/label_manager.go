@@ -62,8 +62,8 @@ func (lm *LabelManager) initializeLabelDefinitions() {
 		Description: "Ready for implementation",
 	}
 
-	lm.labelDefinitions["status:needs-review"] = LabelDefinition{
-		Name:        "status:needs-review",
+	lm.labelDefinitions["status:review-requested"] = LabelDefinition{
+		Name:        "status:review-requested",
 		Color:       "d93f0b",
 		Description: "Review requested",
 	}
@@ -92,7 +92,7 @@ func (lm *LabelManager) initializeLabelDefinitions() {
 func (lm *LabelManager) initializeTransitionRules() {
 	lm.transitionRules["status:needs-plan"] = "status:planning"
 	lm.transitionRules["status:ready"] = "status:implementing"
-	lm.transitionRules["status:needs-review"] = "status:reviewing"
+	lm.transitionRules["status:review-requested"] = "status:reviewing"
 }
 
 // GetLabelDefinitions returns all label definitions

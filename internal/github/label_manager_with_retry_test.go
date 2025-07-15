@@ -154,7 +154,7 @@ func TestLabelManagerWithRetry_EnsureLabelsExistWithRetry(t *testing.T) {
 					"status:planning",
 					"status:ready",
 					"status:implementing",
-					"status:needs-review",
+					"status:review-requested",
 					"status:reviewing",
 				}
 
@@ -180,7 +180,7 @@ func TestLabelManagerWithRetry_EnsureLabelsExistWithRetry(t *testing.T) {
 						{Name: github.String("status:planning")},
 						{Name: github.String("status:ready")},
 						{Name: github.String("status:implementing")},
-						{Name: github.String("status:needs-review")},
+						{Name: github.String("status:review-requested")},
 						{Name: github.String("status:reviewing")},
 					}, &github.Response{}, nil).Once()
 			},

@@ -107,7 +107,7 @@ func TestLabelManagerIntegration(t *testing.T) {
 			"status:planning",
 			"status:ready",
 			"status:implementing",
-			"status:needs-review",
+			"status:review-requested",
 			"status:reviewing",
 		}
 

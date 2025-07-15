@@ -185,14 +185,14 @@ github:
   labels:
     plan: "status:planning"
     ready: "status:ready-to-dev"
-    review: "status:needs-review"
+    review: "status:review-requested"
 `,
 			envVars: map[string]string{
 				"GITHUB_TOKEN": "env-token-123",
 			},
 			wantToken:    "env-token-123",
 			wantInterval: 10 * time.Second,
-			wantLabels:   []string{"status:planning", "status:ready-to-dev", "status:needs-review"},
+			wantLabels:   []string{"status:planning", "status:ready-to-dev", "status:review-requested"},
 		},
 		{
 			name: "OSOBA_GITHUB_TOKEN環境変数が優先される",
