@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/douhashi/osoba/internal/watcher"
-	"github.com/google/go-github/v50/github"
+	"github.com/google/go-github/v67/github"
 )
 
 // ImplementationAction は実装フェーズのアクション実装
