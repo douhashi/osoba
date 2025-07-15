@@ -363,3 +363,99 @@ func containsMessage(messages []string, substr string) bool {
 	}
 	return false
 }
+
+func TestEnsureSession(t *testing.T) {
+	tests := []struct {
+		name        string
+		sessionName string
+		setupMock   func()
+		wantErr     bool
+	}{
+		{
+			name:        "正常系: セッションが既に存在する場合、何もしない",
+			sessionName: "osoba-test",
+			setupMock: func() {
+				callCount := 0
+				execCommand = func(name string, arg ...string) *exec.Cmd {
+					callCount++
+					if name == "tmux" && len(arg) >= 2 && arg[0] == "has-session" && arg[1] == "-t" {
+						// セッションが存在する
+						return exec.Command("true")
+					}
+					return exec.Command(name, arg...)
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:        "正常系: セッションが存在しない場合、新規作成する",
+			sessionName: "osoba-test",
+			setupMock: func() {
+				callCount := 0
+				execCommand = func(name string, arg ...string) *exec.Cmd {
+					callCount++
+					if name == "tmux" && len(arg) >= 2 && arg[0] == "has-session" && arg[1] == "-t" {
+						// セッションが存在しない
+						return exec.Command("false")
+					}
+					if name == "tmux" && len(arg) >= 3 && arg[0] == "new-session" {
+						// セッション作成成功
+						return exec.Command("true")
+					}
+					return exec.Command(name, arg...)
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:        "異常系: セッション確認でエラー",
+			sessionName: "osoba-test",
+			setupMock: func() {
+				execCommand = func(name string, arg ...string) *exec.Cmd {
+					if name == "tmux" && len(arg) >= 2 && arg[0] == "has-session" && arg[1] == "-t" {
+						// has-sessionで異常なエラー（終了コード1以外）
+						cmd := exec.Command("sh", "-c", "exit 2")
+						return cmd
+					}
+					return exec.Command(name, arg...)
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name:        "異常系: セッション作成に失敗",
+			sessionName: "osoba-test",
+			setupMock: func() {
+				callCount := 0
+				execCommand = func(name string, arg ...string) *exec.Cmd {
+					callCount++
+					if name == "tmux" && len(arg) >= 2 && arg[0] == "has-session" && arg[1] == "-t" {
+						// セッションが存在しない
+						return exec.Command("false")
+					}
+					if name == "tmux" && len(arg) >= 3 && arg[0] == "new-session" {
+						// セッション作成失敗
+						return exec.Command("false")
+					}
+					return exec.Command(name, arg...)
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// モックのセットアップ
+			tt.setupMock()
+			defer func() {
+				execCommand = exec.Command
+			}()
+
+			err := EnsureSession(tt.sessionName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("EnsureSession() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

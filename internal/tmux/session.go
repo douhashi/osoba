@@ -103,3 +103,43 @@ func CreateSession(sessionName string) error {
 	}
 	return nil
 }
+
+// EnsureSession tmuxセッションが存在することを保証（存在しない場合は作成）
+func EnsureSession(sessionName string) error {
+	if logger := GetLogger(); logger != nil {
+		logger.Info("tmuxセッション確保開始",
+			"operation", "ensure_session",
+			"session_name", sessionName)
+	}
+
+	// セッションの存在確認
+	exists, err := SessionExists(sessionName)
+	if err != nil {
+		return fmt.Errorf("failed to check session existence: %w", err)
+	}
+
+	if exists {
+		if logger := GetLogger(); logger != nil {
+			logger.Info("セッションは既に存在します",
+				"session_name", sessionName)
+		}
+		return nil
+	}
+
+	// セッションが存在しない場合は作成
+	if logger := GetLogger(); logger != nil {
+		logger.Info("セッションが存在しないため、新規作成します",
+			"session_name", sessionName)
+	}
+
+	if err := CreateSession(sessionName); err != nil {
+		return fmt.Errorf("failed to create session: %w", err)
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("tmuxセッション確保完了",
+			"session_name", sessionName)
+	}
+
+	return nil
+}
