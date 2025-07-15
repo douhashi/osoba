@@ -47,6 +47,50 @@ func NewLabelManager(client LabelService) *LabelManager {
 	return lm
 }
 
+// is404Error checks if the error indicates a 404 Not Found response
+func is404Error(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := err.Error()
+
+	// 404エラーを示すメッセージをチェック
+	return containsIgnoreCase(errMsg, "not found") ||
+		containsIgnoreCase(errMsg, "404") ||
+		containsIgnoreCase(errMsg, "does not exist")
+}
+
+// containsIgnoreCase checks if a string contains a substring (case-insensitive)
+func containsIgnoreCase(s, substr string) bool {
+	// シンプルな実装: 小文字に変換して比較
+	sLower := ""
+	substrLower := ""
+
+	for _, r := range s {
+		if r >= 'A' && r <= 'Z' {
+			sLower += string(r + 32)
+		} else {
+			sLower += string(r)
+		}
+	}
+
+	for _, r := range substr {
+		if r >= 'A' && r <= 'Z' {
+			substrLower += string(r + 32)
+		} else {
+			substrLower += string(r)
+		}
+	}
+
+	for i := 0; i <= len(sLower)-len(substrLower); i++ {
+		if sLower[i:i+len(substrLower)] == substrLower {
+			return true
+		}
+	}
+	return false
+}
+
 // initializeLabelDefinitions sets up the label definitions
 func (lm *LabelManager) initializeLabelDefinitions() {
 	// Trigger labels
@@ -129,7 +173,12 @@ func (lm *LabelManager) TransitionLabel(ctx context.Context, owner, repo string,
 			// Remove trigger label
 			_, err := lm.client.RemoveLabelForIssue(ctx, owner, repo, issueNumber, labelName)
 			if err != nil {
-				return false, fmt.Errorf("failed to remove label %s: %w", labelName, err)
+				// 404エラー（ラベルが存在しない）の場合は無視して処理を続行
+				if is404Error(err) {
+					// ラベルが既に存在しないので削除をスキップして次のステップに進む
+				} else {
+					return false, fmt.Errorf("failed to remove label %s: %w", labelName, err)
+				}
 			}
 
 			// Add in-progress label

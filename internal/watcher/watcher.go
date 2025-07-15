@@ -229,28 +229,8 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 				w.eventNotifier.Send(event)
 			}
 
-			// ラベル遷移を試みる
-			// TransitionIssueLabelWithInfoメソッドを持つクライアントかチェック
-			type labelTransitioner interface {
-				TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *github.TransitionInfo, error)
-			}
-
-			if client, ok := w.client.(labelTransitioner); ok {
-				transitioned, info, err := client.TransitionIssueLabelWithInfo(ctx, w.owner, w.repo, *issue.Number)
-				if err != nil {
-					log.Printf("Failed to transition label for issue #%d: %v", *issue.Number, err)
-				} else if transitioned && info != nil {
-					log.Printf("Issue #%d: %s → %s", *issue.Number, info.From, info.To)
-				}
-			} else {
-				// 後方互換性のため、古いメソッドも試す
-				transitioned, err := w.client.TransitionIssueLabel(ctx, w.owner, w.repo, *issue.Number)
-				if err != nil {
-					log.Printf("Failed to transition label for issue #%d: %v", *issue.Number, err)
-				} else if transitioned {
-					log.Printf("Successfully transitioned label for issue #%d", *issue.Number)
-				}
-			}
+			// ラベル遷移はActionでのみ実行される。
+			// Issue検知時にはラベル遷移を実行しない。
 
 			// コールバック実行時のパニックを捕捉
 			func() {
