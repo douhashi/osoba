@@ -201,7 +201,9 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 		currentLabels := getLabels(issue)
 
 		// 新しいIssueの検出
-		if !w.seenIssues[issueID] {
+		w.mu.Lock()
+		alreadySeen := w.seenIssues[issueID]
+		if !alreadySeen {
 			// メモリ管理: seenIssuesのサイズ制限
 			if len(w.seenIssues) >= MaxSeenIssues {
 				// 最も古いエントリを削除
@@ -210,6 +212,10 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 
 			w.seenIssues[issueID] = true
 			newIssueCount++
+		}
+		w.mu.Unlock()
+
+		if !alreadySeen {
 			log.Printf("New issue detected: #%d - %s (labels: %v)",
 				*issue.Number,
 				safeString(issue.Title),
@@ -243,7 +249,12 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 
 		// ラベル変更の追跡
 		if w.labelChangeTracking {
+			w.mu.Lock()
 			previousLabels, exists := w.issueLabels[issueID]
+			// 現在のラベルを保存
+			w.issueLabels[issueID] = currentLabels
+			w.mu.Unlock()
+
 			if exists {
 				// ラベル変更をチェック
 				events := DetectLabelChanges(previousLabels, currentLabels)
@@ -263,14 +274,12 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 					}
 				}
 			}
-
-			// 現在のラベルを保存
-			w.issueLabels[issueID] = currentLabels
 		}
 	}
 }
 
 // cleanupSeenIssues は最も古いエントリを削除してメモリを解放する
+// 注意: このメソッドは呼び出し元でmutexがロックされていることを前提としている
 func (w *IssueWatcher) cleanupSeenIssues() {
 	// 削除するエントリ数（全体の20%）
 	toDelete := len(w.seenIssues) / 5
@@ -305,6 +314,20 @@ func (w *IssueWatcher) cleanupSeenIssues() {
 // GetRateLimit はGitHub APIのレート制限情報を取得する
 func (w *IssueWatcher) GetRateLimit(ctx context.Context) (*gh.RateLimits, error) {
 	return w.client.GetRateLimit(ctx)
+}
+
+// GetSeenIssuesCount はseenIssuesマップのサイズを取得する
+func (w *IssueWatcher) GetSeenIssuesCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.seenIssues)
+}
+
+// HasSeenIssue は指定されたIssue IDが既に処理されているかを確認する
+func (w *IssueWatcher) HasSeenIssue(issueID int64) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.seenIssues[issueID]
 }
 
 // GetLastExecutionTime は最後の実行時刻を取得する

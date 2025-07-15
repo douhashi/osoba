@@ -12,11 +12,6 @@ import (
 )
 
 func TestIssueWatcher_Logging(t *testing.T) {
-	// ログ出力をキャプチャするためのバッファ
-	var logBuf bytes.Buffer
-	originalOutput := log.Writer()
-	log.SetOutput(&logBuf)
-	defer log.SetOutput(originalOutput)
 
 	// モックIssueデータ
 	testIssues := []*github.Issue{
@@ -37,7 +32,11 @@ func TestIssueWatcher_Logging(t *testing.T) {
 	}
 
 	t.Run("各監視サイクルの開始と終了がログに記録される", func(t *testing.T) {
-		logBuf.Reset()
+		// ログ出力をキャプチャするためのバッファ
+		var logBuf bytes.Buffer
+		originalOutput := log.Writer()
+		log.SetOutput(&logBuf)
+		defer log.SetOutput(originalOutput)
 
 		mockClient := &mockGitHubClient{
 			issues: testIssues,
@@ -55,10 +54,18 @@ func TestIssueWatcher_Logging(t *testing.T) {
 		defer cancel()
 
 		// 監視を開始
-		go watcher.Start(ctx, func(issue *github.Issue) {})
+		done := make(chan struct{})
+		go func() {
+			watcher.Start(ctx, func(issue *github.Issue) {})
+			close(done)
+		}()
 
 		// ログが記録されるまで待つ
 		time.Sleep(400 * time.Millisecond)
+		cancel()
+
+		// goroutineの終了を待つ
+		<-done
 
 		logOutput := logBuf.String()
 
@@ -85,7 +92,11 @@ func TestIssueWatcher_Logging(t *testing.T) {
 	})
 
 	t.Run("エラー発生時に詳細なコンテキスト情報がログに記録される", func(t *testing.T) {
-		logBuf.Reset()
+		// ログ出力をキャプチャするためのバッファ
+		var logBuf bytes.Buffer
+		originalOutput := log.Writer()
+		log.SetOutput(&logBuf)
+		defer log.SetOutput(originalOutput)
 
 		mockClient := &mockGitHubClient{
 			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
@@ -105,9 +116,17 @@ func TestIssueWatcher_Logging(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 		defer cancel()
 
-		go watcher.Start(ctx, func(issue *github.Issue) {})
+		done := make(chan struct{})
+		go func() {
+			watcher.Start(ctx, func(issue *github.Issue) {})
+			close(done)
+		}()
 
 		time.Sleep(200 * time.Millisecond)
+		cancel()
+
+		// goroutineの終了を待つ
+		<-done
 
 		logOutput := logBuf.String()
 

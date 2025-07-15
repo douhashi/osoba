@@ -55,9 +55,10 @@ func TestIssueWatcher_MemoryManagement(t *testing.T) {
 		time.Sleep(250 * time.Millisecond)
 
 		// seenIssuesのサイズを確認
-		if len(watcher.seenIssues) > maxSeenIssues {
+		seenCount := watcher.GetSeenIssuesCount()
+		if seenCount > maxSeenIssues {
 			t.Errorf("seenIssues map size exceeded limit: got %d, want <= %d",
-				len(watcher.seenIssues), maxSeenIssues)
+				seenCount, maxSeenIssues)
 		}
 	})
 
@@ -115,7 +116,7 @@ func TestIssueWatcher_MemoryManagement(t *testing.T) {
 		// 古いIssue（ID 1-100）が削除されているか確認
 		oldIssueFound := false
 		for i := 1; i <= 100; i++ {
-			if watcher.seenIssues[int64(i)] {
+			if watcher.HasSeenIssue(int64(i)) {
 				oldIssueFound = true
 				break
 			}
@@ -129,7 +130,7 @@ func TestIssueWatcher_MemoryManagement(t *testing.T) {
 		// 新しいIssueが存在することを確認
 		newIssueFound := false
 		for i := 101; i <= 700; i++ {
-			if watcher.seenIssues[int64(i)] {
+			if watcher.HasSeenIssue(int64(i)) {
 				newIssueFound = true
 				break
 			}
