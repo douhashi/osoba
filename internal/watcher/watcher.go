@@ -231,9 +231,9 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 				} else if transitioned && info != nil {
 					log.Printf("Issue #%d: %s → %s", *issue.Number, info.From, info.To)
 				}
-			} else if ghClient, ok := w.client.(*github.Client); ok {
+			} else {
 				// 後方互換性のため、古いメソッドも試す
-				transitioned, err := ghClient.TransitionIssueLabel(ctx, w.owner, w.repo, *issue.Number)
+				transitioned, err := w.client.TransitionIssueLabel(ctx, w.owner, w.repo, *issue.Number)
 				if err != nil {
 					log.Printf("Failed to transition label for issue #%d: %v", *issue.Number, err)
 				} else if transitioned {
