@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	internalGitHub "github.com/douhashi/osoba/internal/github"
-	// "github.com/google/go-github/v67/github" // TransitionIssueLabelWithInfoで使用予定
 )
 
 // Client はghコマンドを使用してGitHub操作を行うクライアント
@@ -48,18 +47,6 @@ func (c *Client) ValidatePrerequisites(ctx context.Context) error {
 }
 
 // 以下、GitHubClientインターフェースの実装（スタブ）
-
-// TransitionIssueLabel はIssueのラベルをトリガーラベルから実行中ラベルに遷移させる
-func (c *Client) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
-	// TODO: 実装
-	return false, fmt.Errorf("not implemented")
-}
-
-// TransitionIssueLabelWithInfo はIssueのラベルをトリガーラベルから実行中ラベルに遷移させ、遷移情報を返す
-func (c *Client) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *internalGitHub.TransitionInfo, error) {
-	// TODO: 実装
-	return false, nil, fmt.Errorf("not implemented")
-}
 
 // EnsureLabelsExist は必要なラベルがリポジトリに存在することを保証する
 func (c *Client) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
