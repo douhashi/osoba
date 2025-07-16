@@ -307,7 +307,12 @@ func TestConfig_GetLabels(t *testing.T) {
 func TestConfig_LoadOrDefault(t *testing.T) {
 	t.Run("正常系: ファイルが存在しない場合はデフォルト値を使う", func(t *testing.T) {
 		cfg := NewConfig()
-		cfg.LoadOrDefault("non_existent_file.yml")
+		actualPath := cfg.LoadOrDefault("non_existent_file.yml")
+
+		// パスが空文字列であることを確認
+		if actualPath != "" {
+			t.Errorf("actualPath = %v, want empty string", actualPath)
+		}
 
 		// デフォルト値が設定されていることを確認
 		if cfg.GitHub.PollInterval != 5*time.Second {
@@ -328,7 +333,12 @@ github:
 		defer os.Remove("test_load_or_default.yml")
 
 		cfg := NewConfig()
-		cfg.LoadOrDefault("test_load_or_default.yml")
+		actualPath := cfg.LoadOrDefault("test_load_or_default.yml")
+
+		// 実際のパスが返されることを確認
+		if actualPath != "test_load_or_default.yml" {
+			t.Errorf("actualPath = %v, want test_load_or_default.yml", actualPath)
+		}
 
 		if cfg.GitHub.PollInterval != 15*time.Second {
 			t.Errorf("poll interval = %v, want 15s", cfg.GitHub.PollInterval)

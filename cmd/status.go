@@ -47,10 +47,10 @@ func runStatusCmd(cmd *cobra.Command) error {
 
 	// 設定ファイルのパスが取得できた場合、またはデフォルトパスから読み込み
 	if configPath != "" {
-		cfg.LoadOrDefault(configPath)
+		_ = cfg.LoadOrDefault(configPath)
 	} else {
 		// configPathが空の場合もデフォルト設定ファイルをチェック
-		cfg.LoadOrDefault("")
+		_ = cfg.LoadOrDefault("")
 	}
 
 	// tmuxがインストールされているかチェック
