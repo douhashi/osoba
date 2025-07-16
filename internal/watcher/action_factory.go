@@ -1,6 +1,8 @@
 package watcher
 
 import (
+	"log"
+
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
@@ -54,29 +56,22 @@ func NewDefaultActionFactory(
 
 // CreatePlanAction は計画フェーズのアクションを作成する
 func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
-	// 具体的なClient型かチェックしてLabelTransitionerを作成
+	// GitHubClientインターフェースを使用してLabelTransitionerを作成
 	var labelTransitioner github.LabelTransitioner
 	if apiClient, ok := f.ghClient.(*github.Client); ok {
 		// APIクライアントの場合
+		log.Printf("DEBUG: Using GitHub API client for PlanAction")
 		issuesService := apiClient.GetIssuesService()
 		if issuesService != nil {
 			labelTransitioner = github.NewLabelTransitioner(issuesService, f.owner, f.repo)
 		}
+	} else {
+		// ghクライアントの場合、GitHubClientインターフェースを直接使用
+		log.Printf("DEBUG: Using gh command client for PlanAction")
+		labelTransitioner = github.NewLabelTransitionerFromGitHubClient(f.ghClient, f.owner, f.repo)
 	}
 
-	if labelTransitioner == nil {
-		// フォールバック：PhaseTransitionerなしで作成
-		return actions.NewPlanAction(
-			f.sessionName,
-			&actions.DefaultTmuxClient{},
-			f.stateManager,
-			f.worktreeManager,
-			f.claudeExecutor,
-			f.claudeConfig,
-		)
-	}
-
-	// GitHubAdapterを作成
+	// GitHubAdapterを作成（labelTransitionerがnilでも、ghClientを使用するため問題なし）
 	githubAdapter := actions.NewGitHubAdapter(f.ghClient, f.owner, f.repo, labelTransitioner)
 
 	// ConfigAdapterを作成
@@ -84,6 +79,7 @@ func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
 
 	// PhaseTransitionerを作成
 	phaseTransitioner := actions.NewPhaseTransitioner(f.owner, f.repo, githubAdapter, configAdapter)
+	log.Printf("DEBUG: PhaseTransitioner created for PlanAction")
 
 	return actions.NewPlanActionWithPhaseTransitioner(
 		f.sessionName,
@@ -102,7 +98,7 @@ func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 		GitHubClient: f.ghClient,
 	}
 
-	// 具体的なClient型かチェックしてLabelTransitionerを作成
+	// GitHubClientインターフェースを使用してLabelTransitionerを作成
 	var labelTransitioner github.LabelTransitioner
 	if apiClient, ok := f.ghClient.(*github.Client); ok {
 		// APIクライアントの場合
@@ -110,19 +106,9 @@ func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 		if issuesService != nil {
 			labelTransitioner = github.NewLabelTransitioner(issuesService, f.owner, f.repo)
 		}
-	}
-
-	if labelTransitioner == nil {
-		// フォールバック：従来のLabelManagerのみを使用
-		return actions.NewImplementationAction(
-			f.sessionName,
-			&actions.DefaultTmuxClient{},
-			f.stateManager,
-			labelManager,
-			f.worktreeManager,
-			f.claudeExecutor,
-			f.claudeConfig,
-		)
+	} else {
+		// ghクライアントの場合、GitHubClientインターフェースを直接使用
+		labelTransitioner = github.NewLabelTransitionerFromGitHubClient(f.ghClient, f.owner, f.repo)
 	}
 
 	// GitHubAdapterを作成
@@ -152,7 +138,7 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 		GitHubClient: f.ghClient,
 	}
 
-	// 具体的なClient型かチェックしてLabelTransitionerを作成
+	// GitHubClientインターフェースを使用してLabelTransitionerを作成
 	var labelTransitioner github.LabelTransitioner
 	if apiClient, ok := f.ghClient.(*github.Client); ok {
 		// APIクライアントの場合
@@ -160,19 +146,9 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 		if issuesService != nil {
 			labelTransitioner = github.NewLabelTransitioner(issuesService, f.owner, f.repo)
 		}
-	}
-
-	if labelTransitioner == nil {
-		// フォールバック：従来のLabelManagerのみを使用
-		return actions.NewReviewAction(
-			f.sessionName,
-			&actions.DefaultTmuxClient{},
-			f.stateManager,
-			labelManager,
-			f.worktreeManager,
-			f.claudeExecutor,
-			f.claudeConfig,
-		)
+	} else {
+		// ghクライアントの場合、GitHubClientインターフェースを直接使用
+		labelTransitioner = github.NewLabelTransitionerFromGitHubClient(f.ghClient, f.owner, f.repo)
 	}
 
 	// GitHubAdapterを作成
