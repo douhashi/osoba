@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/types"
-	"github.com/google/go-github/v67/github"
 )
 
 // LabelManager はラベル管理のインターフェース

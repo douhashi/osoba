@@ -116,8 +116,8 @@ func (c *Client) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo s
 
 			// 遷移情報を返す
 			info := &internalGitHub.TransitionInfo{
-				From: label,
-				To:   targetLabel,
+				FromLabel: label,
+				ToLabel:   targetLabel,
 			}
 			return true, info, nil
 		}

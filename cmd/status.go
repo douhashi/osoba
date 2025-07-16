@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/google/go-github/v67/github"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -238,7 +237,7 @@ func displayGitHubIssues(cmd *cobra.Command, ctx context.Context, client *github
 	return nil
 }
 
-func displayIssuesForLabel(cmd *cobra.Command, label string, issues []*github.Issue) {
+func displayIssuesForLabel(cmd *cobra.Command, label string, issues []*githubClient.Issue) {
 	emoji := getEmojiForLabel(label)
 	fmt.Fprintf(cmd.OutOrStdout(), "   %s %s:\n", emoji, label)
 

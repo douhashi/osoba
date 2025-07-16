@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/douhashi/osoba/internal/github"
 )
 
 // GetRepository はリポジトリ情報を取得する
-func (c *Client) GetRepository(ctx context.Context, owner, repo string) (*Repository, error) {
+func (c *Client) GetRepository(ctx context.Context, owner, repo string) (*github.Repository, error) {
 	if owner == "" {
 		return nil, errors.New("owner is required")
 	}
@@ -39,20 +41,17 @@ func (c *Client) GetRepository(ctx context.Context, owner, repo string) (*Reposi
 	return convertToRepository(&ghRepo), nil
 }
 
-// convertToRepository はgh用の構造体をRepository型に変換する
-func convertToRepository(ghRepo *ghRepository) *Repository {
-	repo := &Repository{
-		Name:             ghRepo.Name,
-		Description:      ghRepo.Description,
-		IsPrivate:        ghRepo.IsPrivate,
-		URL:              ghRepo.URL,
-		SSHURL:           ghRepo.SSHURL,
-		CreatedAt:        ghRepo.CreatedAt,
-		UpdatedAt:        ghRepo.UpdatedAt,
-		IsArchived:       ghRepo.IsArchived,
-		IsFork:           ghRepo.IsFork,
-		DefaultBranchRef: ghRepo.DefaultBranchRef,
-		Owner:            ghRepo.Owner,
+// convertToRepository はgh用の構造体をgithub.Repository型に変換する
+func convertToRepository(ghRepo *ghRepository) *github.Repository {
+	repo := &github.Repository{
+		Name:        github.String(ghRepo.Name),
+		Description: github.String(ghRepo.Description),
+		Private:     github.Bool(ghRepo.IsPrivate),
+		HTMLURL:     github.String(ghRepo.URL),
+		Fork:        github.Bool(ghRepo.IsFork),
+		Owner: &github.User{
+			Login: github.String(ghRepo.Owner.Login),
+		},
 	}
 
 	return repo

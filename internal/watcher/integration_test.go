@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
 )
 
 // 統合テスト: GitHub Issue監視の全体ワークフローをテスト

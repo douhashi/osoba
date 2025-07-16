@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
 )
 
 func TestIssueWatcher_HealthCheck(t *testing.T) {

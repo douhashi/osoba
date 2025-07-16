@@ -3,18 +3,16 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"os/exec"
 	"strconv"
 	"time"
 
-	"github.com/douhashi/osoba/internal/gh"
 	"github.com/douhashi/osoba/internal/logger"
 )
 
 // GHLabelManager はghコマンドを使用するラベルマネージャー
 type GHLabelManager struct {
-	executor         gh.Executor
 	logger           logger.Logger
 	labelDefinitions map[string]LabelDefinition
 	transitionRules  map[string]string
@@ -23,9 +21,8 @@ type GHLabelManager struct {
 }
 
 // NewGHLabelManager は新しいghコマンドベースのLabelManagerを作成する
-func NewGHLabelManager(executor gh.Executor, logger logger.Logger, maxRetries int, retryDelay time.Duration) *GHLabelManager {
+func NewGHLabelManager(logger logger.Logger, maxRetries int, retryDelay time.Duration) *GHLabelManager {
 	lm := &GHLabelManager{
-		executor:         executor,
 		logger:           logger,
 		labelDefinitions: make(map[string]LabelDefinition),
 		transitionRules:  make(map[string]string),
@@ -177,7 +174,7 @@ func (lm *GHLabelManager) getIssueLabels(ctx context.Context, owner, repo string
 		"--json", "labels",
 	}
 
-	output, err := lm.executor.Execute(ctx, args)
+	output, err := lm.executeGHCommand(ctx, args...)
 	if err != nil {
 		return nil, fmt.Errorf("execute gh command: %w", err)
 	}
@@ -208,7 +205,7 @@ func (lm *GHLabelManager) addLabel(ctx context.Context, owner, repo string, issu
 		"--add-label", label,
 	}
 
-	if _, err := lm.executor.Execute(ctx, args); err != nil {
+	if _, err := lm.executeGHCommand(ctx, args...); err != nil {
 		return fmt.Errorf("add label: %w", err)
 	}
 
@@ -223,7 +220,7 @@ func (lm *GHLabelManager) removeLabel(ctx context.Context, owner, repo string, i
 		"--remove-label", label,
 	}
 
-	if _, err := lm.executor.Execute(ctx, args); err != nil {
+	if _, err := lm.executeGHCommand(ctx, args...); err != nil {
 		return fmt.Errorf("remove label: %w", err)
 	}
 
@@ -298,7 +295,7 @@ func (lm *GHLabelManager) listLabels(ctx context.Context, owner, repo string) ([
 		"--json", "name",
 	}
 
-	output, err := lm.executor.Execute(ctx, args)
+	output, err := lm.executeGHCommand(ctx, args...)
 	if err != nil {
 		return nil, fmt.Errorf("execute gh command: %w", err)
 	}
@@ -328,19 +325,21 @@ func (lm *GHLabelManager) createLabel(ctx context.Context, owner, repo string, d
 		"--description", def.Description,
 	}
 
-	if _, err := lm.executor.Execute(ctx, args); err != nil {
+	if _, err := lm.executeGHCommand(ctx, args...); err != nil {
 		return fmt.Errorf("create label: %w", err)
 	}
 
 	return nil
 }
 
-// TransitionInfo represents the result of a label transition operation
-type TransitionInfo struct {
-	TransitionFound bool
-	FromLabel       string
-	ToLabel         string
-	CurrentLabels   []string
+// executeGHCommand はghコマンドを実行する
+func (lm *GHLabelManager) executeGHCommand(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "gh", args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("gh command failed: %w", err)
+	}
+	return output, nil
 }
 
 // Ensure GHLabelManager implements LabelManagerInterface

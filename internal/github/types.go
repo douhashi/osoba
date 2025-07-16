@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -170,4 +171,32 @@ func Int64(v int64) *int64 {
 // Bool returns a pointer to the given bool value.
 func Bool(v bool) *bool {
 	return &v
+}
+
+// LabelDefinition defines a GitHub label with its properties
+type LabelDefinition struct {
+	Name        string
+	Color       string
+	Description string
+}
+
+// LabelManagerInterface defines the interface for label management operations
+type LabelManagerInterface interface {
+	TransitionLabelWithRetry(ctx context.Context, owner, repo string, issueNumber int) (bool, error)
+	TransitionLabelWithInfoWithRetry(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error)
+	EnsureLabelsExistWithRetry(ctx context.Context, owner, repo string) error
+}
+
+// LabelService defines the interface for GitHub label operations (deprecated)
+type LabelService interface{}
+
+// LabelManager is deprecated, use GHLabelManager instead
+type LabelManager struct{}
+
+// TransitionInfo represents the result of a label transition operation
+type TransitionInfo struct {
+	TransitionFound bool
+	FromLabel       string
+	ToLabel         string
+	CurrentLabels   []string
 }

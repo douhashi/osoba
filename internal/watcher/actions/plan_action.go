@@ -7,9 +7,9 @@ import (
 
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/git"
+	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/douhashi/osoba/internal/types"
-	"github.com/google/go-github/v67/github"
 )
 
 // TmuxClient はtmux操作のインターフェース

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
-	gh "github.com/google/go-github/v67/github"
+	gh "github.com/douhashi/osoba/internal/github"
 )
 
 func TestNewIssueWatcher(t *testing.T) {

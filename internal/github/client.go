@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/douhashi/osoba/internal/gh"
 	"github.com/douhashi/osoba/internal/logger"
 )
 
@@ -18,7 +18,6 @@ type Client = GHClient
 
 // GHClient はghコマンドを使用するGitHub APIクライアント
 type GHClient struct {
-	executor     gh.Executor
 	logger       logger.Logger
 	labelManager LabelManagerInterface
 }
@@ -26,11 +25,9 @@ type GHClient struct {
 // NewClient は新しいGitHub APIクライアントを作成する（ghコマンドベース）
 func NewClient(token string) (*GHClient, error) {
 	// ghコマンドは環境変数やconfigでトークンを管理するため、ここでは不要
-	executor := gh.NewExecutor()
-	labelManager := NewGHLabelManager(executor, nil, 3, 1*time.Second)
+	labelManager := NewGHLabelManager(nil, 3, 1*time.Second)
 
 	return &GHClient{
-		executor:     executor,
 		labelManager: labelManager,
 	}, nil
 }
@@ -41,11 +38,9 @@ func NewClientWithLogger(token string, logger logger.Logger) (*GHClient, error) 
 		return nil, errors.New("logger is required")
 	}
 
-	executor := gh.NewExecutor()
-	labelManager := NewGHLabelManager(executor, logger, 3, 1*time.Second)
+	labelManager := NewGHLabelManager(logger, 3, 1*time.Second)
 
 	return &GHClient{
-		executor:     executor,
 		logger:       logger,
 		labelManager: labelManager,
 	}, nil
@@ -60,8 +55,7 @@ func (c *GHClient) GetRepository(ctx context.Context, owner, repo string) (*Repo
 		return nil, errors.New("repo is required")
 	}
 
-	args := []string{"api", fmt.Sprintf("repos/%s/%s", owner, repo)}
-	output, err := c.executor.Execute(ctx, args)
+	output, err := c.executeGHCommand(ctx, "api", fmt.Sprintf("repos/%s/%s", owner, repo))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repository: %w", err)
 	}
@@ -95,7 +89,7 @@ func (c *GHClient) ListIssuesByLabels(ctx context.Context, owner, repo string, l
 		args = append(args, "--label", strings.Join(labels, ","))
 	}
 
-	output, err := c.executor.Execute(ctx, args)
+	output, err := c.executeGHCommand(ctx, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list issues: %w", err)
 	}
@@ -118,28 +112,41 @@ func (c *GHClient) ListIssuesByLabels(ctx context.Context, owner, repo string, l
 
 // GetRateLimit はAPI利用制限情報を取得する
 func (c *GHClient) GetRateLimit(ctx context.Context) (*RateLimits, error) {
-	args := []string{"api", "rate_limit"}
-	output, err := c.executor.Execute(ctx, args)
+	output, err := c.executeGHCommand(ctx, "api", "rate_limit")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get rate limit: %w", err)
 	}
 
-	var rateLimitResp gh.RateLimitResponse
-	if err := json.Unmarshal(output, &rateLimitResp); err != nil {
+	var response struct {
+		Resources struct {
+			Core struct {
+				Limit     int   `json:"limit"`
+				Remaining int   `json:"remaining"`
+				Reset     int64 `json:"reset"`
+			} `json:"core"`
+			Search struct {
+				Limit     int   `json:"limit"`
+				Remaining int   `json:"remaining"`
+				Reset     int64 `json:"reset"`
+			} `json:"search"`
+		} `json:"resources"`
+	}
+
+	if err := json.Unmarshal(output, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse rate limit response: %w", err)
 	}
 
-	// gh.RateLimitResponseからRateLimitsに変換
+	// responseからRateLimitsに変換
 	rateLimits := &RateLimits{
 		Core: &RateLimit{
-			Limit:     rateLimitResp.Resources.Core.Limit,
-			Remaining: rateLimitResp.Resources.Core.Remaining,
-			Reset:     time.Unix(rateLimitResp.Resources.Core.Reset, 0),
+			Limit:     response.Resources.Core.Limit,
+			Remaining: response.Resources.Core.Remaining,
+			Reset:     time.Unix(response.Resources.Core.Reset, 0),
 		},
 		Search: &RateLimit{
-			Limit:     rateLimitResp.Resources.Search.Limit,
-			Remaining: rateLimitResp.Resources.Search.Remaining,
-			Reset:     time.Unix(rateLimitResp.Resources.Search.Reset, 0),
+			Limit:     response.Resources.Search.Limit,
+			Remaining: response.Resources.Search.Remaining,
+			Reset:     time.Unix(response.Resources.Search.Reset, 0),
 		},
 	}
 
@@ -180,13 +187,7 @@ func (c *GHClient) CreateIssueComment(ctx context.Context, owner, repo string, i
 		return errors.New("comment is required")
 	}
 
-	args := []string{
-		"issue", "comment", strconv.Itoa(issueNumber),
-		"--repo", fmt.Sprintf("%s/%s", owner, repo),
-		"--body", comment,
-	}
-
-	if _, err := c.executor.Execute(ctx, args); err != nil {
+	if _, err := c.executeGHCommand(ctx, "issue", "comment", strconv.Itoa(issueNumber), "--repo", fmt.Sprintf("%s/%s", owner, repo), "--body", comment); err != nil {
 		return fmt.Errorf("failed to create comment: %w", err)
 	}
 
@@ -213,13 +214,7 @@ func (c *GHClient) RemoveLabel(ctx context.Context, owner, repo string, issueNum
 		return errors.New("label is required")
 	}
 
-	args := []string{
-		"issue", "edit", fmt.Sprintf("%d", issueNumber),
-		"--repo", fmt.Sprintf("%s/%s", owner, repo),
-		"--remove-label", label,
-	}
-
-	if _, err := c.executor.Execute(ctx, args); err != nil {
+	if _, err := c.executeGHCommand(ctx, "issue", "edit", fmt.Sprintf("%d", issueNumber), "--repo", fmt.Sprintf("%s/%s", owner, repo), "--remove-label", label); err != nil {
 		return fmt.Errorf("failed to remove label %s from issue #%d: %w", label, issueNumber, err)
 	}
 
@@ -247,13 +242,7 @@ func (c *GHClient) AddLabel(ctx context.Context, owner, repo string, issueNumber
 		return errors.New("label is required")
 	}
 
-	args := []string{
-		"issue", "edit", fmt.Sprintf("%d", issueNumber),
-		"--repo", fmt.Sprintf("%s/%s", owner, repo),
-		"--add-label", label,
-	}
-
-	if _, err := c.executor.Execute(ctx, args); err != nil {
+	if _, err := c.executeGHCommand(ctx, "issue", "edit", fmt.Sprintf("%d", issueNumber), "--repo", fmt.Sprintf("%s/%s", owner, repo), "--add-label", label); err != nil {
 		return fmt.Errorf("failed to add label %s to issue #%d: %w", label, issueNumber, err)
 	}
 
@@ -267,6 +256,16 @@ func (c *GHClient) AddLabel(ctx context.Context, owner, repo string, issueNumber
 	}
 
 	return nil
+}
+
+// executeGHCommand はghコマンドを実行する
+func (c *GHClient) executeGHCommand(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "gh", args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("gh command failed: %w", err)
+	}
+	return output, nil
 }
 
 // Ensure GHClient implements GitHubClient interface

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/douhashi/osoba/internal/github"
-	gh "github.com/google/go-github/v67/github"
+	gh "github.com/douhashi/osoba/internal/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

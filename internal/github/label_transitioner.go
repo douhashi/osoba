@@ -3,7 +3,6 @@ package github
 import (
 	"context"
 	"fmt"
-	"net/http"
 )
 
 // LabelTransitioner はフェーズ固有のラベル遷移を行うインターフェース

@@ -5,17 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
+
+	"github.com/douhashi/osoba/internal/github"
 )
 
 // ListIssuesByLabels は指定されたラベルのいずれかを持つIssueを取得する（OR条件）
-func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]Issue, error) {
+func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
 	if len(labels) == 0 {
 		return nil, fmt.Errorf("at least one label is required")
 	}
 
 	// 重複を避けるためのマップ
-	issueMap := make(map[int]Issue)
+	issueMap := make(map[int]*github.Issue)
 
 	// 各ラベルについて個別にghコマンドを実行（OR条件を実現）
 	for _, label := range labels {
@@ -36,7 +37,7 @@ func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, lab
 			continue
 		}
 
-		// ghIssue から Issue に変換し、マップに追加
+		// ghIssue から github.Issue に変換し、マップに追加
 		for _, ghIssue := range ghIssues {
 			issueNumber := ghIssue.Number
 			if _, exists := issueMap[issueNumber]; !exists {
@@ -46,7 +47,7 @@ func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, lab
 	}
 
 	// マップから配列に変換
-	issues := make([]Issue, 0, len(issueMap))
+	issues := make([]*github.Issue, 0, len(issueMap))
 	for _, issue := range issueMap {
 		issues = append(issues, issue)
 	}
@@ -54,32 +55,32 @@ func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, lab
 	return issues, nil
 }
 
-// convertToIssue は ghIssue を Issue に変換する
-func convertToIssue(ghIssue ghIssue) Issue {
+// convertToIssue は ghIssue を github.Issue に変換する
+func convertToIssue(ghIssue ghIssue) *github.Issue {
 	// ステートを正規化（OPEN -> open, CLOSED -> closed）
 	state := strings.ToLower(ghIssue.State)
 
-	issue := Issue{
-		Number:    ghIssue.Number,
-		Title:     ghIssue.Title,
-		State:     state,
-		URL:       ghIssue.URL,
-		Body:      ghIssue.Body,
-		CreatedAt: ghIssue.CreatedAt,
-		UpdatedAt: ghIssue.UpdatedAt,
-		Author: Author{
-			Login: ghIssue.Author.Login,
+	issue := &github.Issue{
+		Number:    github.Int(ghIssue.Number),
+		Title:     github.String(ghIssue.Title),
+		State:     github.String(state),
+		HTMLURL:   github.String(ghIssue.URL),
+		Body:      github.String(ghIssue.Body),
+		CreatedAt: &ghIssue.CreatedAt,
+		UpdatedAt: &ghIssue.UpdatedAt,
+		User: &github.User{
+			Login: github.String(ghIssue.Author.Login),
 		},
 	}
 
 	// ラベルを変換
 	if len(ghIssue.Labels) > 0 {
-		issue.Labels = make([]Label, len(ghIssue.Labels))
+		issue.Labels = make([]*github.Label, len(ghIssue.Labels))
 		for i, ghLabel := range ghIssue.Labels {
-			issue.Labels[i] = Label{
-				Name:        ghLabel.Name,
-				Description: ghLabel.Description,
-				Color:       ghLabel.Color,
+			issue.Labels[i] = &github.Label{
+				Name:        github.String(ghLabel.Name),
+				Description: github.String(ghLabel.Description),
+				Color:       github.String(ghLabel.Color),
 			}
 		}
 	}

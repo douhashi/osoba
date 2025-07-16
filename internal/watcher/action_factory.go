@@ -1,8 +1,6 @@
 package watcher
 
 import (
-	"log"
-
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
@@ -56,36 +54,11 @@ func NewDefaultActionFactory(
 
 // CreatePlanAction は計画フェーズのアクションを作成する
 func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
-	// GitHubClientインターフェースを使用してLabelTransitionerを作成
-	var labelTransitioner github.LabelTransitioner
-	if apiClient, ok := f.ghClient.(*github.Client); ok {
-		// APIクライアントの場合
-		log.Printf("DEBUG: Using GitHub API client for PlanAction")
-		issuesService := apiClient.GetIssuesService()
-		if issuesService != nil {
-			labelTransitioner = github.NewLabelTransitioner(issuesService, f.owner, f.repo)
-		}
-	} else {
-		// ghクライアントの場合、GitHubClientインターフェースを直接使用
-		log.Printf("DEBUG: Using gh command client for PlanAction")
-		labelTransitioner = github.NewLabelTransitionerFromGitHubClient(f.ghClient, f.owner, f.repo)
-	}
-
-	// GitHubAdapterを作成（labelTransitionerがnilでも、ghClientを使用するため問題なし）
-	githubAdapter := actions.NewGitHubAdapter(f.ghClient, f.owner, f.repo, labelTransitioner)
-
-	// ConfigAdapterを作成
-	configAdapter := actions.NewConfigAdapter(f.config)
-
-	// PhaseTransitionerを作成
-	phaseTransitioner := actions.NewPhaseTransitioner(f.owner, f.repo, githubAdapter, configAdapter)
-	log.Printf("DEBUG: PhaseTransitioner created for PlanAction")
-
-	return actions.NewPlanActionWithPhaseTransitioner(
+	// 現在の実装ではPhaseTransitionerを使用せず、シンプルな実装を使用
+	return actions.NewPlanAction(
 		f.sessionName,
 		&actions.DefaultTmuxClient{},
 		f.stateManager,
-		phaseTransitioner,
 		f.worktreeManager,
 		f.claudeExecutor,
 		f.claudeConfig,
@@ -98,34 +71,12 @@ func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 		GitHubClient: f.ghClient,
 	}
 
-	// GitHubClientインターフェースを使用してLabelTransitionerを作成
-	var labelTransitioner github.LabelTransitioner
-	if apiClient, ok := f.ghClient.(*github.Client); ok {
-		// APIクライアントの場合
-		issuesService := apiClient.GetIssuesService()
-		if issuesService != nil {
-			labelTransitioner = github.NewLabelTransitioner(issuesService, f.owner, f.repo)
-		}
-	} else {
-		// ghクライアントの場合、GitHubClientインターフェースを直接使用
-		labelTransitioner = github.NewLabelTransitionerFromGitHubClient(f.ghClient, f.owner, f.repo)
-	}
-
-	// GitHubAdapterを作成
-	githubAdapter := actions.NewGitHubAdapter(f.ghClient, f.owner, f.repo, labelTransitioner)
-
-	// ConfigAdapterを作成
-	configAdapter := actions.NewConfigAdapter(f.config)
-
-	// PhaseTransitionerを作成
-	phaseTransitioner := actions.NewPhaseTransitioner(f.owner, f.repo, githubAdapter, configAdapter)
-
-	return actions.NewImplementationActionWithPhaseTransitioner(
+	// 現在の実装ではPhaseTransitionerを使用せず、シンプルな実装を使用
+	return actions.NewImplementationAction(
 		f.sessionName,
 		&actions.DefaultTmuxClient{},
 		f.stateManager,
 		labelManager,
-		phaseTransitioner,
 		f.worktreeManager,
 		f.claudeExecutor,
 		f.claudeConfig,
@@ -138,34 +89,12 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 		GitHubClient: f.ghClient,
 	}
 
-	// GitHubClientインターフェースを使用してLabelTransitionerを作成
-	var labelTransitioner github.LabelTransitioner
-	if apiClient, ok := f.ghClient.(*github.Client); ok {
-		// APIクライアントの場合
-		issuesService := apiClient.GetIssuesService()
-		if issuesService != nil {
-			labelTransitioner = github.NewLabelTransitioner(issuesService, f.owner, f.repo)
-		}
-	} else {
-		// ghクライアントの場合、GitHubClientインターフェースを直接使用
-		labelTransitioner = github.NewLabelTransitionerFromGitHubClient(f.ghClient, f.owner, f.repo)
-	}
-
-	// GitHubAdapterを作成
-	githubAdapter := actions.NewGitHubAdapter(f.ghClient, f.owner, f.repo, labelTransitioner)
-
-	// ConfigAdapterを作成
-	configAdapter := actions.NewConfigAdapter(f.config)
-
-	// PhaseTransitionerを作成
-	phaseTransitioner := actions.NewPhaseTransitioner(f.owner, f.repo, githubAdapter, configAdapter)
-
-	return actions.NewReviewActionWithPhaseTransitioner(
+	// 現在の実装ではPhaseTransitionerを使用せず、シンプルな実装を使用
+	return actions.NewReviewAction(
 		f.sessionName,
 		&actions.DefaultTmuxClient{},
 		f.stateManager,
 		labelManager,
-		phaseTransitioner,
 		f.worktreeManager,
 		f.claudeExecutor,
 		f.claudeConfig,

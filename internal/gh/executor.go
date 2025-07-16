@@ -97,11 +97,11 @@ func (e *GHExecutor) Execute(ctx context.Context, args []string) ([]byte, error)
 	if len(args) == 0 {
 		return nil, fmt.Errorf("no arguments provided")
 	}
-	
+
 	output, err := e.cmdExecutor.Execute(ctx, "gh", args...)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return []byte(output), nil
 }
