@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/douhashi/osoba/internal/utils"
 )
 
 func TestInitCmd(t *testing.T) {
@@ -19,6 +21,7 @@ func TestInitCmd(t *testing.T) {
 	origMkdirAll := mkdirAllFunc
 	origGitHubClient := createGitHubClientFunc
 	origGetRemoteURL := getRemoteURLFunc
+	origGetGitHubRepoInfo := getGitHubRepoInfoFunc
 	defer func() {
 		isGitRepositoryFunc = origIsGitRepo
 		checkCommandFunc = origCheckCommand
@@ -27,6 +30,7 @@ func TestInitCmd(t *testing.T) {
 		mkdirAllFunc = origMkdirAll
 		createGitHubClientFunc = origGitHubClient
 		getRemoteURLFunc = origGetRemoteURL
+		getGitHubRepoInfoFunc = origGetGitHubRepoInfo
 	}()
 
 	tests := []struct {
@@ -69,6 +73,12 @@ func TestInitCmd(t *testing.T) {
 				}
 				getRemoteURLFunc = func(remoteName string) (string, error) {
 					return "https://github.com/douhashi/osoba.git", nil
+				}
+				getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+					return &utils.GitHubRepoInfo{
+						Owner: "douhashi",
+						Repo:  "osoba",
+					}, nil
 				}
 				mockClient := &mockInitGitHubClient{
 					ensureLabelsFunc: func(ctx context.Context, owner, repo string) error {
@@ -280,6 +290,7 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 	origGitHubClient := createGitHubClientFunc
 	origGetRemoteURL := getRemoteURLFunc
 	origStat := statFunc
+	origGetGitHubRepoInfo := getGitHubRepoInfoFunc
 	defer func() {
 		isGitRepositoryFunc = origIsGitRepo
 		checkCommandFunc = origCheckCommand
@@ -289,6 +300,7 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 		createGitHubClientFunc = origGitHubClient
 		getRemoteURLFunc = origGetRemoteURL
 		statFunc = origStat
+		getGitHubRepoInfoFunc = origGetGitHubRepoInfo
 	}()
 
 	// 基本的なモックを設定
@@ -328,6 +340,13 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 
 				getRemoteURLFunc = func(remoteName string) (string, error) {
 					return "https://github.com/douhashi/osoba.git", nil
+				}
+
+				getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+					return &utils.GitHubRepoInfo{
+						Owner: "douhashi",
+						Repo:  "osoba",
+					}, nil
 				}
 
 				// GitHubクライアントのモック
@@ -376,6 +395,13 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 					return "https://github.com/douhashi/osoba.git", nil
 				}
 
+				getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+					return &utils.GitHubRepoInfo{
+						Owner: "douhashi",
+						Repo:  "osoba",
+					}, nil
+				}
+
 				mockClient := &mockInitGitHubClient{
 					ensureLabelsFunc: func(ctx context.Context, owner, repo string) error {
 						return nil
@@ -410,6 +436,13 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 					return "https://github.com/douhashi/osoba.git", nil
 				}
 
+				getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+					return &utils.GitHubRepoInfo{
+						Owner: "douhashi",
+						Repo:  "osoba",
+					}, nil
+				}
+
 				mockClient := &mockInitGitHubClient{
 					ensureLabelsFunc: func(ctx context.Context, owner, repo string) error {
 						return nil
@@ -436,6 +469,13 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 
 				getRemoteURLFunc = func(remoteName string) (string, error) {
 					return "https://github.com/douhashi/osoba.git", nil
+				}
+
+				getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+					return &utils.GitHubRepoInfo{
+						Owner: "douhashi",
+						Repo:  "osoba",
+					}, nil
 				}
 
 				mockClient := &mockInitGitHubClient{

@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/douhashi/osoba/internal/utils"
 )
 
 // TestGitHubRepoInfoConsistency は各コマンドでのGitHubリポジトリ情報取得の一貫性をテストする
@@ -95,18 +97,26 @@ func TestGitHubRepoInfoRetrievalErrors(t *testing.T) {
 		{
 			name: "エラー系: git remote get-url失敗",
 			setupMocks: func() {
-				getRemoteURLFunc = func(remoteName string) (string, error) {
-					return "", errors.New("fatal: No such remote 'origin'")
+				getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+					return nil, &utils.GetGitHubRepoInfoError{
+						Step:    "remote_url",
+						Cause:   errors.New("fatal: No such remote 'origin'"),
+						Message: "リモートURL取得に失敗しました",
+					}
 				}
 			},
 			testInitCmd:      true,
-			expectWarningMsg: "GitリモートURLの取得に失敗しました",
+			expectWarningMsg: "リモートURL取得に失敗しました",
 		},
 		{
 			name: "エラー系: 不正なGitHub URL",
 			setupMocks: func() {
-				getRemoteURLFunc = func(remoteName string) (string, error) {
-					return "invalid-url", nil
+				getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+					return nil, &utils.GetGitHubRepoInfoError{
+						Step:    "url_parsing",
+						Cause:   errors.New("invalid URL format"),
+						Message: "GitHubリポジトリ情報の解析に失敗しました",
+					}
 				}
 			},
 			testInitCmd:      true,
@@ -124,6 +134,7 @@ func TestGitHubRepoInfoRetrievalErrors(t *testing.T) {
 			origWriteFile := writeFileFunc
 			origMkdirAll := mkdirAllFunc
 			origGitHubClient := createGitHubClientFunc
+			origGetGitHubRepoInfo := getGitHubRepoInfoFunc
 			defer func() {
 				getRemoteURLFunc = origGetRemoteURL
 				isGitRepositoryFunc = origIsGitRepo
@@ -132,6 +143,7 @@ func TestGitHubRepoInfoRetrievalErrors(t *testing.T) {
 				writeFileFunc = origWriteFile
 				mkdirAllFunc = origMkdirAll
 				createGitHubClientFunc = origGitHubClient
+				getGitHubRepoInfoFunc = origGetGitHubRepoInfo
 			}()
 
 			// 基本的なモックを設定
@@ -159,6 +171,13 @@ func TestGitHubRepoInfoRetrievalErrors(t *testing.T) {
 						return nil
 					},
 				}
+			}
+			// デフォルトのgetGitHubRepoInfoFuncモック
+			getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+				return &utils.GitHubRepoInfo{
+					Owner: "douhashi",
+					Repo:  "osoba",
+				}, nil
 			}
 
 			// テスト固有のモックを設定
@@ -260,20 +279,28 @@ func TestErrorMessagesSpecificity(t *testing.T) {
 			name:     "リモートURL取得失敗",
 			scenario: "git remote get-url fails",
 			setupMocks: func() {
-				getRemoteURLFunc = func(remoteName string) (string, error) {
-					return "", fmt.Errorf("fatal: No such remote 'origin'")
+				getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+					return nil, &utils.GetGitHubRepoInfoError{
+						Step:    "remote_url",
+						Cause:   fmt.Errorf("fatal: No such remote 'origin'"),
+						Message: "リモートURL取得に失敗しました",
+					}
 				}
 			},
 			expectedMsgs: []string{
-				"GitリモートURLの取得に失敗しました",
+				"リモートURL取得に失敗しました",
 			},
 		},
 		{
 			name:     "URL解析失敗",
 			scenario: "GitHub URL parsing fails",
 			setupMocks: func() {
-				getRemoteURLFunc = func(remoteName string) (string, error) {
-					return "https://gitlab.com/user/repo.git", nil
+				getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+					return nil, &utils.GetGitHubRepoInfoError{
+						Step:    "url_parsing",
+						Cause:   fmt.Errorf("invalid GitHub URL format"),
+						Message: "GitHubリポジトリ情報の解析に失敗しました",
+					}
 				}
 			},
 			expectedMsgs: []string{

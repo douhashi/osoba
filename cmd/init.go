@@ -36,6 +36,7 @@ var (
 		client, _ := github.NewClient(token)
 		return client
 	}
+	getGitHubRepoInfoFunc = utils.GetGitHubRepoInfo
 )
 
 // isGitRepository は指定されたパスがgitリポジトリかを確認する
@@ -331,7 +332,7 @@ func setupGitHubLabels(out, errOut io.Writer) {
 
 	// リポジトリ情報の取得（共通関数を使用）
 	ctx := context.Background()
-	repoInfo, err := utils.GetGitHubRepoInfo(ctx)
+	repoInfo, err := getGitHubRepoInfoFunc(ctx)
 	if err != nil {
 		fmt.Fprintln(out, "⚠️")
 		// 詳細なエラーメッセージを表示
