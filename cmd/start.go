@@ -56,12 +56,9 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 			return fmt.Errorf("設定ファイルの読み込みに失敗: %w", err)
 		}
 	} else {
-		// 環境変数から読み込み
-		if token := os.Getenv("GITHUB_TOKEN"); token != "" {
-			cfg.GitHub.Token = token
-		} else if token := os.Getenv("OSOBA_GITHUB_TOKEN"); token != "" {
-			cfg.GitHub.Token = token
-		}
+		// 設定ファイルが指定されていない場合、GetGitHubTokenで自動取得
+		token, _ := config.GetGitHubToken(cfg)
+		cfg.GitHub.Token = token
 	}
 
 	// ポーリング間隔を設定

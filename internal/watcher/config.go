@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/spf13/viper"
 )
 
@@ -36,7 +37,7 @@ func LoadConfig(path string) (*Config, error) {
 	v.SetEnvPrefix("OSOBA")
 	v.AutomaticEnv()
 	// 環境変数のマッピングを明示的に設定
-	v.BindEnv("github.token", "OSOBA_GITHUB_TOKEN")
+	v.BindEnv("github.token", "GITHUB_TOKEN")
 	v.BindEnv("github.owner", "OSOBA_GITHUB_OWNER")
 	v.BindEnv("github.repo", "OSOBA_GITHUB_REPO")
 
@@ -49,6 +50,18 @@ func LoadConfig(path string) (*Config, error) {
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	// トークンが設定されていない場合、GetGitHubTokenで取得
+	if cfg.GitHub.Token == "" {
+		// 仮のConfigを作成して、GetGitHubTokenを呼び出す
+		tempCfg := &config.Config{
+			GitHub: config.GitHubConfig{
+				Token: cfg.GitHub.Token,
+			},
+		}
+		token, _ := config.GetGitHubToken(tempCfg)
+		cfg.GitHub.Token = token
 	}
 
 	// 設定の検証

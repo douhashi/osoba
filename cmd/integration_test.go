@@ -213,16 +213,15 @@ github:
 			wantLabels:   []string{"status:planning", "status:ready-to-dev", "status:review-requested"},
 		},
 		{
-			name: "OSOBA_GITHUB_TOKEN環境変数が優先される",
+			name: "GITHUB_TOKEN環境変数が設定ファイルより優先される",
 			configContent: `
 github:
   token: "file-token"
 `,
 			envVars: map[string]string{
-				"GITHUB_TOKEN":       "github-token",
-				"OSOBA_GITHUB_TOKEN": "osoba-token",
+				"GITHUB_TOKEN": "github-env-token",
 			},
-			wantToken:    "osoba-token",
+			wantToken:    "github-env-token",
 			wantInterval: 5 * time.Second, // デフォルト値
 			wantLabels:   []string{"status:needs-plan", "status:ready", "status:review-requested"},
 		},
@@ -232,7 +231,7 @@ github:
 		t.Run(tt.name, func(t *testing.T) {
 			// 既存の環境変数をバックアップしてクリア
 			envBackup := make(map[string]string)
-			for _, key := range []string{"GITHUB_TOKEN", "OSOBA_GITHUB_TOKEN"} {
+			for _, key := range []string{"GITHUB_TOKEN"} {
 				if val, exists := os.LookupEnv(key); exists {
 					envBackup[key] = val
 				}
@@ -243,7 +242,7 @@ github:
 				for key, val := range envBackup {
 					os.Setenv(key, val)
 				}
-				for _, key := range []string{"GITHUB_TOKEN", "OSOBA_GITHUB_TOKEN"} {
+				for _, key := range []string{"GITHUB_TOKEN"} {
 					if _, exists := envBackup[key]; !exists {
 						os.Unsetenv(key)
 					}

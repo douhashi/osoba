@@ -34,6 +34,9 @@ osobaは、tmux + git worktree + Claude を統合した自律的なソフトウ�
 - git 2.x以上
 - GitHub CLI（gh）
 - Claude CLI（claude）
+- GitHub Personal Access Token（以下のいずれかの方法で設定）
+  - 環境変数 `GITHUB_TOKEN` を設定
+  - GitHub CLI でログイン: `gh auth login`
 
 ## インストール
 
@@ -69,6 +72,10 @@ go install
 ### 1. 初期設定
 
 ```bash
+# GitHubにログイン（未ログインの場合）
+gh auth login
+
+# osobaの初期設定を実行
 osoba init
 ```
 
@@ -214,7 +221,15 @@ claude:
 
 | 環境変数 | 説明 | デフォルト値 |
 |----------|------|-------------|
-| `GITHUB_TOKEN` | GitHub Personal Access Token | - |
+| `GITHUB_TOKEN` | GitHub Personal Access Token（gh auth tokenで自動取得可） | - |
+
+### トークン取得の優先順位
+
+osobaは以下の優先順位でGitHubトークンを取得します：
+
+1. **環境変数 `GITHUB_TOKEN`** - 最優先
+2. **GitHub CLI (`gh auth token`)** - ghでログイン済みの場合
+3. **設定ファイル** - osoba.yml内の設定
 
 ## セキュリティ上の注意事項
 

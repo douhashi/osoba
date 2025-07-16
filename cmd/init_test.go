@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/utils"
 )
 
@@ -132,10 +133,12 @@ func TestInitCmd_EnvironmentChecks(t *testing.T) {
 	origIsGitRepo := isGitRepositoryFunc
 	origCheckCommand := checkCommandFunc
 	origGetEnv := getEnvFunc
+	origGetGitHubToken := getGitHubTokenFunc
 	defer func() {
 		isGitRepositoryFunc = origIsGitRepo
 		checkCommandFunc = origCheckCommand
 		getEnvFunc = origGetEnv
+		getGitHubTokenFunc = origGetGitHubToken
 	}()
 
 	tests := []struct {
@@ -215,6 +218,9 @@ func TestInitCmd_EnvironmentChecks(t *testing.T) {
 				getEnvFunc = func(key string) string {
 					return ""
 				}
+				getGitHubTokenFunc = func(cfg *config.Config) (string, string) {
+					return "", ""
+				}
 			},
 			wantErr: false,
 			wantOutputContains: []string{
@@ -291,6 +297,7 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 	origGetRemoteURL := getRemoteURLFunc
 	origStat := statFunc
 	origGetGitHubRepoInfo := getGitHubRepoInfoFunc
+	origGetGitHubToken := getGitHubTokenFunc
 	defer func() {
 		isGitRepositoryFunc = origIsGitRepo
 		checkCommandFunc = origCheckCommand
@@ -301,6 +308,7 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 		getRemoteURLFunc = origGetRemoteURL
 		statFunc = origStat
 		getGitHubRepoInfoFunc = origGetGitHubRepoInfo
+		getGitHubTokenFunc = origGetGitHubToken
 	}()
 
 	// 基本的なモックを設定
@@ -315,6 +323,9 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 			return "test-token"
 		}
 		return ""
+	}
+	getGitHubTokenFunc = func(cfg *config.Config) (string, string) {
+		return "test-token", "test"
 	}
 
 	tests := []struct {
@@ -553,6 +564,8 @@ func TestInitCmd_GitHubCLIChecks(t *testing.T) {
 	origWriteFile := writeFileFunc
 	origGetRemoteURL := getRemoteURLFunc
 	origGitHubClient := createGitHubClientFunc
+	origGetGitHubToken := getGitHubTokenFunc
+	origGetGitHubRepoInfo := getGitHubRepoInfoFunc
 	defer func() {
 		isGitRepositoryFunc = origIsGitRepo
 		checkCommandFunc = origCheckCommand
@@ -562,6 +575,8 @@ func TestInitCmd_GitHubCLIChecks(t *testing.T) {
 		writeFileFunc = origWriteFile
 		getRemoteURLFunc = origGetRemoteURL
 		createGitHubClientFunc = origGitHubClient
+		getGitHubTokenFunc = origGetGitHubToken
+		getGitHubRepoInfoFunc = origGetGitHubRepoInfo
 	}()
 
 	// 基本的なモックを設定
@@ -584,6 +599,15 @@ func TestInitCmd_GitHubCLIChecks(t *testing.T) {
 	}
 	createGitHubClientFunc = func(token string) githubInterface {
 		return mockClient
+	}
+	getGitHubTokenFunc = func(cfg *config.Config) (string, string) {
+		return "test-token", "test"
+	}
+	getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+		return &utils.GitHubRepoInfo{
+			Owner: "douhashi",
+			Repo:  "osoba",
+		}, nil
 	}
 
 	tests := []struct {

@@ -1,10 +1,12 @@
 package watcher
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/spf13/viper"
 )
 
@@ -136,12 +138,21 @@ github:
 }
 
 func TestConfigFromEnv(t *testing.T) {
+	// ghコマンドのモック
+	originalGhAuthTokenFunc := config.GhAuthTokenFunc
+	config.GhAuthTokenFunc = func() (string, error) {
+		return "", fmt.Errorf("gh auth token not available")
+	}
+	defer func() {
+		config.GhAuthTokenFunc = originalGhAuthTokenFunc
+	}()
+
 	// 環境変数を設定
-	os.Setenv("OSOBA_GITHUB_TOKEN", "env-token")
+	os.Setenv("GITHUB_TOKEN", "env-token")
 	os.Setenv("OSOBA_GITHUB_OWNER", "env-owner")
 	os.Setenv("OSOBA_GITHUB_REPO", "env-repo")
 	defer func() {
-		os.Unsetenv("OSOBA_GITHUB_TOKEN")
+		os.Unsetenv("GITHUB_TOKEN")
 		os.Unsetenv("OSOBA_GITHUB_OWNER")
 		os.Unsetenv("OSOBA_GITHUB_REPO")
 	}()
