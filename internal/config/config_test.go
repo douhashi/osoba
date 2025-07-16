@@ -757,3 +757,166 @@ func TestGetGitHubToken(t *testing.T) {
 		})
 	}
 }
+
+// TestLogLevelConfig はログレベル設定のテストを行う
+func TestLogLevelConfig(t *testing.T) {
+	tests := []struct {
+		name          string
+		configContent string
+		envVars       map[string]string
+		wantLogLevel  string
+		wantLogFormat string
+	}{
+		{
+			name: "設定ファイルでログレベルを指定",
+			configContent: `
+log:
+  level: debug
+  format: json
+`,
+			envVars:       map[string]string{},
+			wantLogLevel:  "debug",
+			wantLogFormat: "json",
+		},
+		{
+			name: "環境変数でログレベルを指定",
+			configContent: `
+log:
+  level: info
+  format: text
+`,
+			envVars: map[string]string{
+				"OSOBA_LOG_LEVEL": "warn",
+			},
+			wantLogLevel:  "warn",
+			wantLogFormat: "text",
+		},
+		{
+			name: "デフォルト値でログレベルを設定",
+			configContent: `
+github:
+  token: test-token
+`,
+			envVars:       map[string]string{},
+			wantLogLevel:  "info",
+			wantLogFormat: "text",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// テスト用設定ファイルを作成
+			filename := "test_log_level_" + tt.name + ".yml"
+			err := os.WriteFile(filename, []byte(tt.configContent), 0644)
+			if err != nil {
+				t.Fatalf("設定ファイル作成に失敗: %v", err)
+			}
+			defer os.Remove(filename)
+
+			// 環境変数のバックアップとクリア
+			envBackup := make(map[string]string)
+			envKeys := []string{"OSOBA_LOG_LEVEL", "OSOBA_LOG_FORMAT"}
+			for _, key := range envKeys {
+				if val, exists := os.LookupEnv(key); exists {
+					envBackup[key] = val
+				}
+				os.Unsetenv(key)
+			}
+			defer func() {
+				// 環境変数を復元
+				for key, val := range envBackup {
+					os.Setenv(key, val)
+				}
+			}()
+
+			// テスト用の環境変数を設定
+			for k, v := range tt.envVars {
+				os.Setenv(k, v)
+			}
+
+			// 設定を読み込み
+			cfg := NewConfig()
+			if err := cfg.Load(filename); err != nil {
+				t.Fatalf("設定読み込みに失敗: %v", err)
+			}
+
+			// ログレベルの確認
+			if cfg.Log.Level != tt.wantLogLevel {
+				t.Errorf("Log.Level = %v, want %v", cfg.Log.Level, tt.wantLogLevel)
+			}
+
+			// ログフォーマットの確認
+			if cfg.Log.Format != tt.wantLogFormat {
+				t.Errorf("Log.Format = %v, want %v", cfg.Log.Format, tt.wantLogFormat)
+			}
+		})
+	}
+}
+
+// TestLogConfig_CreateLogger はログ設定から実際のロガーを作成するテストを行う
+func TestLogConfig_CreateLogger(t *testing.T) {
+	tests := []struct {
+		name      string
+		logLevel  string
+		logFormat string
+		wantErr   bool
+	}{
+		{
+			name:      "正常系: debug/text",
+			logLevel:  "debug",
+			logFormat: "text",
+			wantErr:   false,
+		},
+		{
+			name:      "正常系: info/json",
+			logLevel:  "info",
+			logFormat: "json",
+			wantErr:   false,
+		},
+		{
+			name:      "正常系: warn/text",
+			logLevel:  "warn",
+			logFormat: "text",
+			wantErr:   false,
+		},
+		{
+			name:      "正常系: error/json",
+			logLevel:  "error",
+			logFormat: "json",
+			wantErr:   false,
+		},
+		{
+			name:      "異常系: 無効なログレベル",
+			logLevel:  "invalid",
+			logFormat: "text",
+			wantErr:   true,
+		},
+		{
+			name:      "異常系: 無効なフォーマット",
+			logLevel:  "info",
+			logFormat: "invalid",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				Log: LogConfig{
+					Level:  tt.logLevel,
+					Format: tt.logFormat,
+				},
+			}
+
+			logger, err := cfg.CreateLogger()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CreateLogger() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr && logger == nil {
+				t.Error("CreateLogger() returned nil logger")
+			}
+		})
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/claude"
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/spf13/viper"
 )
 
@@ -18,6 +19,7 @@ type Config struct {
 	GitHub GitHubConfig         `mapstructure:"github"`
 	Tmux   TmuxConfig           `mapstructure:"tmux"`
 	Claude *claude.ClaudeConfig `mapstructure:"claude"`
+	Log    LogConfig            `mapstructure:"log"`
 }
 
 // GitHubConfig はGitHub関連の設定
@@ -48,6 +50,12 @@ type TmuxConfig struct {
 	SessionPrefix string `mapstructure:"session_prefix"`
 }
 
+// LogConfig はログ関連の設定
+type LogConfig struct {
+	Level  string `mapstructure:"level"`
+	Format string `mapstructure:"format"`
+}
+
 // NewDefaultPhaseMessageConfig はデフォルトのフェーズメッセージ設定を返す
 func NewDefaultPhaseMessageConfig() PhaseMessageConfig {
 	return PhaseMessageConfig{
@@ -74,6 +82,10 @@ func NewConfig() *Config {
 			SessionPrefix: "osoba-",
 		},
 		Claude: claude.NewDefaultClaudeConfig(),
+		Log: LogConfig{
+			Level:  "info",
+			Format: "text",
+		},
 	}
 }
 
@@ -91,6 +103,10 @@ func (c *Config) Load(configPath string) error {
 	// GITHUB_TOKENのみをバインド（OSOBA_GITHUB_TOKENは廃止）
 	v.BindEnv("github.token", "GITHUB_TOKEN")
 
+	// ログレベルの環境変数バインド
+	v.BindEnv("log.level", "OSOBA_LOG_LEVEL")
+	v.BindEnv("log.format", "OSOBA_LOG_FORMAT")
+
 	// デフォルト値の設定
 	v.SetDefault("github.poll_interval", 5*time.Second)
 	v.SetDefault("github.labels.plan", "status:needs-plan")
@@ -101,6 +117,10 @@ func (c *Config) Load(configPath string) error {
 	v.SetDefault("github.messages.review", "osoba: レビューを開始します")
 	v.SetDefault("github.use_gh_command", true) // デフォルトでghコマンドを使用
 	v.SetDefault("tmux.session_prefix", "osoba-")
+
+	// ログ設定のデフォルト値
+	v.SetDefault("log.level", "info")
+	v.SetDefault("log.format", "text")
 
 	// Claude設定のデフォルト値
 	v.SetDefault("claude.phases.plan.args", []string{"--dangerously-skip-permissions"})
@@ -323,4 +343,12 @@ func GetGitHubToken(cfg *Config) (token string, source string) {
 	}
 
 	return "", ""
+}
+
+// CreateLogger はログ設定からロガーを作成する
+func (c *Config) CreateLogger() (logger.Logger, error) {
+	return logger.New(
+		logger.WithLevel(c.Log.Level),
+		logger.WithFormat(c.Log.Format),
+	)
 }
