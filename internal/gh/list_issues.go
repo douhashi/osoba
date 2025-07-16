@@ -9,34 +9,47 @@ import (
 	"github.com/google/go-github/v67/github"
 )
 
-// ListIssuesByLabels は指定されたラベルのいずれかを持つIssueを取得する
+// ListIssuesByLabels は指定されたラベルのいずれかを持つIssueを取得する（OR条件）
 func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
 	if len(labels) == 0 {
 		return nil, fmt.Errorf("at least one label is required")
 	}
 
-	// ラベルをカンマ区切りに結合
-	labelArg := strings.Join(labels, ",")
+	// 重複を避けるためのマップ
+	issueMap := make(map[int]*github.Issue)
 
-	// ghコマンドを実行
-	output, err := c.executor.Execute(ctx, "gh", "issue", "list",
-		"--repo", owner+"/"+repo,
-		"--label", labelArg,
-		"--json", "number,title,state,url,body,createdAt,updatedAt,author,labels")
-	if err != nil {
-		return nil, fmt.Errorf("failed to list issues: %w", err)
+	// 各ラベルについて個別にghコマンドを実行（OR条件を実現）
+	for _, label := range labels {
+		// ghコマンドを実行
+		output, err := c.executor.Execute(ctx, "gh", "issue", "list",
+			"--repo", owner+"/"+repo,
+			"--label", label,
+			"--state", "open", // オープンなIssueのみ
+			"--json", "number,title,state,url,body,createdAt,updatedAt,author,labels")
+		if err != nil {
+			// 1つのラベルでエラーが発生しても続行
+			continue
+		}
+
+		// JSON出力をパース
+		var ghIssues []ghIssue
+		if err := json.Unmarshal([]byte(output), &ghIssues); err != nil {
+			continue
+		}
+
+		// ghIssue から github.Issue に変換し、マップに追加
+		for _, ghIssue := range ghIssues {
+			issueNumber := ghIssue.Number
+			if _, exists := issueMap[issueNumber]; !exists {
+				issueMap[issueNumber] = convertToGitHubIssue(ghIssue)
+			}
+		}
 	}
 
-	// JSON出力をパース
-	var ghIssues []ghIssue
-	if err := json.Unmarshal([]byte(output), &ghIssues); err != nil {
-		return nil, fmt.Errorf("failed to parse issue list: %w", err)
-	}
-
-	// ghIssue から github.Issue に変換
-	issues := make([]*github.Issue, len(ghIssues))
-	for i, ghIssue := range ghIssues {
-		issues[i] = convertToGitHubIssue(ghIssue)
+	// マップから配列に変換
+	issues := make([]*github.Issue, 0, len(issueMap))
+	for _, issue := range issueMap {
+		issues = append(issues, issue)
 	}
 
 	return issues, nil
