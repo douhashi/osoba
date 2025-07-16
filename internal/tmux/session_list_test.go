@@ -67,7 +67,7 @@ func TestListSessions(t *testing.T) {
 				return exec.Command("echo", "-n", tt.mockOutput)
 			}
 
-			sessions, err := ListSessions(tt.prefix)
+			sessions, err := ListSessionsAsSessionInfo(tt.prefix)
 
 			if tt.expectError && err == nil {
 				t.Errorf("期待するエラーが発生しませんでした")

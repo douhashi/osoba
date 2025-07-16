@@ -61,7 +61,7 @@ func runStatusCmd(cmd *cobra.Command) error {
 	}
 
 	// tmuxセッション一覧を取得
-	sessions, err := tmux.ListSessions(cfg.Tmux.SessionPrefix)
+	sessions, err := tmux.ListSessionsAsSessionInfo(cfg.Tmux.SessionPrefix)
 	if err != nil {
 		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  tmuxセッション取得エラー: %v\n", err)
 	} else {

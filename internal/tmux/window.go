@@ -24,9 +24,7 @@ func (e *DefaultCommandExecutor) Execute(cmd string, args ...string) (string, er
 }
 
 // CreateWindow は新しいtmuxウィンドウを作成する
-func CreateWindow(sessionName, windowName string) error {
-	return CreateWindowWithExecutor(sessionName, windowName, &DefaultCommandExecutor{})
-}
+// この関数はglobal_manager.goのラッパー関数に置き換えられました
 
 // CreateWindowWithExecutor はExecutorを使用して新しいtmuxウィンドウを作成する
 func CreateWindowWithExecutor(sessionName, windowName string, executor CommandExecutor) error {
@@ -67,9 +65,7 @@ func CreateWindowWithExecutor(sessionName, windowName string, executor CommandEx
 }
 
 // SwitchToWindow は指定されたウィンドウに切り替える
-func SwitchToWindow(sessionName, windowName string) error {
-	return SwitchToWindowWithExecutor(sessionName, windowName, &DefaultCommandExecutor{})
-}
+// この関数はglobal_manager.goのラッパー関数に置き換えられました
 
 // SwitchToWindowWithExecutor はExecutorを使用して指定されたウィンドウに切り替える
 func SwitchToWindowWithExecutor(sessionName, windowName string, executor CommandExecutor) error {
@@ -114,9 +110,7 @@ func SwitchToWindowWithExecutor(sessionName, windowName string, executor Command
 }
 
 // WindowExists は指定されたウィンドウが存在するかを確認する
-func WindowExists(sessionName, windowName string) (bool, error) {
-	return WindowExistsWithExecutor(sessionName, windowName, &DefaultCommandExecutor{})
-}
+// この関数はglobal_manager.goのラッパー関数に置き換えられました
 
 // WindowExistsWithExecutor はExecutorを使用して指定されたウィンドウが存在するかを確認する
 func WindowExistsWithExecutor(sessionName, windowName string, executor CommandExecutor) (bool, error) {
@@ -240,9 +234,7 @@ func SwitchToIssueWindow(sessionName string, issueNumber int) error {
 }
 
 // KillWindow は指定されたウィンドウを削除する
-func KillWindow(sessionName, windowName string) error {
-	return KillWindowWithExecutor(sessionName, windowName, &DefaultCommandExecutor{})
-}
+// この関数はglobal_manager.goのラッパー関数に置き換えられました
 
 // KillWindowWithExecutor はExecutorを使用して指定されたウィンドウを削除する
 func KillWindowWithExecutor(sessionName, windowName string, executor CommandExecutor) error {
@@ -287,9 +279,7 @@ func KillWindowWithExecutor(sessionName, windowName string, executor CommandExec
 }
 
 // CreateOrReplaceWindow は既存のウィンドウを削除してから新しいウィンドウを作成する
-func CreateOrReplaceWindow(sessionName, windowName string) error {
-	return CreateOrReplaceWindowWithExecutor(sessionName, windowName, &DefaultCommandExecutor{})
-}
+// この関数はglobal_manager.goのラッパー関数に置き換えられました
 
 // CreateOrReplaceWindowWithExecutor はExecutorを使用して既存のウィンドウを削除してから新しいウィンドウを作成する
 func CreateOrReplaceWindowWithExecutor(sessionName, windowName string, executor CommandExecutor) error {
