@@ -29,6 +29,7 @@ func addCommands() {
 	rootCmd.AddCommand(newStartCmd())
 	rootCmd.AddCommand(newOpenCmd())
 	rootCmd.AddCommand(newStatusCmd())
+	rootCmd.AddCommand(newCleanCmd())
 }
 
 // NewRootCmd creates a new root command with all subcommands
@@ -39,6 +40,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.AddCommand(newStartCmd())
 	cmd.AddCommand(newOpenCmd())
 	cmd.AddCommand(newStatusCmd())
+	cmd.AddCommand(newCleanCmd())
 	return cmd
 }
 

@@ -3,6 +3,7 @@ package tmux
 import (
 	"fmt"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -551,4 +552,161 @@ func SwitchToIssueWindowWithExecutor(sessionName string, issueNumber int, phase 
 	}
 
 	return SwitchToWindowWithExecutor(sessionName, windowName, executor)
+}
+
+// ListWindowsByPattern は正規表現パターンに一致するウィンドウのリストを取得する
+func ListWindowsByPattern(sessionName, pattern string) ([]*WindowInfo, error) {
+	return ListWindowsByPatternWithExecutor(sessionName, pattern, &DefaultCommandExecutor{})
+}
+
+// ListWindowsByPatternWithExecutor はExecutorを使用して正規表現パターンに一致するウィンドウのリストを取得する
+func ListWindowsByPatternWithExecutor(sessionName, pattern string, executor CommandExecutor) ([]*WindowInfo, error) {
+	if sessionName == "" {
+		return nil, fmt.Errorf("session name cannot be empty")
+	}
+	if pattern == "" {
+		return nil, fmt.Errorf("pattern cannot be empty")
+	}
+
+	// 正規表現のコンパイル
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("invalid regex pattern: %w", err)
+	}
+
+	// 全ウィンドウを取得
+	windows, err := ListWindowsWithExecutor(sessionName, executor)
+	if err != nil {
+		return nil, err
+	}
+
+	// パターンに一致するウィンドウをフィルタリング
+	var matched []*WindowInfo
+	for _, window := range windows {
+		if re.MatchString(window.Name) {
+			matched = append(matched, window)
+		}
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Debug("パターンマッチング完了",
+			"session_name", sessionName,
+			"pattern", pattern,
+			"total_windows", len(windows),
+			"matched_windows", len(matched))
+	}
+
+	return matched, nil
+}
+
+// ListWindowsForIssue は特定のIssue番号に関連するウィンドウのリストを取得する
+func ListWindowsForIssue(sessionName string, issueNumber int) ([]*WindowInfo, error) {
+	return ListWindowsForIssueWithExecutor(sessionName, issueNumber, &DefaultCommandExecutor{})
+}
+
+// ListWindowsForIssueWithExecutor はExecutorを使用して特定のIssue番号に関連するウィンドウのリストを取得する
+func ListWindowsForIssueWithExecutor(sessionName string, issueNumber int, executor CommandExecutor) ([]*WindowInfo, error) {
+	if sessionName == "" {
+		return nil, fmt.Errorf("session name cannot be empty")
+	}
+	if issueNumber <= 0 {
+		return nil, fmt.Errorf("issue number must be positive")
+	}
+
+	// Issue番号に関連するウィンドウのパターン（例: "83-plan", "83-implement", "83-review"）
+	pattern := fmt.Sprintf("^%d-", issueNumber)
+	return ListWindowsByPatternWithExecutor(sessionName, pattern, executor)
+}
+
+// KillWindows は複数のウィンドウを一括削除する
+func KillWindows(sessionName string, windowNames []string) error {
+	return KillWindowsWithExecutor(sessionName, windowNames, &DefaultCommandExecutor{})
+}
+
+// KillWindowsWithExecutor はExecutorを使用して複数のウィンドウを一括削除する
+func KillWindowsWithExecutor(sessionName string, windowNames []string, executor CommandExecutor) error {
+	if sessionName == "" {
+		return fmt.Errorf("session name cannot be empty")
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("複数ウィンドウ削除開始",
+			"operation", "kill_windows",
+			"session_name", sessionName,
+			"window_count", len(windowNames))
+	}
+
+	var errors []error
+	for _, windowName := range windowNames {
+		if windowName == "" {
+			err := fmt.Errorf("window name cannot be empty")
+			errors = append(errors, err)
+			if logger := GetLogger(); logger != nil {
+				logger.Error("空のウィンドウ名をスキップ", "error", err)
+			}
+			continue
+		}
+
+		if err := KillWindowWithExecutor(sessionName, windowName, executor); err != nil {
+			errors = append(errors, fmt.Errorf("failed to kill window '%s': %w", windowName, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to kill some windows: %v", errors)
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("複数ウィンドウ削除完了",
+			"session_name", sessionName,
+			"window_count", len(windowNames))
+	}
+
+	return nil
+}
+
+// KillWindowsForIssue は特定のIssue番号に関連するウィンドウを一括削除する
+func KillWindowsForIssue(sessionName string, issueNumber int) error {
+	return KillWindowsForIssueWithExecutor(sessionName, issueNumber, &DefaultCommandExecutor{})
+}
+
+// KillWindowsForIssueWithExecutor はExecutorを使用して特定のIssue番号に関連するウィンドウを一括削除する
+func KillWindowsForIssueWithExecutor(sessionName string, issueNumber int, executor CommandExecutor) error {
+	if sessionName == "" {
+		return fmt.Errorf("session name cannot be empty")
+	}
+	if issueNumber <= 0 {
+		return fmt.Errorf("issue number must be positive")
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("Issue関連ウィンドウ削除開始",
+			"operation", "kill_windows_for_issue",
+			"session_name", sessionName,
+			"issue_number", issueNumber)
+	}
+
+	// Issue番号に関連するウィンドウを取得
+	windows, err := ListWindowsForIssueWithExecutor(sessionName, issueNumber, executor)
+	if err != nil {
+		return fmt.Errorf("failed to list windows for issue %d: %w", issueNumber, err)
+	}
+
+	if len(windows) == 0 {
+		if logger := GetLogger(); logger != nil {
+			logger.Info("削除対象のウィンドウが見つかりません",
+				"session_name", sessionName,
+				"issue_number", issueNumber)
+		}
+		return nil
+	}
+
+	// ウィンドウ名のリストを作成
+	windowNames := make([]string, len(windows))
+	for i, window := range windows {
+		windowNames[i] = window.Name
+	}
+
+	// ウィンドウを削除
+	return KillWindowsWithExecutor(sessionName, windowNames, executor)
 }
