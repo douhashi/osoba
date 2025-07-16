@@ -115,7 +115,7 @@ func (t *gitHubClientLabelTransitioner) AddLabel(ctx context.Context, issueNumbe
 		}
 		return nil
 	}
-	
+
 	// ghクライアントの場合はTransitionIssueLabelメソッドを使用しない
 	// 直接ラベル操作はghクライアントでサポートされていないため、
 	// 別のアプローチが必要
@@ -132,7 +132,7 @@ func (t *gitHubClientLabelTransitioner) RemoveLabel(ctx context.Context, issueNu
 		}
 		return nil
 	}
-	
+
 	// ghクライアントの場合はTransitionIssueLabelメソッドを使用しない
 	// 直接ラベル操作はghクライアントでサポートされていないため、
 	// 別のアプローチが必要

@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/github"
@@ -36,25 +37,25 @@ func (a *GitHubAdapter) CreateIssueComment(ctx context.Context, owner, repo stri
 func (a *GitHubAdapter) TransitionLabel(ctx context.Context, issueNumber int, from, to string) error {
 	if a.transitioner != nil {
 		// LabelTransitionerが利用可能な場合（APIクライアント）
-		fmt.Printf("DEBUG: Using LabelTransitioner for issue #%d: %s -> %s\n", issueNumber, from, to)
+		log.Printf("DEBUG: Using LabelTransitioner for issue #%d: %s -> %s", issueNumber, from, to)
 		return a.transitioner.TransitionLabel(ctx, issueNumber, from, to)
 	}
-	
+
 	// transitionerがnilの場合（ghクライアント）、GitHubClientのTransitionIssueLabelメソッドを使用
 	// このメソッドはIssueのラベルを自動的に遷移させる
-	fmt.Printf("DEBUG: Using GitHubClient.TransitionIssueLabel for issue #%d (repo: %s/%s)\n", issueNumber, a.owner, a.repo)
+	log.Printf("DEBUG: Using GitHubClient.TransitionIssueLabel for issue #%d (repo: %s/%s)", issueNumber, a.owner, a.repo)
 	transitioned, err := a.client.TransitionIssueLabel(ctx, a.owner, a.repo, issueNumber)
 	if err != nil {
-		fmt.Printf("DEBUG: TransitionIssueLabel failed: %v\n", err)
+		log.Printf("DEBUG: TransitionIssueLabel failed: %v", err)
 		return fmt.Errorf("failed to transition issue label: %w", err)
 	}
-	
+
 	if !transitioned {
-		fmt.Printf("DEBUG: No label transition occurred for issue #%d\n", issueNumber)
+		log.Printf("DEBUG: No label transition occurred for issue #%d", issueNumber)
 		return fmt.Errorf("no label transition occurred for issue #%d", issueNumber)
 	}
-	
-	fmt.Printf("DEBUG: Label transition successful for issue #%d\n", issueNumber)
+
+	log.Printf("DEBUG: Label transition successful for issue #%d", issueNumber)
 	return nil
 }
 

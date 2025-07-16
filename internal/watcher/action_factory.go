@@ -1,8 +1,8 @@
 package watcher
 
 import (
-	"fmt"
-	
+	"log"
+
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
@@ -60,14 +60,14 @@ func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
 	var labelTransitioner github.LabelTransitioner
 	if apiClient, ok := f.ghClient.(*github.Client); ok {
 		// APIクライアントの場合
-		fmt.Printf("DEBUG: Using GitHub API client for PlanAction\n")
+		log.Printf("DEBUG: Using GitHub API client for PlanAction")
 		issuesService := apiClient.GetIssuesService()
 		if issuesService != nil {
 			labelTransitioner = github.NewLabelTransitioner(issuesService, f.owner, f.repo)
 		}
 	} else {
 		// ghクライアントの場合、GitHubClientインターフェースを直接使用
-		fmt.Printf("DEBUG: Using gh command client for PlanAction\n")
+		log.Printf("DEBUG: Using gh command client for PlanAction")
 		labelTransitioner = github.NewLabelTransitionerFromGitHubClient(f.ghClient, f.owner, f.repo)
 	}
 
@@ -79,7 +79,7 @@ func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
 
 	// PhaseTransitionerを作成
 	phaseTransitioner := actions.NewPhaseTransitioner(f.owner, f.repo, githubAdapter, configAdapter)
-	fmt.Printf("DEBUG: PhaseTransitioner created for PlanAction\n")
+	log.Printf("DEBUG: PhaseTransitioner created for PlanAction")
 
 	return actions.NewPlanActionWithPhaseTransitioner(
 		f.sessionName,

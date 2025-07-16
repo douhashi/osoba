@@ -42,7 +42,6 @@ func (m *MockWorktreeManager) WorktreeExists(ctx context.Context, issueNumber in
 	return args.Bool(0), args.Error(1)
 }
 
-
 func TestActionFactory(t *testing.T) {
 	t.Run("DefaultActionFactoryの作成", func(t *testing.T) {
 		// Arrange
