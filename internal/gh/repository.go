@@ -6,12 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/google/go-github/v67/github"
 )
 
 // GetRepository はリポジトリ情報を取得する
-func (c *Client) GetRepository(ctx context.Context, owner, repo string) (*github.Repository, error) {
+func (c *Client) GetRepository(ctx context.Context, owner, repo string) (*Repository, error) {
 	if owner == "" {
 		return nil, errors.New("owner is required")
 	}
@@ -37,32 +35,24 @@ func (c *Client) GetRepository(ctx context.Context, owner, repo string) (*github
 		return nil, fmt.Errorf("failed to parse repository data: %w", err)
 	}
 
-	// github.Repository型に変換
-	return convertToGitHubRepository(&ghRepo), nil
+	// Repository型に変換
+	return convertToRepository(&ghRepo), nil
 }
 
-// convertToGitHubRepository はgh用の構造体をgithub.Repository型に変換する
-func convertToGitHubRepository(ghRepo *ghRepository) *github.Repository {
-	repo := &github.Repository{
-		Name:        github.String(ghRepo.Name),
-		Description: github.String(ghRepo.Description),
-		Private:     github.Bool(ghRepo.IsPrivate),
-		HTMLURL:     github.String(ghRepo.URL),
-		SSHURL:      github.String(ghRepo.SSHURL),
-		CreatedAt:   &github.Timestamp{Time: ghRepo.CreatedAt},
-		UpdatedAt:   &github.Timestamp{Time: ghRepo.UpdatedAt},
-		Archived:    github.Bool(ghRepo.IsArchived),
-		Fork:        github.Bool(ghRepo.IsFork),
-	}
-
-	if ghRepo.Owner.Login != "" {
-		repo.Owner = &github.User{
-			Login: github.String(ghRepo.Owner.Login),
-		}
-	}
-
-	if ghRepo.DefaultBranchRef.Name != "" {
-		repo.DefaultBranch = github.String(ghRepo.DefaultBranchRef.Name)
+// convertToRepository はgh用の構造体をRepository型に変換する
+func convertToRepository(ghRepo *ghRepository) *Repository {
+	repo := &Repository{
+		Name:             ghRepo.Name,
+		Description:      ghRepo.Description,
+		IsPrivate:        ghRepo.IsPrivate,
+		URL:              ghRepo.URL,
+		SSHURL:           ghRepo.SSHURL,
+		CreatedAt:        ghRepo.CreatedAt,
+		UpdatedAt:        ghRepo.UpdatedAt,
+		IsArchived:       ghRepo.IsArchived,
+		IsFork:           ghRepo.IsFork,
+		DefaultBranchRef: ghRepo.DefaultBranchRef,
+		Owner:            ghRepo.Owner,
 	}
 
 	return repo

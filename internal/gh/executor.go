@@ -74,3 +74,34 @@ func (m *MockCommandExecutor) Execute(ctx context.Context, command string, args 
 	}
 	return "", nil
 }
+
+// Executor はghコマンドの実行インターフェース
+type Executor interface {
+	Execute(ctx context.Context, args []string) ([]byte, error)
+}
+
+// GHExecutor はghコマンドを実行する構造体
+type GHExecutor struct {
+	cmdExecutor CommandExecutor
+}
+
+// NewExecutor は新しいGHExecutorを作成する
+func NewExecutor() Executor {
+	return &GHExecutor{
+		cmdExecutor: NewRealCommandExecutor(),
+	}
+}
+
+// Execute はghコマンドを実行する
+func (e *GHExecutor) Execute(ctx context.Context, args []string) ([]byte, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("no arguments provided")
+	}
+	
+	output, err := e.cmdExecutor.Execute(ctx, "gh", args...)
+	if err != nil {
+		return nil, err
+	}
+	
+	return []byte(output), nil
+}

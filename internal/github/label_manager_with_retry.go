@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/douhashi/osoba/internal/gh"
 )
 
 // LabelManagerWithRetry wraps LabelManager with retry functionality
@@ -14,12 +16,11 @@ type LabelManagerWithRetry struct {
 }
 
 // NewLabelManagerWithRetry creates a new LabelManagerWithRetry instance
-func NewLabelManagerWithRetry(client LabelService, maxRetries int, retryDelay time.Duration) *LabelManagerWithRetry {
-	return &LabelManagerWithRetry{
-		LabelManager: NewLabelManager(client),
-		maxRetries:   maxRetries,
-		retryDelay:   retryDelay,
-	}
+// Deprecated: Use NewGHLabelManager instead
+func NewLabelManagerWithRetry(client LabelService, maxRetries int, retryDelay time.Duration) LabelManagerInterface {
+	// ghコマンドベースの実装を返す
+	executor := gh.NewExecutor()
+	return NewGHLabelManager(executor, nil, maxRetries, retryDelay)
 }
 
 // TransitionLabelWithRetry performs label transition with retry logic

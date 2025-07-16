@@ -3,8 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
-
-	"github.com/google/go-github/v67/github"
+	"net/http"
 )
 
 // LabelTransitioner はフェーズ固有のラベル遷移を行うインターフェース
@@ -19,8 +18,8 @@ type LabelTransitioner interface {
 
 // LabelTransitionerService はGitHub APIのラベル操作インターフェース
 type LabelTransitionerService interface {
-	AddLabelsToIssue(ctx context.Context, owner, repo string, number int, labels []string) ([]*github.Label, *github.Response, error)
-	RemoveLabelForIssue(ctx context.Context, owner, repo string, number int, label string) (*github.Response, error)
+	AddLabelsToIssue(ctx context.Context, owner, repo string, number int, labels []string) ([]*Label, *Response, error)
+	RemoveLabelForIssue(ctx context.Context, owner, repo string, number int, label string) (*Response, error)
 }
 
 // labelTransitioner はLabelTransitionerの実装
