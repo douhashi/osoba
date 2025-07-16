@@ -267,8 +267,8 @@ func TestClient_TransitionIssueLabelWithInfo(t *testing.T) {
 			},
 			expected: true,
 			expectedInfo: &internalGitHub.TransitionInfo{
-				From: "status:needs-plan",
-				To:   "status:planning",
+				FromLabel: "status:needs-plan",
+				ToLabel:   "status:planning",
 			},
 		},
 		{
@@ -326,8 +326,8 @@ func TestClient_TransitionIssueLabelWithInfo(t *testing.T) {
 
 			if tt.expectedInfo != nil {
 				assert.NotNil(t, info)
-				assert.Equal(t, tt.expectedInfo.From, info.From)
-				assert.Equal(t, tt.expectedInfo.To, info.To)
+				assert.Equal(t, tt.expectedInfo.FromLabel, info.FromLabel)
+				assert.Equal(t, tt.expectedInfo.ToLabel, info.ToLabel)
 			} else {
 				assert.Nil(t, info)
 			}

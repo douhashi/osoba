@@ -158,15 +158,15 @@ func TestClient_GetRateLimit(t *testing.T) {
 			// レート制限の値を検証
 			assert.Equal(t, tt.expectedLimits.Core.Limit, limits.Core.Limit)
 			assert.Equal(t, tt.expectedLimits.Core.Remaining, limits.Core.Remaining)
-			assert.Equal(t, tt.expectedLimits.Core.Reset.Time.Unix(), limits.Core.Reset.Time.Unix())
+			assert.Equal(t, tt.expectedLimits.Core.Reset.Unix(), limits.Core.Reset.Unix())
 
 			assert.Equal(t, tt.expectedLimits.Search.Limit, limits.Search.Limit)
 			assert.Equal(t, tt.expectedLimits.Search.Remaining, limits.Search.Remaining)
-			assert.Equal(t, tt.expectedLimits.Search.Reset.Time.Unix(), limits.Search.Reset.Time.Unix())
+			assert.Equal(t, tt.expectedLimits.Search.Reset.Unix(), limits.Search.Reset.Unix())
 
 			assert.Equal(t, tt.expectedLimits.GraphQL.Limit, limits.GraphQL.Limit)
 			assert.Equal(t, tt.expectedLimits.GraphQL.Remaining, limits.GraphQL.Remaining)
-			assert.Equal(t, tt.expectedLimits.GraphQL.Reset.Time.Unix(), limits.GraphQL.Reset.Time.Unix())
+			assert.Equal(t, tt.expectedLimits.GraphQL.Reset.Unix(), limits.GraphQL.Reset.Unix())
 		})
 	}
 }

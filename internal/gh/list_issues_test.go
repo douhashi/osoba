@@ -355,8 +355,8 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 				assert.Equal(t, *expected.State, *actual.State)
 				assert.Equal(t, *expected.HTMLURL, *actual.HTMLURL)
 				assert.Equal(t, *expected.Body, *actual.Body)
-				assert.Equal(t, expected.CreatedAt.Time, actual.CreatedAt.Time)
-				assert.Equal(t, expected.UpdatedAt.Time, actual.UpdatedAt.Time)
+				assert.Equal(t, expected.CreatedAt, actual.CreatedAt)
+				assert.Equal(t, expected.UpdatedAt, actual.UpdatedAt)
 				assert.Equal(t, *expected.User.Login, *actual.User.Login)
 
 				assert.Equal(t, len(expected.Labels), len(actual.Labels))
