@@ -79,11 +79,5 @@ func (c *Client) EnsureLabelsExist(ctx context.Context, owner, repo string) erro
 	return fmt.Errorf("not implemented")
 }
 
-// CreateIssueComment はIssueにコメントを投稿する
-func (c *Client) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
-	// TODO: 実装
-	return fmt.Errorf("not implemented")
-}
-
 // GitHubClientインターフェースを実装していることをコンパイル時に確認
 var _ internalGitHub.GitHubClient = (*Client)(nil)
