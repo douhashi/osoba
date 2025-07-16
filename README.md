@@ -32,11 +32,22 @@ osobaは、tmux + git worktree + Claude を統合した自律的なソフトウ�
 - Go 1.21以上
 - tmux 3.0以上
 - git 2.x以上
-- GitHub CLI（gh）
+- GitHub CLI（gh） - **必須** （osobaはデフォルトでghコマンドを使用）
 - Claude CLI（claude）
-- GitHub Personal Access Token（以下のいずれかの方法で設定）
-  - 環境変数 `GITHUB_TOKEN` を設定
-  - GitHub CLI でログイン: `gh auth login`
+
+### GitHub認証
+
+osobaはデフォルトでGitHub CLI（gh）を使用してGitHubにアクセスします。事前にghでログインしてください：
+
+```bash
+gh auth login
+```
+
+#### GitHub APIを直接使用する場合（オプション）
+
+設定ファイルで`use_gh_command: false`を設定し、以下のいずれかの方法でトークンを設定してください：
+- 環境変数 `GITHUB_TOKEN` を設定
+- 設定ファイルにgithub.tokenを設定
 
 ## インストール
 
@@ -198,7 +209,10 @@ flowchart LR
 ```yaml
 # ~/.config/osoba/osoba.yml
 github:
-  token: "${GITHUB_TOKEN}"
+  # ghコマンドを使用する（デフォルト: true）
+  use_gh_command: true
+  # GitHub APIを直接使用する場合のみ必要
+  # token: "${GITHUB_TOKEN}"
   poll_interval: 10s
 
 tmux:
@@ -223,10 +237,26 @@ claude:
 |----------|------|-------------|
 | `GITHUB_TOKEN` | GitHub Personal Access Token（gh auth tokenで自動取得可） | - |
 
-### トークン取得の優先順位
+### GitHubアクセス方法
 
-osobaは以下の優先順位でGitHubトークンを取得します：
+#### ghコマンドを使用（デフォルト）
 
+デフォルトでは、osobaはGitHub CLI（gh）を使用してGitHubにアクセスします。これにより：
+- GitHub Personal Access Tokenの管理が不要
+- ghコマンドの認証情報を再利用
+- より安全なトークン管理
+
+前提条件：
+```bash
+# ghコマンドでログイン
+$ gh auth login
+```
+
+#### GitHub APIを直接使用する場合
+
+設定ファイルで`use_gh_command: false`を設定し、トークンを設定します。
+
+トークン取得の優先順位：
 1. **環境変数 `GITHUB_TOKEN`** - 最優先
 2. **GitHub CLI (`gh auth token`)** - ghでログイン済みの場合
 3. **設定ファイル** - osoba.yml内の設定

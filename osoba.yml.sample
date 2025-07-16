@@ -1,0 +1,52 @@
+# osoba設定ファイルのサンプル
+# このファイルを ~/.config/osoba/osoba.yml にコピーして使用してください
+
+github:
+  # GitHubへのアクセス方法を選択（デフォルト: true）
+  # - true: ghコマンドを使用（推奨）
+  # - false: GitHub APIを直接使用
+  use_gh_command: true
+  
+  # GitHub APIを直接使用する場合のみ必要
+  # use_gh_command: falseの場合、以下のいずれかでトークンを設定:
+  # 1. 環境変数 GITHUB_TOKEN
+  # 2. 以下のtoken設定
+  # token: "${GITHUB_TOKEN}"
+  
+  # Issueの監視間隔
+  poll_interval: 10s
+  
+  # 監視するラベル設定
+  labels:
+    plan: "status:needs-plan"
+    ready: "status:ready"
+    review: "status:review-requested"
+  
+  # フェーズ開始時のコメントメッセージ
+  messages:
+    plan: "osoba: 計画を作成します"
+    implement: "osoba: 実装を開始します"
+    review: "osoba: レビューを開始します"
+
+tmux:
+  # tmuxセッション名のプレフィックス
+  session_prefix: "osoba-"
+
+claude:
+  # 各フェーズのClaude実行設定
+  phases:
+    plan:
+      # Claude実行時の引数
+      # 注意: --dangerously-skip-permissionsは権限制限を無効化します
+      args: ["--dangerously-skip-permissions"]
+      # Claude実行時のプロンプト
+      # {{issue-number}}はIssue番号に置換されます
+      prompt: "/osoba:plan {{issue-number}}"
+    
+    implement:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:implement {{issue-number}}"
+    
+    review:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:review {{issue-number}}"
