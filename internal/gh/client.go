@@ -48,11 +48,5 @@ func (c *Client) ValidatePrerequisites(ctx context.Context) error {
 
 // 以下、GitHubClientインターフェースの実装（スタブ）
 
-// EnsureLabelsExist は必要なラベルがリポジトリに存在することを保証する
-func (c *Client) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
-	// TODO: 実装
-	return fmt.Errorf("not implemented")
-}
-
 // GitHubClientインターフェースを実装していることをコンパイル時に確認
 var _ internalGitHub.GitHubClient = (*Client)(nil)
