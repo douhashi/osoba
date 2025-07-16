@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -157,7 +158,76 @@ func (c *Config) Validate() error {
 		c.GitHub.Labels.Review = "status:review-requested"
 	}
 
+	// tmux設定のバリデーション
+	if c.Tmux.SessionPrefix == "" {
+		c.Tmux.SessionPrefix = "osoba-"
+	}
+
+	// Claude設定のバリデーション
+	if c.Claude != nil {
+		if err := c.validateClaudeConfig(); err != nil {
+			return fmt.Errorf("invalid claude config: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// validateClaudeConfig はClaude設定の妥当性を検証する
+func (c *Config) validateClaudeConfig() error {
+	if c.Claude == nil {
+		return nil
+	}
+
+	// 必須フェーズの確認
+	requiredPhases := []string{"plan", "implement", "review"}
+	for _, phase := range requiredPhases {
+		if _, exists := c.Claude.Phases[phase]; !exists {
+			return fmt.Errorf("required phase '%s' is missing", phase)
+		}
+	}
+
+	// 各フェーズの設定を検証
+	for phase, config := range c.Claude.Phases {
+		if config == nil {
+			return fmt.Errorf("phase '%s' config is nil", phase)
+		}
+
+		// プロンプトが空でないことを確認
+		if config.Prompt == "" {
+			return fmt.Errorf("phase '%s' prompt is empty", phase)
+		}
+
+		// プロンプトに必要なテンプレート変数が含まれているかチェック
+		if phase == "plan" || phase == "implement" || phase == "review" {
+			if !containsTemplate(config.Prompt, "{{issue-number}}") {
+				return fmt.Errorf("phase '%s' prompt must contain {{issue-number}} template variable", phase)
+			}
+		}
+	}
+
+	return nil
+}
+
+// containsTemplate はテンプレート変数が含まれているかチェックする
+func containsTemplate(prompt, template string) bool {
+	return len(prompt) > 0 && len(template) > 0 &&
+		(prompt == template ||
+			(len(prompt) >= len(template) &&
+				findSubstring(prompt, template)))
+}
+
+// findSubstring は部分文字列を検索する
+func findSubstring(str, substr string) bool {
+	if len(substr) > len(str) {
+		return false
+	}
+	for i := 0; i <= len(str)-len(substr); i++ {
+		if str[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 // GetLabels は監視対象のラベルをスライスで返す

@@ -42,7 +42,7 @@ func TestIssueWatcher_Logging(t *testing.T) {
 			issues: testIssues,
 		}
 
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan", "status:ready"})
+		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan", "status:ready"}, 5*time.Second)
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
@@ -106,7 +106,7 @@ func TestIssueWatcher_Logging(t *testing.T) {
 			},
 		}
 
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"})
+		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second)
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
 		}

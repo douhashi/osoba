@@ -148,6 +148,7 @@ func TestIntegration_WatchFlow(t *testing.T) {
 				"osoba",
 				"test-session",
 				cfg.GetLabels(),
+				cfg.GitHub.PollInterval,
 			)
 			if err != nil {
 				t.Fatalf("Failed to create issue watcher: %v", err)

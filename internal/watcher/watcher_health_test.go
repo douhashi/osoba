@@ -25,7 +25,7 @@ func TestIssueWatcher_HealthCheck(t *testing.T) {
 			},
 		}
 
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"})
+		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second)
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
@@ -89,7 +89,7 @@ func TestIssueWatcher_HealthCheck(t *testing.T) {
 			},
 		}
 
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"})
+		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second)
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
@@ -131,7 +131,7 @@ func TestIssueWatcher_HealthCheck(t *testing.T) {
 			issues: []*github.Issue{},
 		}
 
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"})
+		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second)
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
