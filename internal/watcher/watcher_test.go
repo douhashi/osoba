@@ -367,3 +367,11 @@ func (m *mockGitHubClient) EnsureLabelsExist(ctx context.Context, owner, repo st
 func (m *mockGitHubClient) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
 	return nil
 }
+
+func (m *mockGitHubClient) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	return nil
+}
+
+func (m *mockGitHubClient) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	return nil
+}

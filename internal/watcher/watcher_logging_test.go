@@ -64,6 +64,16 @@ func (m *MockGitHubClientWithInfo) CreateIssueComment(ctx context.Context, owner
 	return args.Error(0)
 }
 
+func (m *MockGitHubClientWithInfo) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	args := m.Called(ctx, owner, repo, issueNumber, label)
+	return args.Error(0)
+}
+
+func (m *MockGitHubClientWithInfo) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	args := m.Called(ctx, owner, repo, issueNumber, label)
+	return args.Error(0)
+}
+
 func TestIssueWatcher_LogsDetailedTransitionInfo(t *testing.T) {
 	ctx := context.Background()
 

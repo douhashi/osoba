@@ -65,6 +65,14 @@ func (m *mockGitHubClientWithTransition) CreateIssueComment(ctx context.Context,
 	return nil
 }
 
+func (m *mockGitHubClientWithTransition) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	return nil
+}
+
+func (m *mockGitHubClientWithTransition) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	return nil
+}
+
 func (m *mockGitHubClientWithTransition) GetRateLimit(ctx context.Context) (*gogithub.RateLimits, error) {
 	return &gogithub.RateLimits{}, nil
 }

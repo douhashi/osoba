@@ -194,6 +194,14 @@ func (m *mockGitHubClient) TransitionLabel(ctx context.Context, issueNumber int,
 	return args.Error(0)
 }
 
+func (m *mockGitHubClient) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	return nil
+}
+
+func (m *mockGitHubClient) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	return nil
+}
+
 // mockConfigProvider は設定プロバイダーのモック
 type mockConfigProvider struct {
 	mock.Mock
