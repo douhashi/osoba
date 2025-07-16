@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	internalGitHub "github.com/douhashi/osoba/internal/github"
-	"github.com/google/go-github/v67/github"
 )
 
 // Client はghコマンドを使用してGitHub操作を行うクライアント
@@ -48,36 +47,6 @@ func (c *Client) ValidatePrerequisites(ctx context.Context) error {
 }
 
 // 以下、GitHubClientインターフェースの実装（スタブ）
-
-// ListIssuesByLabels は指定されたラベルのいずれかを持つIssueを取得する
-func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
-	// TODO: 実装
-	return nil, fmt.Errorf("not implemented")
-}
-
-// GetRateLimit はGitHub APIのレート制限情報を取得する
-func (c *Client) GetRateLimit(ctx context.Context) (*github.RateLimits, error) {
-	// TODO: 実装
-	return nil, fmt.Errorf("not implemented")
-}
-
-// TransitionIssueLabel はIssueのラベルをトリガーラベルから実行中ラベルに遷移させる
-func (c *Client) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
-	// TODO: 実装
-	return false, fmt.Errorf("not implemented")
-}
-
-// TransitionIssueLabelWithInfo はIssueのラベルをトリガーラベルから実行中ラベルに遷移させ、遷移情報を返す
-func (c *Client) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *internalGitHub.TransitionInfo, error) {
-	// TODO: 実装
-	return false, nil, fmt.Errorf("not implemented")
-}
-
-// EnsureLabelsExist は必要なラベルがリポジトリに存在することを保証する
-func (c *Client) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
-	// TODO: 実装
-	return fmt.Errorf("not implemented")
-}
 
 // GitHubClientインターフェースを実装していることをコンパイル時に確認
 var _ internalGitHub.GitHubClient = (*Client)(nil)

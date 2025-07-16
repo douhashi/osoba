@@ -239,7 +239,7 @@ func TestConfig_Validate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "GitHub token is required",
+			errMsg:  "GitHub token is required when not using gh command",
 		},
 		{
 			name: "異常系: ポーリング間隔が短すぎる",
@@ -259,6 +259,17 @@ func TestConfig_Validate(t *testing.T) {
 					Token:        "test-token",
 					PollInterval: 5 * time.Second,
 					Labels:       LabelConfig{},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "正常系: ghコマンド使用時はトークンが不要",
+			cfg: &Config{
+				GitHub: GitHubConfig{
+					Token:        "",
+					PollInterval: 5 * time.Second,
+					UseGhCommand: true,
 				},
 			},
 			wantErr: false,

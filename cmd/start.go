@@ -11,6 +11,7 @@ import (
 
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/config"
+	"github.com/douhashi/osoba/internal/gh"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
@@ -102,10 +103,29 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	// TODO: より正確な方法で取得する
 	owner := "douhashi"
 
-	// GitHub APIクライアントを作成
-	githubClient, err := github.NewClient(cfg.GitHub.Token)
-	if err != nil {
-		return fmt.Errorf("GitHubクライアントの作成に失敗: %w", err)
+	// GitHubクライアントを作成（設定に応じてghコマンドまたはAPIを使用）
+	var githubClient github.GitHubClient
+	if cfg.GitHub.UseGhCommand {
+		// ghコマンドベースのクライアント
+		executor := gh.NewRealCommandExecutor()
+		ghClient, err := gh.NewClient(executor)
+		if err != nil {
+			return fmt.Errorf("ghクライアントの作成に失敗: %w", err)
+		}
+		// 前提条件を検証
+		if err := ghClient.ValidatePrerequisites(context.Background()); err != nil {
+			return fmt.Errorf("ghコマンドの前提条件を満たしていません: %w", err)
+		}
+		githubClient = ghClient
+		fmt.Fprintln(cmd.OutOrStdout(), "  GitHub接続: ghコマンドを使用")
+	} else {
+		// GitHub APIベースのクライアント
+		apiClient, err := github.NewClient(cfg.GitHub.Token)
+		if err != nil {
+			return fmt.Errorf("GitHubクライアントの作成に失敗: %w", err)
+		}
+		githubClient = apiClient
+		fmt.Fprintln(cmd.OutOrStdout(), "  GitHub接続: GitHub APIを使用")
 	}
 
 	// tmuxがインストールされているか確認
