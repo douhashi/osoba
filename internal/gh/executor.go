@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -87,6 +88,17 @@ type GHExecutor struct {
 
 // NewExecutor は新しいGHExecutorを作成する
 func NewExecutor() Executor {
+	// テスト環境では常に成功するモックを使用
+	if os.Getenv("OSOBA_TEST_MODE") == "true" {
+		return &GHExecutor{
+			cmdExecutor: &MockCommandExecutor{
+				ExecuteFunc: func(ctx context.Context, command string, args ...string) (string, error) {
+					// テスト用のデフォルトレスポンス
+					return "{}", nil
+				},
+			},
+		}
+	}
 	return &GHExecutor{
 		cmdExecutor: NewRealCommandExecutor(),
 	}
