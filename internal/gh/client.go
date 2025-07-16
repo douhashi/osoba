@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	internalGitHub "github.com/douhashi/osoba/internal/github"
-	"github.com/google/go-github/v67/github"
+	// "github.com/google/go-github/v67/github" // TransitionIssueLabelWithInfoで使用予定
 )
 
 // Client はghコマンドを使用してGitHub操作を行うクライアント
@@ -48,12 +48,6 @@ func (c *Client) ValidatePrerequisites(ctx context.Context) error {
 }
 
 // 以下、GitHubClientインターフェースの実装（スタブ）
-
-// GetRateLimit はGitHub APIのレート制限情報を取得する
-func (c *Client) GetRateLimit(ctx context.Context) (*github.RateLimits, error) {
-	// TODO: 実装
-	return nil, fmt.Errorf("not implemented")
-}
 
 // TransitionIssueLabel はIssueのラベルをトリガーラベルから実行中ラベルに遷移させる
 func (c *Client) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
