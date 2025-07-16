@@ -116,10 +116,11 @@ func (t *gitHubClientLabelTransitioner) AddLabel(ctx context.Context, issueNumbe
 		return nil
 	}
 
-	// ghクライアントの場合はTransitionIssueLabelメソッドを使用しない
-	// 直接ラベル操作はghクライアントでサポートされていないため、
-	// 別のアプローチが必要
-	return fmt.Errorf("add label not supported for gh client")
+	// ghクライアントの場合、新しく実装されたAddLabelメソッドを使用
+	if err := t.client.AddLabel(ctx, t.owner, t.repo, issueNumber, label); err != nil {
+		return fmt.Errorf("add label to issue #%d: %w", issueNumber, err)
+	}
+	return nil
 }
 
 // RemoveLabel はIssueからラベルを削除する
@@ -133,8 +134,9 @@ func (t *gitHubClientLabelTransitioner) RemoveLabel(ctx context.Context, issueNu
 		return nil
 	}
 
-	// ghクライアントの場合はTransitionIssueLabelメソッドを使用しない
-	// 直接ラベル操作はghクライアントでサポートされていないため、
-	// 別のアプローチが必要
-	return fmt.Errorf("remove label not supported for gh client")
+	// ghクライアントの場合、新しく実装されたRemoveLabelメソッドを使用
+	if err := t.client.RemoveLabel(ctx, t.owner, t.repo, issueNumber, label); err != nil {
+		return fmt.Errorf("remove label from issue #%d: %w", issueNumber, err)
+	}
+	return nil
 }

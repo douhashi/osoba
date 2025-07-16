@@ -48,5 +48,51 @@ func (c *Client) ValidatePrerequisites(ctx context.Context) error {
 
 // 以下、GitHubClientインターフェースの実装（スタブ）
 
+// RemoveLabel はIssueからラベルを削除する
+func (c *Client) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	// バリデーション
+	if owner == "" {
+		return fmt.Errorf("owner is required")
+	}
+	if repo == "" {
+		return fmt.Errorf("repo is required")
+	}
+	if issueNumber <= 0 {
+		return fmt.Errorf("issue number must be positive")
+	}
+	if label == "" {
+		return fmt.Errorf("label is required")
+	}
+
+	// 既存のremoveLabelプライベートメソッドを使用
+	if err := c.removeLabel(ctx, owner, repo, issueNumber, label); err != nil {
+		return fmt.Errorf("failed to remove label %s from issue #%d: %w", label, issueNumber, err)
+	}
+	return nil
+}
+
+// AddLabel はIssueにラベルを追加する
+func (c *Client) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	// バリデーション
+	if owner == "" {
+		return fmt.Errorf("owner is required")
+	}
+	if repo == "" {
+		return fmt.Errorf("repo is required")
+	}
+	if issueNumber <= 0 {
+		return fmt.Errorf("issue number must be positive")
+	}
+	if label == "" {
+		return fmt.Errorf("label is required")
+	}
+
+	// 既存のaddLabelプライベートメソッドを使用
+	if err := c.addLabel(ctx, owner, repo, issueNumber, label); err != nil {
+		return fmt.Errorf("failed to add label %s to issue #%d: %w", label, issueNumber, err)
+	}
+	return nil
+}
+
 // GitHubClientインターフェースを実装していることをコンパイル時に確認
 var _ internalGitHub.GitHubClient = (*Client)(nil)

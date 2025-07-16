@@ -15,4 +15,6 @@ type GitHubClient interface {
 	TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error)
 	EnsureLabelsExist(ctx context.Context, owner, repo string) error
 	CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error
+	RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error
+	AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error
 }

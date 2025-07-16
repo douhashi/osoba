@@ -72,6 +72,14 @@ func (m *mockGitHubClient) CreateIssueComment(ctx context.Context, owner, repo s
 	return nil
 }
 
+func (m *mockGitHubClient) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	return nil
+}
+
+func (m *mockGitHubClient) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	return nil
+}
+
 // TestIntegration_WatchFlow は監視フロー全体の統合テスト
 func TestIntegration_WatchFlow(t *testing.T) {
 	tests := []struct {

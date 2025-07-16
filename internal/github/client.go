@@ -373,3 +373,15 @@ func (c *Client) GetIssuesService() *github.IssuesService {
 	}
 	return c.github.Issues
 }
+
+// RemoveLabel はIssueからラベルを削除する
+func (c *Client) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	_, err := c.github.Issues.RemoveLabelForIssue(ctx, owner, repo, issueNumber, label)
+	return err
+}
+
+// AddLabel はIssueにラベルを追加する
+func (c *Client) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	_, _, err := c.github.Issues.AddLabelsToIssue(ctx, owner, repo, issueNumber, []string{label})
+	return err
+}
