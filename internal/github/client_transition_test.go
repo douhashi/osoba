@@ -51,15 +51,15 @@ func TestClient_TransitionIssueLabelWithInfo(t *testing.T) {
 			issueNumber:    123,
 			expectedResult: true,
 			expectedInfo: &TransitionInfo{
-				From: "status:needs-plan",
-				To:   "status:planning",
+				FromLabel: "status:needs-plan",
+				ToLabel:   "status:planning",
 			},
 			expectedError: false,
 			setupMock: func(m *MockLabelManagerWithRetry) {
 				m.On("TransitionLabelWithInfoWithRetry", ctx, "test-owner", "test-repo", 123).
 					Return(true, &TransitionInfo{
-						From: "status:needs-plan",
-						To:   "status:planning",
+						FromLabel: "status:needs-plan",
+						ToLabel:   "status:planning",
 					}, nil)
 			},
 		},
@@ -103,8 +103,8 @@ func TestClient_TransitionIssueLabelWithInfo(t *testing.T) {
 
 			if tt.expectedInfo != nil {
 				assert.NotNil(t, info)
-				assert.Equal(t, tt.expectedInfo.From, info.From)
-				assert.Equal(t, tt.expectedInfo.To, info.To)
+				assert.Equal(t, tt.expectedInfo.FromLabel, info.FromLabel)
+				assert.Equal(t, tt.expectedInfo.ToLabel, info.ToLabel)
 			} else {
 				assert.Nil(t, info)
 			}

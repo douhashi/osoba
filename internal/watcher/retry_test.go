@@ -3,8 +3,6 @@ package watcher
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/url"
 	"testing"
 	"time"
 
@@ -39,8 +37,8 @@ func TestRetryWithBackoff(t *testing.T) {
 						// リトライ可能なエラーを返す
 						return &github.RateLimitError{
 							Message: "API rate limit exceeded",
-							Rate: github.Rate{
-								Reset: github.Timestamp{Time: time.Now().Add(time.Second)},
+							Rate: github.RateLimit{
+								Reset: time.Now().Add(time.Second),
 							},
 						}
 					}
@@ -56,14 +54,6 @@ func TestRetryWithBackoff(t *testing.T) {
 			operation: func() error {
 				// リトライ可能なエラーを返し続ける
 				return &github.ErrorResponse{
-					Response: &http.Response{
-						StatusCode: 503,
-						Status:     "503 Service Unavailable",
-						Request: &http.Request{
-							Method: "GET",
-							URL:    &url.URL{Scheme: "https", Host: "api.github.com", Path: "/test"},
-						},
-					},
 					Message: "Service Unavailable",
 				}
 			},
@@ -139,14 +129,6 @@ func TestIsRetryableError(t *testing.T) {
 		{
 			name: "GitHub APIレスポンスエラー（5xx）",
 			err: &github.ErrorResponse{
-				Response: &http.Response{
-					StatusCode: 503,
-					Status:     "503 Service Unavailable",
-					Request: &http.Request{
-						Method: "GET",
-						URL:    &url.URL{Scheme: "https", Host: "api.github.com", Path: "/test"},
-					},
-				},
 				Message: "Service Unavailable",
 			},
 			want: true,
@@ -154,14 +136,6 @@ func TestIsRetryableError(t *testing.T) {
 		{
 			name: "GitHub APIレスポンスエラー（4xx）",
 			err: &github.ErrorResponse{
-				Response: &http.Response{
-					StatusCode: 404,
-					Status:     "404 Not Found",
-					Request: &http.Request{
-						Method: "GET",
-						URL:    &url.URL{Scheme: "https", Host: "api.github.com", Path: "/test"},
-					},
-				},
 				Message: "Not Found",
 			},
 			want: false,
@@ -251,8 +225,8 @@ func TestHandleRateLimitError(t *testing.T) {
 		{
 			name: "レート制限エラーでリセット時刻あり",
 			err: &github.RateLimitError{
-				Rate: github.Rate{
-					Reset: github.Timestamp{Time: time.Now().Add(5 * time.Second)},
+				Rate: github.RateLimit{
+					Reset: time.Now().Add(5 * time.Second),
 				},
 			},
 			wantSleep: 5 * time.Second,
@@ -261,7 +235,7 @@ func TestHandleRateLimitError(t *testing.T) {
 		{
 			name: "レート制限エラーでリセット時刻なし",
 			err: &github.RateLimitError{
-				Rate: github.Rate{},
+				Rate: github.RateLimit{},
 			},
 			wantSleep: 0,
 			wantOk:    false,

@@ -2,8 +2,6 @@ package watcher
 
 import (
 	"context"
-	"net/http"
-	"net/url"
 	"os"
 	"sync"
 	"testing"
@@ -198,14 +196,6 @@ func TestRetryIntegration(t *testing.T) {
 				if current <= 1 {
 					// 最初の1回はエラーを返す
 					return nil, &github.ErrorResponse{
-						Response: &http.Response{
-							StatusCode: 503,
-							Status:     "503 Service Unavailable",
-							Request: &http.Request{
-								Method: "GET",
-								URL:    &url.URL{Scheme: "https", Host: "api.github.com", Path: "/repos/douhashi/osoba/issues"},
-							},
-						},
 						Message: "Service Unavailable",
 					}
 				}
