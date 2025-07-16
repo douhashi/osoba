@@ -3,6 +3,7 @@ package gh
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 )
 
@@ -48,6 +49,17 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestClient_ValidatePrerequisites(t *testing.T) {
+	// テストモードを無効にしてValidatePrerequisitesの実際の動作をテストする
+	originalTestMode := os.Getenv("OSOBA_TEST_MODE")
+	os.Setenv("OSOBA_TEST_MODE", "false")
+	defer func() {
+		if originalTestMode != "" {
+			os.Setenv("OSOBA_TEST_MODE", originalTestMode)
+		} else {
+			os.Unsetenv("OSOBA_TEST_MODE")
+		}
+	}()
+
 	tests := []struct {
 		name          string
 		setupExecutor func() CommandExecutor
