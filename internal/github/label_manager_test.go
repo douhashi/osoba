@@ -84,7 +84,7 @@ func TestLabelManager_GetLabelDefinitions(t *testing.T) {
 
 	// 色とdescriptionの確認
 	needsPlan := definitions["status:needs-plan"]
-	assert.Equal(t, "0052cc", needsPlan.Color)
+	assert.Equal(t, "0075ca", needsPlan.Color)
 	assert.NotEmpty(t, needsPlan.Description)
 }
 
@@ -235,11 +235,11 @@ func TestLabelManager_EnsureLabelsExist(t *testing.T) {
 
 				// 不足しているラベルの作成
 				m.On("CreateLabel", mock.Anything, "owner", "repo", mock.MatchedBy(func(label *github.Label) bool {
-					return *label.Name == "status:planning" && *label.Color == "0052cc"
+					return *label.Name == "status:planning" && *label.Color == "1d76db"
 				})).Return(&github.Label{Name: github.String("status:planning")}, &github.Response{}, nil)
 
 				m.On("CreateLabel", mock.Anything, "owner", "repo", mock.MatchedBy(func(label *github.Label) bool {
-					return *label.Name == "status:implementing" && *label.Color == "0e8a16"
+					return *label.Name == "status:implementing" && *label.Color == "28a745"
 				})).Return(&github.Label{Name: github.String("status:implementing")}, &github.Response{}, nil)
 
 				m.On("CreateLabel", mock.Anything, "owner", "repo", mock.MatchedBy(func(label *github.Label) bool {
@@ -247,7 +247,7 @@ func TestLabelManager_EnsureLabelsExist(t *testing.T) {
 				})).Return(&github.Label{Name: github.String("status:review-requested")}, &github.Response{}, nil)
 
 				m.On("CreateLabel", mock.Anything, "owner", "repo", mock.MatchedBy(func(label *github.Label) bool {
-					return *label.Name == "status:reviewing" && *label.Color == "d93f0b"
+					return *label.Name == "status:reviewing" && *label.Color == "e99695"
 				})).Return(&github.Label{Name: github.String("status:reviewing")}, &github.Response{}, nil)
 			},
 			wantErr: false,
