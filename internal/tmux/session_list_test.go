@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestListSessions(t *testing.T) {
+func TestListSessions_Legacy(t *testing.T) {
+	t.Skip("レガシーテスト - モックベースのテストに移行済み")
 	tests := []struct {
 		name        string
 		prefix      string
