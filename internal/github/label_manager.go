@@ -96,7 +96,7 @@ func (lm *LabelManager) initializeLabelDefinitions() {
 	// Trigger labels
 	lm.labelDefinitions["status:needs-plan"] = LabelDefinition{
 		Name:        "status:needs-plan",
-		Color:       "0052cc",
+		Color:       "0075ca",
 		Description: "Planning phase required",
 	}
 
@@ -115,19 +115,19 @@ func (lm *LabelManager) initializeLabelDefinitions() {
 	// In-progress labels
 	lm.labelDefinitions["status:planning"] = LabelDefinition{
 		Name:        "status:planning",
-		Color:       "0052cc",
+		Color:       "1d76db",
 		Description: "Currently in planning phase",
 	}
 
 	lm.labelDefinitions["status:implementing"] = LabelDefinition{
 		Name:        "status:implementing",
-		Color:       "0e8a16",
+		Color:       "28a745",
 		Description: "Currently being implemented",
 	}
 
 	lm.labelDefinitions["status:reviewing"] = LabelDefinition{
 		Name:        "status:reviewing",
-		Color:       "d93f0b",
+		Color:       "e99695",
 		Description: "Currently under review",
 	}
 }

@@ -30,6 +30,7 @@ var (
 	writeFileFunc          = os.WriteFile
 	mkdirAllFunc           = os.MkdirAll
 	statFunc               = os.Stat
+	execCommandFunc        = execCommand
 	createGitHubClientFunc = func(token string) githubInterface {
 		client, _ := github.NewClient(token)
 		return client
@@ -73,34 +74,61 @@ func newInitCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			errOut := cmd.ErrOrStderr()
 
+			// 初期化開始メッセージ
+			fmt.Fprintln(out, "🚀 osobaの初期化を開始します...")
+			fmt.Fprintln(out, "")
+
 			// 1. Gitリポジトリの確認
+			fmt.Fprint(out, "[1/8] Gitリポジトリの確認          ")
 			if err := checkGitRepository(out); err != nil {
+				fmt.Fprintln(out, "❌")
 				return err
 			}
 
 			// 2. 必要ツールの確認
+			fmt.Fprint(out, "[2/8] 必要なツールの確認            ")
 			if err := checkRequiredTools(out); err != nil {
+				fmt.Fprintln(out, "❌")
 				return err
 			}
 
-			// 3. GitHub Tokenの確認（警告のみ）
-			checkGitHubToken(errOut)
+			// 3. GitHub CLI (gh)の確認
+			fmt.Fprint(out, "[3/8] GitHub CLI (gh)の確認        ")
+			if err := checkGitHubCLI(out, errOut); err != nil {
+				fmt.Fprintln(out, "❌")
+				return err
+			}
 
-			// 4. 設定ファイルの作成
+			// 4. GitHub認証の確認
+			fmt.Fprint(out, "[4/8] GitHub認証の確認             ")
+			checkGitHubAuth(out, errOut)
+
+			// 5. GitHubリポジトリへのアクセス確認
+			fmt.Fprint(out, "[5/8] GitHubリポジトリへのアクセス確認  ")
+			checkRepositoryAccess(out, errOut)
+
+			// 6. 設定ファイルの作成
+			fmt.Fprint(out, "[6/8] 設定ファイルの作成           ")
 			if err := setupConfigFile(out); err != nil {
+				fmt.Fprintln(out, "❌")
 				return fmt.Errorf("設定ファイルの作成に失敗しました: %w", err)
 			}
 
-			// 5. Claude commandsの配置
+			// 7. Claude commandsの配置
+			fmt.Fprint(out, "[7/8] Claude commandsの配置        ")
 			if err := setupClaudeCommands(out); err != nil {
+				fmt.Fprintln(out, "❌")
 				return fmt.Errorf("Claude commandsの配置に失敗しました: %w", err)
 			}
 
-			// 6. GitHubラベルの作成（エラーは警告）
+			// 8. GitHubラベルの作成（エラーは警告）
+			fmt.Fprint(out, "[8/8] GitHubラベルの作成           ")
 			setupGitHubLabels(out, errOut)
 
-			// 7. 次の操作案内
-			showNextSteps(out)
+			fmt.Fprintln(out, "")
+
+			// 完了メッセージ
+			showCompletionMessage(out)
 
 			return nil
 		},
@@ -111,6 +139,12 @@ func newInitCmd() *cobra.Command {
 func checkCommand(command string) error {
 	_, err := exec.LookPath(command)
 	return err
+}
+
+// execCommand はコマンドを実行して出力を返す
+func execCommand(name string, args ...string) ([]byte, error) {
+	cmd := exec.Command(name, args...)
+	return cmd.Output()
 }
 
 func checkGitRepository(out io.Writer) error {
@@ -128,7 +162,7 @@ func checkGitRepository(out io.Writer) error {
 		return fmt.Errorf("Gitリポジトリのルートディレクトリで実行してください")
 	}
 
-	fmt.Fprintln(out, "✓ Gitリポジトリを確認しました")
+	fmt.Fprintln(out, "✅")
 	return nil
 }
 
@@ -148,8 +182,47 @@ func checkRequiredTools(out io.Writer) error {
 		}
 	}
 
-	fmt.Fprintln(out, "✓ 必要なツールを確認しました")
+	fmt.Fprintln(out, "✅")
 	return nil
+}
+
+// checkGitHubCLI はGitHub CLIの状態を確認する
+func checkGitHubCLI(out, errOut io.Writer) error {
+	// 1. ghコマンドがインストールされているかチェック
+	if err := checkCommandFunc("gh"); err != nil {
+		return fmt.Errorf("GitHub CLI (gh)がインストールされていません。以下のURLからインストールしてください: https://cli.github.com/")
+	}
+
+	// 2. gh --versionで動作確認
+	if _, err := execCommandFunc("gh", "--version"); err != nil {
+		return fmt.Errorf("GitHub CLI (gh)の動作確認に失敗しました: %w", err)
+	}
+	fmt.Fprintln(out, "✅")
+
+	return nil
+}
+
+// checkGitHubAuth はGitHub認証状態をチェックする
+func checkGitHubAuth(out, errOut io.Writer) {
+	if _, err := execCommandFunc("gh", "auth", "status"); err != nil {
+		fmt.Fprintln(out, "⚠️")
+		fmt.Fprintln(errOut, "⚠️  GitHub認証が設定されていません")
+		fmt.Fprintln(errOut, "   以下のコマンドで認証してください:")
+		fmt.Fprintln(errOut, "   gh auth login")
+		return
+	}
+	fmt.Fprintln(out, "✅")
+}
+
+// checkRepositoryAccess は現在のリポジトリへのアクセスをチェックする
+func checkRepositoryAccess(out, errOut io.Writer) {
+	if _, err := execCommandFunc("gh", "repo", "view"); err != nil {
+		fmt.Fprintln(out, "⚠️")
+		fmt.Fprintln(errOut, "⚠️  現在のリポジトリにアクセスできません")
+		fmt.Fprintln(errOut, "   リポジトリのアクセス権限を確認してください")
+		return
+	}
+	fmt.Fprintln(out, "✅")
 }
 
 func checkGitHubToken(out io.Writer) {
@@ -177,7 +250,7 @@ func setupConfigFile(out io.Writer) error {
 
 	// 既存ファイルの確認
 	if _, err := statFunc(configPath); err == nil {
-		fmt.Fprintln(out, "✓ 設定ファイルは既に存在します")
+		fmt.Fprintln(out, "✅ (既存)")
 		return nil
 	}
 
@@ -213,7 +286,7 @@ claude:
 		return fmt.Errorf("設定ファイルの作成に失敗しました: %w", err)
 	}
 
-	fmt.Fprintf(out, "✓ 設定ファイルを作成しました: %s\n", configPath)
+	fmt.Fprintln(out, "✅")
 	return nil
 }
 
@@ -240,7 +313,7 @@ func setupClaudeCommands(out io.Writer) error {
 		}
 	}
 
-	fmt.Fprintln(out, "✓ Claude commandsを配置しました")
+	fmt.Fprintln(out, "✅")
 	return nil
 }
 
@@ -251,18 +324,21 @@ func setupGitHubLabels(out, errOut io.Writer) {
 	}
 
 	if token == "" {
+		fmt.Fprintln(out, "⚠️  (トークンなし)")
 		return // Tokenがない場合はスキップ
 	}
 
 	// リポジトリ情報の取得
 	origin, err := GetRemoteURL("origin")
 	if err != nil {
+		fmt.Fprintln(out, "⚠️")
 		fmt.Fprintf(errOut, "⚠️  GitリモートURLの取得に失敗しました: %v\n", err)
 		return
 	}
 
 	owner, repo := parseGitHubURL(origin)
 	if owner == "" || repo == "" {
+		fmt.Fprintln(out, "⚠️")
 		fmt.Fprintf(errOut, "⚠️  GitHubリポジトリ情報の解析に失敗しました\n")
 		return
 	}
@@ -273,12 +349,13 @@ func setupGitHubLabels(out, errOut io.Writer) {
 	// ラベルの作成のためにgithub.Clientを使用
 	ctx := context.Background()
 	if err := client.EnsureLabelsExist(ctx, owner, repo); err != nil {
+		fmt.Fprintln(out, "⚠️")
 		fmt.Fprintf(errOut, "⚠️  GitHubラベルの作成に失敗しました: %v\n", err)
 		fmt.Fprintln(errOut, "   手動でラベルを作成してください")
 		return
 	}
 
-	fmt.Fprintln(out, "✓ GitHubラベルを作成しました")
+	fmt.Fprintln(out, "✅")
 }
 
 func parseGitHubURL(url string) (owner, repo string) {
@@ -301,6 +378,16 @@ func parseGitHubURL(url string) (owner, repo string) {
 	}
 
 	return "", ""
+}
+
+// showCompletionMessage は初期化完了メッセージを表示する
+func showCompletionMessage(out io.Writer) {
+	fmt.Fprintln(out, "✅ 初期化が完了しました！")
+	fmt.Fprintln(out, "")
+	fmt.Fprintln(out, "次のステップ:")
+	fmt.Fprintln(out, "1. osoba start - Watcherを起動してIssueの監視を開始")
+	fmt.Fprintln(out, "2. osoba open  - 別ターミナルでtmuxセッションを開く")
+	fmt.Fprintln(out, "3. GitHubでIssueを作成し、'status:needs-plan'ラベルを付ける")
 }
 
 func showNextSteps(out io.Writer) {

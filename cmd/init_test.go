@@ -208,8 +208,7 @@ func TestInitCmd_EnvironmentChecks(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"⚠️  GitHub Personal Access Tokenが設定されていません",
-				"export GITHUB_TOKEN=",
+				"[8/8] GitHubラベルの作成           ⚠️  (トークンなし)",
 			},
 		},
 	}
@@ -343,12 +342,13 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"✓ Gitリポジトリを確認しました",
-				"✓ 必要なツールを確認しました",
-				"✓ 設定ファイルを作成しました",
-				"✓ Claude commandsを配置しました",
-				"✓ GitHubラベルを作成しました",
-				"🎉 初期化が完了しました！",
+				"🚀 osobaの初期化を開始します",
+				"[1/8] Gitリポジトリの確認          ✅",
+				"[2/8] 必要なツールの確認            ✅",
+				"[6/8] 設定ファイルの作成           ✅",
+				"[7/8] Claude commandsの配置        ✅",
+				"[8/8] GitHubラベルの作成           ✅",
+				"✅ 初期化が完了しました！",
 				"osoba start",
 				"osoba open",
 			},
@@ -387,7 +387,7 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"✓ 設定ファイルは既に存在します",
+				"[6/8] 設定ファイルの作成           ✅ (既存)",
 			},
 		},
 		{
@@ -421,7 +421,7 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"✓ 設定ファイルを作成しました",
+				"[6/8] 設定ファイルの作成           ✅",
 			},
 		},
 		{
@@ -449,6 +449,7 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
+				"[8/8] GitHubラベルの作成           ⚠️",
 				"⚠️  GitHubラベルの作成に失敗しました",
 				"手動でラベルを作成してください",
 			},
@@ -500,4 +501,225 @@ func (m *mockInitGitHubClient) EnsureLabelsExist(ctx context.Context, owner, rep
 		return m.ensureLabelsFunc(ctx, owner, repo)
 	}
 	return nil
+}
+
+func TestInitCmd_GitHubCLIChecks(t *testing.T) {
+	// モック関数を保存しておく
+	origIsGitRepo := isGitRepositoryFunc
+	origCheckCommand := checkCommandFunc
+	origGetEnv := getEnvFunc
+	origExecCommand := execCommandFunc
+	origMkdirAll := mkdirAllFunc
+	origWriteFile := writeFileFunc
+	origGetRemoteURL := getRemoteURLFunc
+	origGitHubClient := createGitHubClientFunc
+	defer func() {
+		isGitRepositoryFunc = origIsGitRepo
+		checkCommandFunc = origCheckCommand
+		getEnvFunc = origGetEnv
+		execCommandFunc = origExecCommand
+		mkdirAllFunc = origMkdirAll
+		writeFileFunc = origWriteFile
+		getRemoteURLFunc = origGetRemoteURL
+		createGitHubClientFunc = origGitHubClient
+	}()
+
+	// 基本的なモックを設定
+	isGitRepositoryFunc = func(path string) (bool, error) {
+		return true, nil
+	}
+	mkdirAllFunc = func(path string, perm os.FileMode) error {
+		return nil
+	}
+	writeFileFunc = func(path string, data []byte, perm os.FileMode) error {
+		return nil
+	}
+	getRemoteURLFunc = func(remoteName string) (string, error) {
+		return "https://github.com/douhashi/osoba.git", nil
+	}
+	mockClient := &mockInitGitHubClient{
+		ensureLabelsFunc: func(ctx context.Context, owner, repo string) error {
+			return nil
+		},
+	}
+	createGitHubClientFunc = func(token string) githubInterface {
+		return mockClient
+	}
+
+	tests := []struct {
+		name               string
+		setupMocks         func()
+		wantErr            bool
+		wantOutputContains []string
+		wantErrContains    string
+	}{
+		{
+			name: "正常系: ghコマンドが利用可能で認証済み",
+			setupMocks: func() {
+				checkCommandFunc = func(cmd string) error {
+					return nil
+				}
+				getEnvFunc = func(key string) string {
+					if key == "GITHUB_TOKEN" || key == "OSOBA_GITHUB_TOKEN" {
+						return "test-token"
+					}
+					return ""
+				}
+				execCommandFunc = func(name string, args ...string) ([]byte, error) {
+					if name == "gh" && len(args) > 0 {
+						switch args[0] {
+						case "--version":
+							return []byte("gh version 2.40.1"), nil
+						case "auth":
+							if len(args) > 1 && args[1] == "status" {
+								return []byte("✓ Logged in to github.com as user (oauth_token)"), nil
+							}
+						case "repo":
+							if len(args) > 1 && args[1] == "view" {
+								return []byte("douhashi/osoba"), nil
+							}
+						}
+					}
+					return []byte{}, nil
+				}
+			},
+			wantErr: false,
+			wantOutputContains: []string{
+				"[3/8] GitHub CLI (gh)の確認        ✅",
+				"[4/8] GitHub認証の確認             ✅",
+				"[5/8] GitHubリポジトリへのアクセス確認  ✅",
+			},
+		},
+		{
+			name: "エラー: ghコマンドがインストールされていない",
+			setupMocks: func() {
+				checkCommandFunc = func(cmd string) error {
+					if cmd == "gh" {
+						return fmt.Errorf("command not found: gh")
+					}
+					return nil
+				}
+			},
+			wantErr:         true,
+			wantErrContains: "GitHub CLI (gh)がインストールされていません",
+		},
+		{
+			name: "エラー: gh --versionが失敗",
+			setupMocks: func() {
+				checkCommandFunc = func(cmd string) error {
+					return nil
+				}
+				execCommandFunc = func(name string, args ...string) ([]byte, error) {
+					if name == "gh" && len(args) > 0 && args[0] == "--version" {
+						return nil, fmt.Errorf("gh: command failed")
+					}
+					return []byte{}, nil
+				}
+			},
+			wantErr:         true,
+			wantErrContains: "GitHub CLI (gh)の動作確認に失敗しました",
+		},
+		{
+			name: "警告: GitHub認証が未設定",
+			setupMocks: func() {
+				checkCommandFunc = func(cmd string) error {
+					return nil
+				}
+				execCommandFunc = func(name string, args ...string) ([]byte, error) {
+					if name == "gh" && len(args) > 0 {
+						switch args[0] {
+						case "--version":
+							return []byte("gh version 2.40.1"), nil
+						case "auth":
+							if len(args) > 1 && args[1] == "status" {
+								return nil, fmt.Errorf("not logged in")
+							}
+						case "repo":
+							if len(args) > 1 && args[1] == "view" {
+								return nil, fmt.Errorf("not found")
+							}
+						}
+					}
+					return []byte{}, nil
+				}
+			},
+			wantErr: false,
+			wantOutputContains: []string{
+				"[4/8] GitHub認証の確認             ⚠️",
+				"⚠️  GitHub認証が設定されていません",
+				"gh auth login",
+			},
+		},
+		{
+			name: "警告: リポジトリアクセス権限なし",
+			setupMocks: func() {
+				checkCommandFunc = func(cmd string) error {
+					return nil
+				}
+				getEnvFunc = func(key string) string {
+					if key == "GITHUB_TOKEN" || key == "OSOBA_GITHUB_TOKEN" {
+						return "test-token"
+					}
+					return ""
+				}
+				execCommandFunc = func(name string, args ...string) ([]byte, error) {
+					if name == "gh" && len(args) > 0 {
+						switch args[0] {
+						case "--version":
+							return []byte("gh version 2.40.1"), nil
+						case "auth":
+							if len(args) > 1 && args[1] == "status" {
+								return []byte("✓ Logged in to github.com as user"), nil
+							}
+						case "repo":
+							if len(args) > 1 && args[1] == "view" {
+								return nil, fmt.Errorf("not found")
+							}
+						}
+					}
+					return []byte{}, nil
+				}
+			},
+			wantErr: false,
+			wantOutputContains: []string{
+				"[5/8] GitHubリポジトリへのアクセス確認  ⚠️",
+				"⚠️  現在のリポジトリにアクセスできません",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupMocks != nil {
+				tt.setupMocks()
+			}
+
+			buf := new(bytes.Buffer)
+			rootCmd = newRootCmd()
+			rootCmd.AddCommand(newInitCmd())
+			rootCmd.SetOut(buf)
+			rootCmd.SetErr(buf)
+			rootCmd.SetArgs([]string{"init"})
+
+			err := rootCmd.Execute()
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Execute() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if err != nil && tt.wantErrContains != "" {
+				if !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Errorf("Execute() error = %v, want to contain %v", err, tt.wantErrContains)
+				}
+			}
+
+			output := buf.String()
+			for _, want := range tt.wantOutputContains {
+				if !strings.Contains(output, want) {
+					t.Errorf("Execute() output = %v, want to contain %v", output, want)
+				}
+			}
+		})
+	}
 }
