@@ -9,6 +9,8 @@ import (
 
 // DefaultLabelManager はデフォルトのラベル管理実装
 type DefaultLabelManager struct {
+	Owner        string
+	Repo         string
 	GitHubClient github.GitHubClient
 }
 
@@ -37,9 +39,7 @@ func (m *DefaultLabelManager) AddLabel(ctx context.Context, issueNumber int, lab
 		return fmt.Errorf("GitHub client is not initialized")
 	}
 
-	// TODO: 実際のGitHub API呼び出しを実装
-	// m.GitHubClient.AddLabelToIssue(ctx, issueNumber, label)
-	return nil
+	return m.GitHubClient.AddLabel(ctx, m.Owner, m.Repo, issueNumber, label)
 }
 
 // RemoveLabel はラベルを削除する
@@ -48,7 +48,5 @@ func (m *DefaultLabelManager) RemoveLabel(ctx context.Context, issueNumber int, 
 		return fmt.Errorf("GitHub client is not initialized")
 	}
 
-	// TODO: 実際のGitHub API呼び出しを実装
-	// m.GitHubClient.RemoveLabelFromIssue(ctx, issueNumber, label)
-	return nil
+	return m.GitHubClient.RemoveLabel(ctx, m.Owner, m.Repo, issueNumber, label)
 }
