@@ -55,6 +55,19 @@ func TestUnifiedLogger_LogLevels(t *testing.T) {
 
 func TestUnifiedLogger_ColorOutput(t *testing.T) {
 	var buf bytes.Buffer
+
+	// CI環境では環境変数を設定して色分けを強制的に有効化
+	oldNoColor := os.Getenv("NO_COLOR")
+	oldTerm := os.Getenv("TERM")
+	defer func() {
+		os.Setenv("NO_COLOR", oldNoColor)
+		os.Setenv("TERM", oldTerm)
+	}()
+
+	// 色分けを強制的に有効化
+	os.Unsetenv("NO_COLOR")
+	os.Setenv("TERM", "xterm")
+
 	logger := New(WithOutput(&buf), WithColorEnabled(true), WithLevel(DebugLevel))
 
 	t.Run("DEBUGレベルはグレーで出力される", func(t *testing.T) {
@@ -334,6 +347,19 @@ func TestUnifiedLogger_LogLevelFromString(t *testing.T) {
 func TestUnifiedLogger_Integration(t *testing.T) {
 	t.Run("複数のオプションを組み合わせて使用できる", func(t *testing.T) {
 		var buf bytes.Buffer
+
+		// CI環境では環境変数を設定して色分けを強制的に有効化
+		oldNoColor := os.Getenv("NO_COLOR")
+		oldTerm := os.Getenv("TERM")
+		defer func() {
+			os.Setenv("NO_COLOR", oldNoColor)
+			os.Setenv("TERM", oldTerm)
+		}()
+
+		// 色分けを強制的に有効化
+		os.Unsetenv("NO_COLOR")
+		os.Setenv("TERM", "xterm")
+
 		logger := New(
 			WithOutput(&buf),
 			WithLevel(DebugLevel),
