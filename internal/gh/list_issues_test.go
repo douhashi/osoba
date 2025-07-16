@@ -27,7 +27,7 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 			labels: []string{"bug"},
 			setupMock: func(m *MockCommandExecutor) {
 				m.ExecuteFunc = func(ctx context.Context, command string, args ...string) (string, error) {
-					expectedCmd := []string{"issue", "list", "--repo", "douhashi/osoba", "--label", "bug", "--json", "number,title,state,url,body,createdAt,updatedAt,author,labels"}
+					expectedCmd := []string{"issue", "list", "--repo", "douhashi/osoba", "--label", "bug", "--state", "open", "--json", "number,title,state,url,body,createdAt,updatedAt,author,labels"}
 					if command == "gh" && equalStringSlices(args, expectedCmd) {
 						return `[
 							{
@@ -69,39 +69,58 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 			},
 		},
 		{
-			name:   "複数ラベルでのIssue取得",
+			name:   "複数ラベルでのIssue取得（OR条件）",
 			owner:  "douhashi",
 			repo:   "osoba",
 			labels: []string{"bug", "enhancement"},
 			setupMock: func(m *MockCommandExecutor) {
+				callCount := 0
 				m.ExecuteFunc = func(ctx context.Context, command string, args ...string) (string, error) {
-					expectedCmd := []string{"issue", "list", "--repo", "douhashi/osoba", "--label", "bug,enhancement", "--json", "number,title,state,url,body,createdAt,updatedAt,author,labels"}
-					if command == "gh" && equalStringSlices(args, expectedCmd) {
-						return `[
-							{
-								"number": 1,
-								"title": "Bug: Something is broken",
-								"state": "OPEN",
-								"url": "https://github.com/douhashi/osoba/issues/1",
-								"body": "This is a bug report",
-								"createdAt": "2024-01-01T00:00:00Z",
-								"updatedAt": "2024-01-02T00:00:00Z",
-								"author": {"login": "user1"},
-								"labels": [{"name": "bug", "description": "Something isn't working", "color": "d73a4a"}]
-							},
-							{
-								"number": 2,
-								"title": "Feature: Add new feature",
-								"state": "OPEN",
-								"url": "https://github.com/douhashi/osoba/issues/2",
-								"body": "This is a feature request",
-								"createdAt": "2024-01-03T00:00:00Z",
-								"updatedAt": "2024-01-04T00:00:00Z",
-								"author": {"login": "user2"},
-								"labels": [{"name": "enhancement", "description": "New feature or request", "color": "a2eeef"}]
-							}
-						]`, nil
+					callCount++
+					if command != "gh" {
+						return "", assert.AnError
 					}
+
+					// 最初の呼び出し: bugラベル
+					if callCount == 1 {
+						expectedCmd := []string{"issue", "list", "--repo", "douhashi/osoba", "--label", "bug", "--state", "open", "--json", "number,title,state,url,body,createdAt,updatedAt,author,labels"}
+						if equalStringSlices(args, expectedCmd) {
+							return `[
+								{
+									"number": 1,
+									"title": "Bug: Something is broken",
+									"state": "OPEN",
+									"url": "https://github.com/douhashi/osoba/issues/1",
+									"body": "This is a bug report",
+									"createdAt": "2024-01-01T00:00:00Z",
+									"updatedAt": "2024-01-02T00:00:00Z",
+									"author": {"login": "user1"},
+									"labels": [{"name": "bug", "description": "Something isn't working", "color": "d73a4a"}]
+								}
+							]`, nil
+						}
+					}
+
+					// 2番目の呼び出し: enhancementラベル
+					if callCount == 2 {
+						expectedCmd := []string{"issue", "list", "--repo", "douhashi/osoba", "--label", "enhancement", "--state", "open", "--json", "number,title,state,url,body,createdAt,updatedAt,author,labels"}
+						if equalStringSlices(args, expectedCmd) {
+							return `[
+								{
+									"number": 2,
+									"title": "Feature: Add new feature",
+									"state": "OPEN",
+									"url": "https://github.com/douhashi/osoba/issues/2",
+									"body": "This is a feature request",
+									"createdAt": "2024-01-03T00:00:00Z",
+									"updatedAt": "2024-01-04T00:00:00Z",
+									"author": {"login": "user2"},
+									"labels": [{"name": "enhancement", "description": "New feature or request", "color": "a2eeef"}]
+								}
+							]`, nil
+						}
+					}
+
 					return "", assert.AnError
 				}
 			},
@@ -153,7 +172,7 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 			labels: []string{"bug"},
 			setupMock: func(m *MockCommandExecutor) {
 				m.ExecuteFunc = func(ctx context.Context, command string, args ...string) (string, error) {
-					expectedCmd := []string{"issue", "list", "--repo", "douhashi/osoba", "--label", "bug", "--json", "number,title,state,url,body,createdAt,updatedAt,author,labels"}
+					expectedCmd := []string{"issue", "list", "--repo", "douhashi/osoba", "--label", "bug", "--state", "open", "--json", "number,title,state,url,body,createdAt,updatedAt,author,labels"}
 					if command == "gh" && equalStringSlices(args, expectedCmd) {
 						return `[
 							{
@@ -203,7 +222,7 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 			expectedError: "at least one label is required",
 		},
 		{
-			name:   "ghコマンドのエラー",
+			name:   "ghコマンドのエラー（エラーが発生しても空の結果を返す）",
 			owner:  "douhashi",
 			repo:   "osoba",
 			labels: []string{"bug"},
@@ -212,10 +231,10 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 					return "", assert.AnError
 				}
 			},
-			expectedError: "failed to list issues",
+			expectedIssues: []*github.Issue{}, // エラーが発生しても空の結果を返す
 		},
 		{
-			name:   "不正なJSON出力",
+			name:   "不正なJSON出力（パースエラーが発生しても空の結果を返す）",
 			owner:  "douhashi",
 			repo:   "osoba",
 			labels: []string{"bug"},
@@ -224,7 +243,7 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 					return "invalid json", nil
 				}
 			},
-			expectedError: "failed to parse issue list",
+			expectedIssues: []*github.Issue{}, // パースエラーが発生しても空の結果を返す
 		},
 		{
 			name:   "Issue無し",
@@ -237,6 +256,71 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 				}
 			},
 			expectedIssues: []*github.Issue{},
+		},
+		{
+			name:   "重複するIssueの排除",
+			owner:  "douhashi",
+			repo:   "osoba",
+			labels: []string{"bug", "high-priority"},
+			setupMock: func(m *MockCommandExecutor) {
+				callCount := 0
+				m.ExecuteFunc = func(ctx context.Context, command string, args ...string) (string, error) {
+					callCount++
+					if command != "gh" {
+						return "", assert.AnError
+					}
+
+					// 両方のラベルで同じIssue #1を返す
+					issueData := `[
+						{
+							"number": 1,
+							"title": "Critical Bug",
+							"state": "OPEN",
+							"url": "https://github.com/douhashi/osoba/issues/1",
+							"body": "This is a critical bug",
+							"createdAt": "2024-01-01T00:00:00Z",
+							"updatedAt": "2024-01-02T00:00:00Z",
+							"author": {"login": "user1"},
+							"labels": [
+								{"name": "bug", "description": "Something isn't working", "color": "d73a4a"},
+								{"name": "high-priority", "description": "High priority issue", "color": "ff0000"}
+							]
+						}
+					]`
+
+					if callCount == 1 || callCount == 2 {
+						return issueData, nil
+					}
+
+					return "", assert.AnError
+				}
+			},
+			expectedIssues: []*github.Issue{
+				{
+					Number:    github.Int(1),
+					Title:     github.String("Critical Bug"),
+					State:     github.String("open"),
+					HTMLURL:   github.String("https://github.com/douhashi/osoba/issues/1"),
+					Body:      github.String("This is a critical bug"),
+					CreatedAt: &github.Timestamp{Time: mustParseTime("2024-01-01T00:00:00Z")},
+					UpdatedAt: &github.Timestamp{Time: mustParseTime("2024-01-02T00:00:00Z")},
+					User: &github.User{
+						Login: github.String("user1"),
+					},
+					Labels: []*github.Label{
+						{
+							Name:        github.String("bug"),
+							Description: github.String("Something isn't working"),
+							Color:       github.String("d73a4a"),
+						},
+						{
+							Name:        github.String("high-priority"),
+							Description: github.String("High priority issue"),
+							Color:       github.String("ff0000"),
+						},
+					},
+				},
+			},
 		},
 	}
 
