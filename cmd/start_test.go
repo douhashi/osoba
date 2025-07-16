@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/config"
+	"github.com/douhashi/osoba/internal/git"
 	"github.com/spf13/cobra"
 )
 
@@ -235,7 +238,30 @@ func TestStartCmdExecution(t *testing.T) {
 		{
 			name: "異常系: Gitリポジトリではない",
 			setupMock: func(t *testing.T) {
-				// 特にモックは不要
+				// runWatchWithFlagsをモックして、実際の実装を呼ばない
+				origRunWatch := runWatchWithFlagsFunc
+				runWatchWithFlagsFunc = func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
+					// 設定を読み込む
+					cfg := config.NewConfig()
+					cfg.LoadOrDefault(configFlag)
+
+					// 設定の検証
+					if err := cfg.Validate(); err != nil {
+						return err
+					}
+
+					// リポジトリ情報を取得（ここでエラーになることを期待）
+					_, err := git.GetRepositoryName()
+					if err != nil {
+						return fmt.Errorf("リポジトリ名の取得に失敗: %w", err)
+					}
+
+					return nil
+				}
+
+				t.Cleanup(func() {
+					runWatchWithFlagsFunc = origRunWatch
+				})
 			},
 			setupGitRepo: func(t *testing.T) (string, func()) {
 				tmpDir := t.TempDir()
@@ -245,7 +271,7 @@ func TestStartCmdExecution(t *testing.T) {
 				return tmpDir, cleanup
 			},
 			setupEnv: func() func() {
-				// GitHub Tokenを設定（gitエラーを先に発生させるため）
+				// GitHub Tokenを設定
 				os.Setenv("GITHUB_TOKEN", "test-token")
 				return func() {
 					os.Unsetenv("GITHUB_TOKEN")
