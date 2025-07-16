@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/douhashi/osoba/internal/claude"
@@ -119,17 +120,34 @@ func (c *Config) Load(configPath string) error {
 
 // LoadOrDefault は設定ファイルを読み込み、失敗した場合はデフォルト値を使用する
 func (c *Config) LoadOrDefault(configPath string) {
-	// ファイルが存在しない場合はデフォルト値を使用
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		// Claudeのデフォルト設定を確保
-		if c.Claude == nil {
-			c.Claude = claude.NewDefaultClaudeConfig()
+	// configPathが空の場合はデフォルトパスを試す
+	if configPath == "" {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			// デフォルトパスの候補を試す
+			defaultPaths := []string{
+				filepath.Join(home, ".config", "osoba", "osoba.yml"),
+				filepath.Join(home, ".config", "osoba", "osoba.yaml"),
+				filepath.Join(home, ".osoba.yml"),
+				filepath.Join(home, ".osoba.yaml"),
+			}
+
+			for _, path := range defaultPaths {
+				if _, err := os.Stat(path); err == nil {
+					configPath = path
+					break
+				}
+			}
 		}
-		return
 	}
 
-	// 設定ファイルを読み込む（エラーは無視）
-	_ = c.Load(configPath)
+	// 設定ファイルが見つかった場合は読み込む
+	if configPath != "" {
+		if _, err := os.Stat(configPath); err == nil {
+			// 設定ファイルを読み込む（エラーは無視）
+			_ = c.Load(configPath)
+		}
+	}
 
 	// Claudeのデフォルト設定を確保
 	if c.Claude == nil {

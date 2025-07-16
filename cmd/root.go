@@ -87,6 +87,20 @@ func Execute() {
 
 func initConfig() error {
 	if cfgFile != "" {
+		// ファイルの存在を確認
+		if _, err := os.Stat(cfgFile); err != nil {
+			// ファイルが存在しない場合は、エラーを返さずにデフォルト値を使用
+			if os.IsNotExist(err) {
+				// 設定ファイルが見つからない場合はデフォルト値を使用
+				viper.SetDefault("github.poll_interval", "5s")
+				viper.SetDefault("github.labels.plan", "status:needs-plan")
+				viper.SetDefault("github.labels.ready", "status:ready")
+				viper.SetDefault("github.labels.review", "status:review-requested")
+				viper.SetDefault("tmux.session_prefix", "osoba-")
+				return nil
+			}
+			return fmt.Errorf("failed to access config file: %w", err)
+		}
 		viper.SetConfigFile(cfgFile)
 	} else {
 		home, err := os.UserHomeDir()

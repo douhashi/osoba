@@ -7,9 +7,11 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func newOpenCmd() *cobra.Command {
@@ -28,7 +30,25 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// 2. Gitリポジトリ名を取得
+	// 2. 設定を読み込み
+	cfg := config.NewConfig()
+
+	// rootコマンドで読み込まれた設定ファイルのパスを取得
+	configPath := viper.ConfigFileUsed()
+	if configPath == "" {
+		// -cフラグが指定されている場合はそれを使用
+		configPath = viper.GetString("config")
+	}
+
+	// 設定ファイルのパスが取得できた場合、またはデフォルトパスから読み込み
+	if configPath != "" {
+		cfg.LoadOrDefault(configPath)
+	} else {
+		// configPathが空の場合もデフォルト設定ファイルをチェック
+		cfg.LoadOrDefault("")
+	}
+
+	// 3. Gitリポジトリ名を取得
 	repoName, err := getRepositoryNameFunc()
 	if err != nil {
 		if errors.Is(err, git.ErrNotGitRepository) {
@@ -40,10 +60,10 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("リポジトリ名の取得に失敗しました: %w", err)
 	}
 
-	// 3. セッション名を生成
-	sessionName := fmt.Sprintf("osoba-%s", repoName)
+	// 4. セッション名を生成（設定から接頭辞を使用）
+	sessionName := fmt.Sprintf("%s%s", cfg.Tmux.SessionPrefix, repoName)
 
-	// 4. セッションが存在するか確認
+	// 5. セッションが存在するか確認
 	exists, err := sessionExistsFunc(sessionName)
 	if err != nil {
 		return fmt.Errorf("セッションの確認に失敗しました: %w", err)
@@ -53,13 +73,13 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("セッション '%s' が見つかりません。先に 'osoba start' を実行してください", sessionName)
 	}
 
-	// 5. tmux内から実行されているか確認
+	// 6. tmux内から実行されているか確認
 	if isInsideTmux() {
 		// tmux内からの場合は switch-client を使用
 		return switchToSession(sessionName)
 	}
 
-	// 6. tmux外からの場合は attach を使用
+	// 7. tmux外からの場合は attach を使用
 	return attachToSession(sessionName)
 }
 
