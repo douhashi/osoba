@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/utils"
 )
 
@@ -104,6 +105,10 @@ func TestGitHubRepoInfoRetrievalErrors(t *testing.T) {
 						Message: "リモートURL取得に失敗しました",
 					}
 				}
+				// GitHubトークンが設定されているようにモック
+				getGitHubTokenFunc = func(cfg *config.Config) (string, string) {
+					return "test-token", "test"
+				}
 			},
 			testInitCmd:      true,
 			expectWarningMsg: "リモートURL取得に失敗しました",
@@ -117,6 +122,10 @@ func TestGitHubRepoInfoRetrievalErrors(t *testing.T) {
 						Cause:   errors.New("invalid URL format"),
 						Message: "GitHubリポジトリ情報の解析に失敗しました",
 					}
+				}
+				// GitHubトークンが設定されているようにモック
+				getGitHubTokenFunc = func(cfg *config.Config) (string, string) {
+					return "test-token", "test"
 				}
 			},
 			testInitCmd:      true,
@@ -178,6 +187,10 @@ func TestGitHubRepoInfoRetrievalErrors(t *testing.T) {
 					Owner: "douhashi",
 					Repo:  "osoba",
 				}, nil
+			}
+			// デフォルトのgetGitHubTokenFuncモック
+			getGitHubTokenFunc = func(cfg *config.Config) (string, string) {
+				return "test-token", "test"
 			}
 
 			// テスト固有のモックを設定
