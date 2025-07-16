@@ -21,10 +21,9 @@ func TestNewClient(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "異常系: 空のトークンでエラーになる",
+			name:    "正常系: 空のトークンでも作成できる（ghコマンドが環境変数で管理）",
 			token:   "",
-			wantErr: true,
-			errMsg:  "GitHub token is required",
+			wantErr: false,
 		},
 	}
 

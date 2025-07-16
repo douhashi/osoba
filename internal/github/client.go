@@ -162,16 +162,40 @@ func (c *GHClient) GetRateLimit(ctx context.Context) (*RateLimits, error) {
 
 // TransitionIssueLabel はIssueのラベルを遷移させる
 func (c *GHClient) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
+	if owner == "" {
+		return false, errors.New("owner is required")
+	}
+	if repo == "" {
+		return false, errors.New("repo is required")
+	}
+	if issueNumber <= 0 {
+		return false, errors.New("issue number must be positive")
+	}
 	return c.labelManager.TransitionLabelWithRetry(ctx, owner, repo, issueNumber)
 }
 
 // TransitionIssueLabelWithInfo はIssueのラベルを遷移させ、詳細情報を返す
 func (c *GHClient) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error) {
+	if owner == "" {
+		return false, nil, errors.New("owner is required")
+	}
+	if repo == "" {
+		return false, nil, errors.New("repo is required")
+	}
+	if issueNumber <= 0 {
+		return false, nil, errors.New("issue number must be positive")
+	}
 	return c.labelManager.TransitionLabelWithInfoWithRetry(ctx, owner, repo, issueNumber)
 }
 
 // EnsureLabelsExist は必要なラベルが存在することを確認する
 func (c *GHClient) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
+	if owner == "" {
+		return errors.New("owner is required")
+	}
+	if repo == "" {
+		return errors.New("repo is required")
+	}
 	return c.labelManager.EnsureLabelsExistWithRetry(ctx, owner, repo)
 }
 
