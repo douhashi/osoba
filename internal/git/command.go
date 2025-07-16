@@ -33,8 +33,8 @@ func (c *Command) Run(ctx context.Context, command string, args []string, workDi
 		logFields = append(logFields, "workDir", workDir)
 	}
 
-	// コマンド実行開始をログ出力
-	c.logger.Info("Executing git command", logFields...)
+	// コマンド実行開始をログ出力（DEBUGレベルに変更）
+	c.logger.Debug("Executing git command", logFields...)
 
 	// コマンドを作成
 	cmd := exec.CommandContext(ctx, command, args...)
@@ -87,7 +87,7 @@ func (c *Command) Run(ctx context.Context, command string, args []string, workDi
 		successFields = append(successFields, "stderr", truncateOutput(stderrStr, 500))
 	}
 
-	c.logger.Info("Git command completed successfully", successFields...)
+	c.logger.Debug("Git command completed successfully", successFields...)
 
 	// 標準出力を返す
 	return stdoutStr, nil

@@ -103,6 +103,19 @@ func TestGlobalFlags(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "log-level フラグ",
+			args: []string{"--log-level", "debug"},
+			checkFunc: func(t *testing.T) {
+				val, err := rootCmd.Flags().GetString("log-level")
+				if err != nil {
+					t.Errorf("Failed to get log-level flag: %v", err)
+				}
+				if val != "debug" {
+					t.Errorf("log-level flag = %v, want debug", val)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -120,6 +133,71 @@ func TestGlobalFlags(t *testing.T) {
 
 			// チェック関数実行
 			tt.checkFunc(t)
+		})
+	}
+}
+
+func TestLogLevelFlag(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         []string
+		wantLogLevel string
+		wantErr      bool
+	}{
+		{
+			name:         "正常系: debug レベル",
+			args:         []string{"--log-level", "debug"},
+			wantLogLevel: "debug",
+			wantErr:      false,
+		},
+		{
+			name:         "正常系: info レベル",
+			args:         []string{"--log-level", "info"},
+			wantLogLevel: "info",
+			wantErr:      false,
+		},
+		{
+			name:         "正常系: warn レベル",
+			args:         []string{"--log-level", "warn"},
+			wantLogLevel: "warn",
+			wantErr:      false,
+		},
+		{
+			name:         "正常系: error レベル",
+			args:         []string{"--log-level", "error"},
+			wantLogLevel: "error",
+			wantErr:      false,
+		},
+		{
+			name:         "正常系: 短縮形 -l",
+			args:         []string{"-l", "debug"},
+			wantLogLevel: "debug",
+			wantErr:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// テスト用のルートコマンドを作成
+			rootCmd = newRootCmd()
+			rootCmd.SetArgs(tt.args)
+
+			// フラグのパース
+			err := rootCmd.ParseFlags(tt.args)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseFlags() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr {
+				val, err := rootCmd.Flags().GetString("log-level")
+				if err != nil {
+					t.Errorf("Failed to get log-level flag: %v", err)
+				}
+				if val != tt.wantLogLevel {
+					t.Errorf("log-level flag = %v, want %v", val, tt.wantLogLevel)
+				}
+			}
 		})
 	}
 }

@@ -72,8 +72,8 @@ func TestCommand_Run(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// ログ出力をキャプチャするための設定
-			core, recorded := observer.New(zapcore.InfoLevel)
+			// ログ出力をキャプチャするための設定（DEBUGレベル）
+			core, recorded := observer.New(zapcore.DebugLevel)
 			testLogger := &testLoggerImpl{
 				sugar: zap.New(core).Sugar(),
 			}

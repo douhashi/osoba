@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/version"
 	"github.com/spf13/cobra"
@@ -11,10 +12,11 @@ import (
 )
 
 var (
-	cfgFile string
-	verbose bool
-	rootCmd *cobra.Command
-	appLog  logger.Logger
+	cfgFile  string
+	verbose  bool
+	logLevel string
+	rootCmd  *cobra.Command
+	appLog   logger.Logger
 )
 
 func init() {
@@ -58,11 +60,8 @@ func newRootCmd() *cobra.Command {
 			}
 
 			// ロガーの初期化
-			if verbose {
-				os.Setenv("DEBUG", "true")
-			}
 			var err error
-			appLog, err = logger.NewFromEnv()
+			appLog, err = initLogger()
 			if err != nil {
 				return fmt.Errorf("failed to initialize logger: %w", err)
 			}
@@ -73,9 +72,11 @@ func newRootCmd() *cobra.Command {
 
 	cmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "設定ファイルのパス")
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "詳細出力")
+	cmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "", "ログレベル (debug, info, warn, error)")
 
 	viper.BindPFlag("config", cmd.PersistentFlags().Lookup("config"))
 	viper.BindPFlag("verbose", cmd.PersistentFlags().Lookup("verbose"))
+	viper.BindPFlag("log.level", cmd.PersistentFlags().Lookup("log-level"))
 
 	return cmd
 }
@@ -126,4 +127,30 @@ func initConfig() error {
 	}
 
 	return nil
+}
+
+// initLogger はロガーを初期化する
+func initLogger() (logger.Logger, error) {
+	// 設定を読み込む
+	cfg := config.NewConfig()
+	if cfgFile != "" {
+		if err := cfg.Load(cfgFile); err != nil {
+			// 設定ファイルの読み込みに失敗した場合でも、デフォルト値を使って続行
+			cfg = config.NewConfig()
+		}
+	} else {
+		cfg.LoadOrDefault("")
+	}
+
+	// コマンドラインオプションで上書き
+	if logLevel != "" {
+		cfg.Log.Level = logLevel
+	}
+
+	// verboseフラグが設定されている場合はdebugレベルに設定
+	if verbose {
+		cfg.Log.Level = "debug"
+	}
+
+	return cfg.CreateLogger()
 }
