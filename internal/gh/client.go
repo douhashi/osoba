@@ -49,12 +49,6 @@ func (c *Client) ValidatePrerequisites(ctx context.Context) error {
 
 // 以下、GitHubClientインターフェースの実装（スタブ）
 
-// ListIssuesByLabels は指定されたラベルのいずれかを持つIssueを取得する
-func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
-	// TODO: 実装
-	return nil, fmt.Errorf("not implemented")
-}
-
 // GetRateLimit はGitHub APIのレート制限情報を取得する
 func (c *Client) GetRateLimit(ctx context.Context) (*github.RateLimits, error) {
 	// TODO: 実装
