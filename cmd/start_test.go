@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/spf13/cobra"
 )
@@ -241,15 +240,6 @@ func TestStartCmdExecution(t *testing.T) {
 				// runWatchWithFlagsをモックして、実際の実装を呼ばない
 				origRunWatch := runWatchWithFlagsFunc
 				runWatchWithFlagsFunc = func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
-					// 設定を読み込む
-					cfg := config.NewConfig()
-					cfg.LoadOrDefault(configFlag)
-
-					// 設定の検証
-					if err := cfg.Validate(); err != nil {
-						return err
-					}
-
 					// リポジトリ情報を取得（ここでエラーになることを期待）
 					_, err := git.GetRepositoryName()
 					if err != nil {
@@ -271,11 +261,8 @@ func TestStartCmdExecution(t *testing.T) {
 				return tmpDir, cleanup
 			},
 			setupEnv: func() func() {
-				// GitHub Tokenを設定
-				os.Setenv("GITHUB_TOKEN", "test-token")
-				return func() {
-					os.Unsetenv("GITHUB_TOKEN")
-				}
+				// トークンは設定しない（Gitリポジトリチェックのみをテスト）
+				return func() {}
 			},
 			wantErr:         true,
 			wantErrContains: "リポジトリ名の取得に失敗",
