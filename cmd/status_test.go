@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -149,21 +150,23 @@ github:
 		t.Run(tt.name, func(t *testing.T) {
 			// 環境変数をクリア
 			originalGitHubToken := os.Getenv("GITHUB_TOKEN")
-			originalOsobaGitHubToken := os.Getenv("OSOBA_GITHUB_TOKEN")
 			defer func() {
 				if originalGitHubToken != "" {
 					os.Setenv("GITHUB_TOKEN", originalGitHubToken)
 				} else {
 					os.Unsetenv("GITHUB_TOKEN")
 				}
-				if originalOsobaGitHubToken != "" {
-					os.Setenv("OSOBA_GITHUB_TOKEN", originalOsobaGitHubToken)
-				} else {
-					os.Unsetenv("OSOBA_GITHUB_TOKEN")
-				}
 			}()
 			os.Unsetenv("GITHUB_TOKEN")
-			os.Unsetenv("OSOBA_GITHUB_TOKEN")
+
+			// ghコマンドのモック
+			originalGhAuthTokenFunc := config.GhAuthTokenFunc
+			config.GhAuthTokenFunc = func() (string, error) {
+				return "", fmt.Errorf("gh auth token not available")
+			}
+			defer func() {
+				config.GhAuthTokenFunc = originalGhAuthTokenFunc
+			}()
 
 			// 一時ディレクトリを作成
 			tmpDir := t.TempDir()

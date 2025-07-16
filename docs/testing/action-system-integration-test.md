@@ -228,10 +228,13 @@ tmux new-session -d -s osoba-test-repo
 
 ### GitHubトークンエラーの場合
 ```bash
-# 環境変数で設定
-export OSOBA_GITHUB_TOKEN="your-token"
+# 方法1: 環境変数で設定
+export GITHUB_TOKEN="your-token"
 
-# または設定ファイルで設定
+# 方法2: GitHub CLIでログイン
+gh auth login
+
+# 方法3: 設定ファイルで設定
 echo "github.token: your-token" >> ~/.osoba/config.yaml
 ```
 

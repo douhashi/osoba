@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/utils"
 	"github.com/spf13/cobra"
@@ -37,6 +38,7 @@ var (
 		return client
 	}
 	getGitHubRepoInfoFunc = utils.GetGitHubRepoInfo
+	getGitHubTokenFunc    = config.GetGitHubToken
 )
 
 // isGitRepository は指定されたパスがgitリポジトリかを確認する
@@ -228,15 +230,17 @@ func checkRepositoryAccess(out, errOut io.Writer) {
 }
 
 func checkGitHubToken(out io.Writer) {
-	token := getEnvFunc("GITHUB_TOKEN")
-	if token == "" {
-		token = getEnvFunc("OSOBA_GITHUB_TOKEN")
-	}
+	// config.GetGitHubTokenを使用してトークンと取得元を取得
+	cfg := config.NewConfig()
+	token, source := config.GetGitHubToken(cfg)
 
 	if token == "" {
 		fmt.Fprintln(out, "⚠️  GitHub Personal Access Tokenが設定されていません")
-		fmt.Fprintln(out, "   以下のコマンドで設定してください:")
-		fmt.Fprintln(out, "   export GITHUB_TOKEN=your_token_here")
+		fmt.Fprintln(out, "   以下のいずれかの方法で設定してください:")
+		fmt.Fprintln(out, "   1. export GITHUB_TOKEN=your_token_here")
+		fmt.Fprintln(out, "   2. gh auth login (GitHub CLIでログイン)")
+	} else {
+		fmt.Fprintf(out, "✅ GitHub Token設定済み (取得元: %s)\n", source)
 	}
 }
 
@@ -320,10 +324,9 @@ func setupClaudeCommands(out io.Writer) error {
 }
 
 func setupGitHubLabels(out, errOut io.Writer) {
-	token := getEnvFunc("GITHUB_TOKEN")
-	if token == "" {
-		token = getEnvFunc("OSOBA_GITHUB_TOKEN")
-	}
+	// config.GetGitHubTokenを使用してトークンを取得
+	cfg := config.NewConfig()
+	token, _ := getGitHubTokenFunc(cfg)
 
 	if token == "" {
 		fmt.Fprintln(out, "⚠️  (トークンなし)")

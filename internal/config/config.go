@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/douhashi/osoba/internal/claude"
@@ -84,8 +86,8 @@ func (c *Config) Load(configPath string) error {
 	v.SetEnvPrefix("OSOBA")
 	v.AutomaticEnv()
 
-	// OSOBA_GITHUB_TOKENを優先、GITHUB_TOKENもサポート
-	v.BindEnv("github.token", "OSOBA_GITHUB_TOKEN", "GITHUB_TOKEN")
+	// GITHUB_TOKENのみをバインド（OSOBA_GITHUB_TOKENは廃止）
+	v.BindEnv("github.token", "GITHUB_TOKEN")
 
 	// デフォルト値の設定
 	v.SetDefault("github.poll_interval", 5*time.Second)
@@ -113,6 +115,12 @@ func (c *Config) Load(configPath string) error {
 	// 設定を構造体にマッピング
 	if err := v.Unmarshal(c); err != nil {
 		return err
+	}
+
+	// トークンが設定されていない場合、GetGitHubTokenで取得
+	if c.GitHub.Token == "" {
+		token, _ := GetGitHubToken(c)
+		c.GitHub.Token = token
 	}
 
 	return nil
@@ -269,4 +277,38 @@ func (c *Config) GetPhaseMessage(phase string) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// GhAuthTokenFunc はテスト用のモック可能な関数変数（公開）
+var GhAuthTokenFunc = executeGhAuthToken
+
+// executeGhAuthToken は実際の gh auth token コマンドを実行する
+func executeGhAuthToken() (string, error) {
+	cmd := exec.Command("gh", "auth", "token")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// GetGitHubToken はGitHubトークンを取得し、取得元を返す
+// 優先順位: 1) GITHUB_TOKEN環境変数, 2) gh auth token, 3) 設定ファイル
+func GetGitHubToken(cfg *Config) (token string, source string) {
+	// 1. GITHUB_TOKEN環境変数をチェック
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		return token, "environment variable GITHUB_TOKEN"
+	}
+
+	// 2. gh auth tokenコマンドを試す
+	if ghToken, err := GhAuthTokenFunc(); err == nil && ghToken != "" {
+		return ghToken, "gh auth token"
+	}
+
+	// 3. 設定ファイルのトークンを使用
+	if cfg.GitHub.Token != "" {
+		return cfg.GitHub.Token, "config file"
+	}
+
+	return "", ""
 }

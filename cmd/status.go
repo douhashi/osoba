@@ -104,11 +104,16 @@ func runStatusCmd(cmd *cobra.Command) error {
 	}
 
 	// GitHub APIが利用可能かチェック
-	if cfg.GitHub.Token == "" {
+	token, _ := config.GetGitHubToken(cfg)
+	if token == "" {
 		fmt.Fprintln(cmd.OutOrStdout(), "⚠️  GitHub APIトークンが設定されていません")
-		fmt.Fprintln(cmd.OutOrStdout(), "   詳細なステータス情報を表示するには、設定ファイルでGitHubトークンを設定してください")
+		fmt.Fprintln(cmd.OutOrStdout(), "   詳細なステータス情報を表示するには、以下のいずれかの方法でトークンを設定してください:")
+		fmt.Fprintln(cmd.OutOrStdout(), "   1. export GITHUB_TOKEN=your_token_here")
+		fmt.Fprintln(cmd.OutOrStdout(), "   2. gh auth login (GitHub CLIでログイン)")
+		fmt.Fprintln(cmd.OutOrStdout(), "   3. 設定ファイルで github.token を設定")
 		return nil
 	}
+	cfg.GitHub.Token = token
 
 	// GitHub クライアントを作成
 	client, err := githubClient.NewClient(cfg.GitHub.Token)
@@ -318,11 +323,14 @@ func displayConfiguration(cmd *cobra.Command, cfg *config.Config) error {
 
 	// GitHub設定
 	fmt.Fprintln(cmd.OutOrStdout(), "  GitHub:")
-	if cfg.GitHub.Token == "" {
+
+	// トークンと取得元を表示
+	token, source := config.GetGitHubToken(cfg)
+	if token == "" {
 		fmt.Fprintln(cmd.OutOrStdout(), "    Token: (not set)")
 	} else {
-		maskedToken := maskSensitiveValue(cfg.GitHub.Token)
-		fmt.Fprintf(cmd.OutOrStdout(), "    Token: %s\n", maskedToken)
+		maskedToken := maskSensitiveValue(token)
+		fmt.Fprintf(cmd.OutOrStdout(), "    Token: %s (from %s)\n", maskedToken, source)
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "    Poll Interval: %v\n", cfg.GitHub.PollInterval)
 

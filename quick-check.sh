@@ -5,11 +5,18 @@ echo "========================================="
 
 # 環境変数チェック
 echo "1. 環境変数チェック:"
-if [ -z "$OSOBA_GITHUB_TOKEN" ] && [ -z "$GITHUB_TOKEN" ]; then
-    echo "   ❌ GitHubトークンが設定されていません"
-    echo "   解決方法: export OSOBA_GITHUB_TOKEN='your_token'"
+if [ -z "$GITHUB_TOKEN" ]; then
+    # ghコマンドでトークン取得を試みる
+    if command -v gh >/dev/null 2>&1 && gh auth token >/dev/null 2>&1; then
+        echo "   ✅ GitHubトークンが設定されています (gh auth token)"
+    else
+        echo "   ❌ GitHubトークンが設定されていません"
+        echo "   解決方法: "
+        echo "     - export GITHUB_TOKEN='your_token'"
+        echo "     - または gh auth login"
+    fi
 else
-    echo "   ✅ GitHubトークンが設定されています"
+    echo "   ✅ GitHubトークンが設定されています (環境変数)"
 fi
 
 if [ -z "$OSOBA_GITHUB_OWNER" ]; then
@@ -28,7 +35,12 @@ echo ""
 echo "2. GitHub API接続テスト:"
 
 # curlでのAPI接続テスト
-TOKEN=${OSOBA_GITHUB_TOKEN:-$GITHUB_TOKEN}
+# GitHubトークンの取得（環境変数優先、次にghコマンド）
+if [ -n "$GITHUB_TOKEN" ]; then
+    TOKEN="$GITHUB_TOKEN"
+elif command -v gh >/dev/null 2>&1; then
+    TOKEN=$(gh auth token 2>/dev/null)
+fi
 OWNER=${OSOBA_GITHUB_OWNER:-douhashi}
 REPO=${OSOBA_GITHUB_REPO:-osoba}
 
@@ -63,6 +75,8 @@ fi
 
 echo ""
 echo "3. 推奨する解決手順:"
-echo "   1. GitHubトークンを設定: export OSOBA_GITHUB_TOKEN='your_token'"
+echo "   1. GitHubトークンを設定:"
+echo "      - export GITHUB_TOKEN='your_token'"
+echo "      - または gh auth login"
 echo "   2. デバッグテスト実行: go run debug-test.go"
 echo "   3. 詳細ログで監視: ./osoba start --verbose"
