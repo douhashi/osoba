@@ -299,9 +299,10 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 			setupConfig: func() *config.Config {
 				cfg := config.NewConfig()
 				cfg.GitHub.Token = ""
+				cfg.GitHub.UseGhCommand = false // GitHub APIを使用する設定
 				return cfg
 			},
-			expectError: "GitHub token is required",
+			expectError: "GitHub token is required when not using gh command",
 		},
 		{
 			name: "ポーリング間隔が短すぎる場合",
