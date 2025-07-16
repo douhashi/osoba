@@ -70,3 +70,72 @@ type ghRateLimitResource struct {
 	Remaining int   `json:"remaining"`
 	Reset     int64 `json:"reset"`
 }
+
+// RateLimit は個別のレート制限情報（エクスポート用）
+type RateLimit struct {
+	Limit     int   `json:"limit"`
+	Remaining int   `json:"remaining"`
+	Reset     int64 `json:"reset"`
+}
+
+// RateLimitResources はレート制限のリソース別情報（エクスポート用）
+type RateLimitResources struct {
+	Core    RateLimit `json:"core"`
+	Search  RateLimit `json:"search"`
+	GraphQL RateLimit `json:"graphql"`
+}
+
+// RateLimitResponse はAPIレート制限情報（エクスポート用）
+type RateLimitResponse struct {
+	Resources RateLimitResources `json:"resources"`
+}
+
+// Issue はIssue情報（エクスポート用）
+type Issue struct {
+	Number    int       `json:"number"`
+	Title     string    `json:"title"`
+	State     string    `json:"state"`
+	URL       string    `json:"url"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	Author    Author    `json:"author"`
+	Labels    []Label   `json:"labels"`
+}
+
+// Author はIssueの作成者（エクスポート用）
+type Author struct {
+	Login string `json:"login"`
+}
+
+// Label はIssueのラベル（エクスポート用）
+type Label struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Color       string `json:"color"`
+}
+
+// Repository はリポジトリ情報（エクスポート用）
+type Repository struct {
+	Name             string    `json:"name"`
+	Owner            Owner     `json:"owner"`
+	Description      string    `json:"description"`
+	DefaultBranchRef BranchRef `json:"defaultBranchRef"`
+	IsPrivate        bool      `json:"isPrivate"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+	URL              string    `json:"url"`
+	SSHURL           string    `json:"sshUrl"`
+	IsArchived       bool      `json:"isArchived"`
+	IsFork           bool      `json:"isFork"`
+}
+
+// Owner はリポジトリの所有者（エクスポート用）
+type Owner struct {
+	Login string `json:"login"`
+}
+
+// BranchRef はブランチ参照（エクスポート用）
+type BranchRef struct {
+	Name string `json:"name"`
+}

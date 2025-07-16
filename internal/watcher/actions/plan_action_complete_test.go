@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/types"
-	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

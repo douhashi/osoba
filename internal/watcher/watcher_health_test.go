@@ -2,13 +2,11 @@ package watcher
 
 import (
 	"context"
-	"net/http"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
 )
 
 func TestIssueWatcher_HealthCheck(t *testing.T) {
@@ -66,14 +64,6 @@ func TestIssueWatcher_HealthCheck(t *testing.T) {
 				if callCount%2 == 0 {
 					// 偶数回はリトライ不可のエラーを返す（401認証エラー）
 					return nil, &github.ErrorResponse{
-						Response: &http.Response{
-							StatusCode: 401,
-							Status:     "401 Unauthorized",
-							Request: &http.Request{
-								Method: "GET",
-								URL:    &url.URL{Scheme: "https", Host: "api.github.com", Path: "/repos/douhashi/osoba/issues"},
-							},
-						},
 						Message: "Unauthorized",
 					}
 				}

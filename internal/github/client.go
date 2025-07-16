@@ -2,86 +2,52 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"net/http"
+	"fmt"
+	"os/exec"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/douhashi/osoba/internal/logger"
-	"github.com/google/go-github/v67/github"
-	"golang.org/x/oauth2"
 )
 
-// LabelManagerInterface defines the interface for label management operations
-type LabelManagerInterface interface {
-	TransitionLabelWithRetry(ctx context.Context, owner, repo string, issueNumber int) (bool, error)
-	TransitionLabelWithInfoWithRetry(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error)
-	EnsureLabelsExistWithRetry(ctx context.Context, owner, repo string) error
-}
+// Client はGitHub APIクライアントのエイリアス（後方互換性のため）
+type Client = GHClient
 
-// Client はGitHub APIクライアントのラッパー
-type Client struct {
-	github       *github.Client
+// GHClient はghコマンドを使用するGitHub APIクライアント
+type GHClient struct {
 	logger       logger.Logger
 	labelManager LabelManagerInterface
 }
 
-// NewClient は新しいGitHub APIクライアントを作成する
-func NewClient(token string) (*Client, error) {
-	if token == "" {
-		return nil, errors.New("GitHub token is required")
-	}
+// NewClient は新しいGitHub APIクライアントを作成する（ghコマンドベース）
+func NewClient(token string) (*GHClient, error) {
+	// ghコマンドは環境変数やconfigでトークンを管理するため、ここでは不要
+	labelManager := NewGHLabelManager(nil, 3, 1*time.Second)
 
-	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: token},
-	)
-	tc := oauth2.NewClient(ctx, ts)
-
-	ghClient := github.NewClient(tc)
-	return &Client{
-		github:       ghClient,
-		labelManager: NewLabelManagerWithRetry(ghClient.Issues, 3, 1*time.Second),
+	return &GHClient{
+		labelManager: labelManager,
 	}, nil
 }
 
-// NewClientWithLogger はログ機能付きの新しいGitHub APIクライアントを作成する
-func NewClientWithLogger(token string, logger logger.Logger) (*Client, error) {
-	if token == "" {
-		return nil, errors.New("GitHub token is required")
-	}
+// NewClientWithLogger はログ機能付きの新しいGitHub APIクライアントを作成する（ghコマンドベース）
+func NewClientWithLogger(token string, logger logger.Logger) (*GHClient, error) {
 	if logger == nil {
 		return nil, errors.New("logger is required")
 	}
 
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: token},
-	)
+	labelManager := NewGHLabelManager(logger, 3, 1*time.Second)
 
-	// oauth2のトランスポートを作成
-	baseTransport := &oauth2.Transport{
-		Source: ts,
-		Base:   http.DefaultTransport,
-	}
-
-	// ログ機能付きのラウンドトリッパーでラップ
-	// oauth2トランスポートの後にログを配置することで、認証ヘッダーもログに記録される
-	httpClient := &http.Client{
-		Transport: &loggingRoundTripper{
-			base:   baseTransport,
-			logger: logger,
-		},
-	}
-
-	ghClient := github.NewClient(httpClient)
-	return &Client{
-		github:       ghClient,
+	return &GHClient{
 		logger:       logger,
-		labelManager: NewLabelManagerWithRetry(ghClient.Issues, 3, 1*time.Second),
+		labelManager: labelManager,
 	}, nil
 }
 
 // GetRepository はリポジトリ情報を取得する
-func (c *Client) GetRepository(ctx context.Context, owner, repo string) (*github.Repository, error) {
+func (c *GHClient) GetRepository(ctx context.Context, owner, repo string) (*Repository, error) {
 	if owner == "" {
 		return nil, errors.New("owner is required")
 	}
@@ -89,16 +55,21 @@ func (c *Client) GetRepository(ctx context.Context, owner, repo string) (*github
 		return nil, errors.New("repo is required")
 	}
 
-	repository, _, err := c.github.Repositories.Get(ctx, owner, repo)
+	output, err := c.executeGHCommand(ctx, "api", fmt.Sprintf("repos/%s/%s", owner, repo))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get repository: %w", err)
 	}
 
-	return repository, nil
+	var repository Repository
+	if err := json.Unmarshal(output, &repository); err != nil {
+		return nil, fmt.Errorf("failed to parse repository response: %w", err)
+	}
+
+	return &repository, nil
 }
 
 // ListIssuesByLabels は指定されたラベルのいずれかを持つIssueを取得する（OR条件）
-func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
+func (c *GHClient) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*Issue, error) {
 	if owner == "" {
 		return nil, errors.New("owner is required")
 	}
@@ -106,83 +77,91 @@ func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, lab
 		return nil, errors.New("repo is required")
 	}
 
-	// 操作開始のログ
-	if c.logger != nil {
-		c.logger.Debug("listing_issues_by_labels",
-			"owner", owner,
-			"repo", repo,
-			"labels", labels,
-		)
+	args := []string{
+		"issue", "list",
+		"--repo", fmt.Sprintf("%s/%s", owner, repo),
+		"--state", "open",
+		"--json", "number,title,labels,state,body,user,assignees,createdAt,updatedAt,closedAt,milestone,comments,url",
 	}
 
-	// OR条件で検索するため、各ラベルごとに検索して結果をマージ
-	issueMap := make(map[int]*github.Issue) // 重複を避けるためのマップ
-
-	for _, label := range labels {
-		opts := &github.IssueListByRepoOptions{
-			Labels: []string{label}, // 単一ラベルで検索
-			State:  "open",
-			ListOptions: github.ListOptions{
-				PerPage: 100,
-			},
-		}
-
-		for {
-			issues, resp, err := c.github.Issues.ListByRepo(ctx, owner, repo, opts)
-			if err != nil {
-				if c.logger != nil {
-					c.logger.Error("failed_to_list_issues",
-						"owner", owner,
-						"repo", repo,
-						"label", label,
-						"error", err.Error(),
-					)
-				}
-				return nil, err
-			}
-
-			// 結果をマップに追加（重複を自動除去）
-			for _, issue := range issues {
-				issueMap[*issue.Number] = issue
-			}
-
-			if resp.NextPage == 0 {
-				break
-			}
-			opts.Page = resp.NextPage
-		}
+	// ラベルが指定されている場合、OR条件として追加
+	if len(labels) > 0 {
+		args = append(args, "--label", strings.Join(labels, ","))
 	}
 
-	// マップからスライスに変換
-	var allIssues []*github.Issue
-	for _, issue := range issueMap {
-		allIssues = append(allIssues, issue)
-	}
-
-	// 取得完了のログ
-	if c.logger != nil {
-		c.logger.Info("issues_fetched",
-			"owner", owner,
-			"repo", repo,
-			"count", len(allIssues),
-		)
-	}
-
-	return allIssues, nil
-}
-
-// GetRateLimit はGitHub APIのレート制限情報を取得する
-func (c *Client) GetRateLimit(ctx context.Context) (*github.RateLimits, error) {
-	rateLimit, _, err := c.github.RateLimits(ctx)
+	output, err := c.executeGHCommand(ctx, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list issues: %w", err)
 	}
 
-	return rateLimit, nil
+	var issues []*Issue
+	if err := json.Unmarshal(output, &issues); err != nil {
+		return nil, fmt.Errorf("failed to parse issues response: %w", err)
+	}
+
+	// ghコマンドの出力からHTMLURLを設定
+	for _, issue := range issues {
+		if issue.HTMLURL == nil && issue.Number != nil {
+			url := fmt.Sprintf("https://github.com/%s/%s/issues/%d", owner, repo, *issue.Number)
+			issue.HTMLURL = String(url)
+		}
+	}
+
+	return issues, nil
 }
 
-// TransitionIssueLabel はIssueのラベルをトリガーラベルから実行中ラベルに遷移させる
-func (c *Client) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
+// GetRateLimit はAPI利用制限情報を取得する
+func (c *GHClient) GetRateLimit(ctx context.Context) (*RateLimits, error) {
+	output, err := c.executeGHCommand(ctx, "api", "rate_limit")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rate limit: %w", err)
+	}
+
+	var response struct {
+		Resources struct {
+			Core struct {
+				Limit     int   `json:"limit"`
+				Remaining int   `json:"remaining"`
+				Reset     int64 `json:"reset"`
+			} `json:"core"`
+			Search struct {
+				Limit     int   `json:"limit"`
+				Remaining int   `json:"remaining"`
+				Reset     int64 `json:"reset"`
+			} `json:"search"`
+		} `json:"resources"`
+	}
+
+	if err := json.Unmarshal(output, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse rate limit response: %w", err)
+	}
+
+	// responseからRateLimitsに変換
+	rateLimits := &RateLimits{
+		Core: &RateLimit{
+			Limit:     response.Resources.Core.Limit,
+			Remaining: response.Resources.Core.Remaining,
+			Reset:     time.Unix(response.Resources.Core.Reset, 0),
+		},
+		Search: &RateLimit{
+			Limit:     response.Resources.Search.Limit,
+			Remaining: response.Resources.Search.Remaining,
+			Reset:     time.Unix(response.Resources.Search.Reset, 0),
+		},
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Rate limit info",
+			"core_remaining", rateLimits.Core.Remaining,
+			"search_remaining", rateLimits.Search.Remaining,
+		)
+	}
+
+	return rateLimits, nil
+}
+
+// TransitionIssueLabel はIssueのラベルを遷移させる
+func (c *GHClient) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
 	if owner == "" {
 		return false, errors.New("owner is required")
 	}
@@ -192,42 +171,11 @@ func (c *Client) TransitionIssueLabel(ctx context.Context, owner, repo string, i
 	if issueNumber <= 0 {
 		return false, errors.New("issue number must be positive")
 	}
-
-	// ログ出力
-	if c.logger != nil {
-		c.logger.Debug("transitioning_issue_label",
-			"owner", owner,
-			"repo", repo,
-			"issue", issueNumber,
-		)
-	}
-
-	transitioned, err := c.labelManager.TransitionLabelWithRetry(ctx, owner, repo, issueNumber)
-	if err != nil {
-		if c.logger != nil {
-			c.logger.Error("failed_to_transition_label",
-				"owner", owner,
-				"repo", repo,
-				"issue", issueNumber,
-				"error", err.Error(),
-			)
-		}
-		return false, err
-	}
-
-	if transitioned && c.logger != nil {
-		c.logger.Info("label_transitioned",
-			"owner", owner,
-			"repo", repo,
-			"issue", issueNumber,
-		)
-	}
-
-	return transitioned, nil
+	return c.labelManager.TransitionLabelWithRetry(ctx, owner, repo, issueNumber)
 }
 
-// TransitionIssueLabelWithInfo はIssueのラベルをトリガーラベルから実行中ラベルに遷移させ、遷移情報を返す
-func (c *Client) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error) {
+// TransitionIssueLabelWithInfo はIssueのラベルを遷移させ、詳細情報を返す
+func (c *GHClient) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error) {
 	if owner == "" {
 		return false, nil, errors.New("owner is required")
 	}
@@ -237,126 +185,38 @@ func (c *Client) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo s
 	if issueNumber <= 0 {
 		return false, nil, errors.New("issue number must be positive")
 	}
-
-	// ログ出力
-	if c.logger != nil {
-		c.logger.Debug("transitioning_issue_label_with_info",
-			"owner", owner,
-			"repo", repo,
-			"issue", issueNumber,
-		)
-	}
-
-	transitioned, info, err := c.labelManager.TransitionLabelWithInfoWithRetry(ctx, owner, repo, issueNumber)
-	if err != nil {
-		if c.logger != nil {
-			c.logger.Error("failed_to_transition_label",
-				"owner", owner,
-				"repo", repo,
-				"issue", issueNumber,
-				"error", err.Error(),
-			)
-		}
-		return false, nil, err
-	}
-
-	if c.logger != nil && transitioned && info != nil {
-		c.logger.Info("label_transitioned",
-			"owner", owner,
-			"repo", repo,
-			"issue", issueNumber,
-			"from", info.From,
-			"to", info.To,
-		)
-	}
-
-	return transitioned, info, nil
+	return c.labelManager.TransitionLabelWithInfoWithRetry(ctx, owner, repo, issueNumber)
 }
 
-// EnsureLabelsExist は必要なラベルがリポジトリに存在することを保証する
-func (c *Client) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
+// EnsureLabelsExist は必要なラベルが存在することを確認する
+func (c *GHClient) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
 	if owner == "" {
 		return errors.New("owner is required")
 	}
 	if repo == "" {
 		return errors.New("repo is required")
 	}
-
-	// ログ出力
-	if c.logger != nil {
-		c.logger.Debug("ensuring_labels_exist",
-			"owner", owner,
-			"repo", repo,
-		)
-	}
-
-	err := c.labelManager.EnsureLabelsExistWithRetry(ctx, owner, repo)
-	if err != nil {
-		if c.logger != nil {
-			c.logger.Error("failed_to_ensure_labels",
-				"owner", owner,
-				"repo", repo,
-				"error", err.Error(),
-			)
-		}
-		return err
-	}
-
-	if c.logger != nil {
-		c.logger.Info("labels_ensured",
-			"owner", owner,
-			"repo", repo,
-		)
-	}
-
-	return nil
+	return c.labelManager.EnsureLabelsExistWithRetry(ctx, owner, repo)
 }
 
-// CreateIssueComment はIssueにコメントを投稿する
-func (c *Client) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
+// CreateIssueComment はIssueにコメントを作成する
+func (c *GHClient) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
 	if owner == "" {
 		return errors.New("owner is required")
 	}
 	if repo == "" {
 		return errors.New("repo is required")
-	}
-	if issueNumber <= 0 {
-		return errors.New("issue number must be positive")
 	}
 	if comment == "" {
 		return errors.New("comment is required")
 	}
 
-	// ログ出力
-	if c.logger != nil {
-		c.logger.Debug("creating_issue_comment",
-			"owner", owner,
-			"repo", repo,
-			"issue", issueNumber,
-			"comment", comment,
-		)
-	}
-
-	// コメントを作成
-	issueComment := &github.IssueComment{
-		Body: github.String(comment),
-	}
-
-	_, _, err := c.github.Issues.CreateComment(ctx, owner, repo, issueNumber, issueComment)
-	if err != nil {
-		if c.logger != nil {
-			c.logger.Error("failed_to_create_comment",
-				"owner", owner,
-				"repo", repo,
-				"issue", issueNumber,
-				"error", err.Error(),
-			)
-		}
-		return err
+	if _, err := c.executeGHCommand(ctx, "issue", "comment", strconv.Itoa(issueNumber), "--repo", fmt.Sprintf("%s/%s", owner, repo), "--body", comment); err != nil {
+		return fmt.Errorf("failed to create comment: %w", err)
 	}
 
 	if c.logger != nil {
-		c.logger.Info("comment_created",
+		c.logger.Debug("Created issue comment",
 			"owner", owner,
 			"repo", repo,
 			"issue", issueNumber,
@@ -366,22 +226,71 @@ func (c *Client) CreateIssueComment(ctx context.Context, owner, repo string, iss
 	return nil
 }
 
-// GetIssuesService はGitHub APIのIssuesServiceを返す
-func (c *Client) GetIssuesService() *github.IssuesService {
-	if c.github == nil {
-		return nil
-	}
-	return c.github.Issues
-}
-
 // RemoveLabel はIssueからラベルを削除する
-func (c *Client) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
-	_, err := c.github.Issues.RemoveLabelForIssue(ctx, owner, repo, issueNumber, label)
-	return err
+func (c *GHClient) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	if owner == "" {
+		return errors.New("owner is required")
+	}
+	if repo == "" {
+		return errors.New("repo is required")
+	}
+	if label == "" {
+		return errors.New("label is required")
+	}
+
+	if _, err := c.executeGHCommand(ctx, "issue", "edit", fmt.Sprintf("%d", issueNumber), "--repo", fmt.Sprintf("%s/%s", owner, repo), "--remove-label", label); err != nil {
+		return fmt.Errorf("failed to remove label %s from issue #%d: %w", label, issueNumber, err)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Removed label from issue",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+			"label", label,
+		)
+	}
+
+	return nil
 }
 
 // AddLabel はIssueにラベルを追加する
-func (c *Client) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
-	_, _, err := c.github.Issues.AddLabelsToIssue(ctx, owner, repo, issueNumber, []string{label})
-	return err
+func (c *GHClient) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	if owner == "" {
+		return errors.New("owner is required")
+	}
+	if repo == "" {
+		return errors.New("repo is required")
+	}
+	if label == "" {
+		return errors.New("label is required")
+	}
+
+	if _, err := c.executeGHCommand(ctx, "issue", "edit", fmt.Sprintf("%d", issueNumber), "--repo", fmt.Sprintf("%s/%s", owner, repo), "--add-label", label); err != nil {
+		return fmt.Errorf("failed to add label %s to issue #%d: %w", label, issueNumber, err)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Added label to issue",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+			"label", label,
+		)
+	}
+
+	return nil
 }
+
+// executeGHCommand はghコマンドを実行する
+func (c *GHClient) executeGHCommand(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "gh", args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("gh command failed: %w", err)
+	}
+	return output, nil
+}
+
+// Ensure GHClient implements GitHubClient interface
+var _ GitHubClient = (*GHClient)(nil)

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
 )
 
 // ActionFactory インターフェースは action_factory.go で定義済み
@@ -33,11 +33,11 @@ func (m *ActionManagerExtended) ExecuteAction(ctx context.Context, issue *github
 
 	action := m.GetActionForIssue(issue)
 	if action == nil {
-		return fmt.Errorf("no action found for issue #%d", issue.GetNumber())
+		return fmt.Errorf("no action found for issue #%d", *issue.Number)
 	}
 
 	if !action.CanExecute(issue) {
-		return fmt.Errorf("action cannot be executed for issue #%d", issue.GetNumber())
+		return fmt.Errorf("action cannot be executed for issue #%d", *issue.Number)
 	}
 
 	return action.Execute(ctx, issue)

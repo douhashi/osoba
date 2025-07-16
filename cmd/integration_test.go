@@ -10,30 +10,29 @@ import (
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/watcher"
-	gh "github.com/google/go-github/v67/github"
 )
 
 // モックGitHubクライアント
 type mockGitHubClient struct {
-	issues    []*gh.Issue
+	issues    []*github.Issue
 	err       error
 	callCount int
-	rateLimit *gh.RateLimits
+	rateLimit *github.RateLimits
 }
 
-func (m *mockGitHubClient) GetRepository(ctx context.Context, owner, repo string) (*gh.Repository, error) {
+func (m *mockGitHubClient) GetRepository(ctx context.Context, owner, repo string) (*github.Repository, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	return &gh.Repository{
-		Name: gh.String(repo),
-		Owner: &gh.User{
-			Login: gh.String(owner),
+	return &github.Repository{
+		Name: github.String(repo),
+		Owner: &github.User{
+			Login: github.String(owner),
 		},
 	}, nil
 }
 
-func (m *mockGitHubClient) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*gh.Issue, error) {
+func (m *mockGitHubClient) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
 	m.callCount++
 	if m.err != nil {
 		return nil, m.err
@@ -41,14 +40,14 @@ func (m *mockGitHubClient) ListIssuesByLabels(ctx context.Context, owner, repo s
 	return m.issues, nil
 }
 
-func (m *mockGitHubClient) GetRateLimit(ctx context.Context) (*gh.RateLimits, error) {
+func (m *mockGitHubClient) GetRateLimit(ctx context.Context) (*github.RateLimits, error) {
 	if m.rateLimit != nil {
 		return m.rateLimit, nil
 	}
 
-	resetTime := gh.Timestamp{Time: time.Now().Add(1 * time.Hour)}
-	return &gh.RateLimits{
-		Core: &gh.Rate{
+	resetTime := time.Now().Add(1 * time.Hour)
+	return &github.RateLimits{
+		Core: &github.RateLimit{
 			Limit:     5000,
 			Remaining: 4999,
 			Reset:     resetTime,
@@ -99,12 +98,12 @@ func TestIntegration_WatchFlow(t *testing.T) {
 				return cfg
 			},
 			mockClient: &mockGitHubClient{
-				issues: []*gh.Issue{
+				issues: []*github.Issue{
 					{
-						Number: gh.Int(1),
-						Title:  gh.String("Test Issue 1"),
-						Labels: []*gh.Label{
-							{Name: gh.String("status:needs-plan")},
+						Number: github.Int(1),
+						Title:  github.String("Test Issue 1"),
+						Labels: []*github.Label{
+							{Name: github.String("status:needs-plan")},
 						},
 					},
 				},
@@ -122,19 +121,19 @@ func TestIntegration_WatchFlow(t *testing.T) {
 				return cfg
 			},
 			mockClient: &mockGitHubClient{
-				issues: []*gh.Issue{
+				issues: []*github.Issue{
 					{
-						Number: gh.Int(1),
-						Title:  gh.String("Test Issue 1"),
-						Labels: []*gh.Label{
-							{Name: gh.String("status:needs-plan")},
+						Number: github.Int(1),
+						Title:  github.String("Test Issue 1"),
+						Labels: []*github.Label{
+							{Name: github.String("status:needs-plan")},
 						},
 					},
 					{
-						Number: gh.Int(2),
-						Title:  gh.String("Test Issue 2"),
-						Labels: []*gh.Label{
-							{Name: gh.String("status:ready")},
+						Number: github.Int(2),
+						Title:  github.String("Test Issue 2"),
+						Labels: []*github.Label{
+							{Name: github.String("status:ready")},
 						},
 					},
 				},
@@ -170,7 +169,7 @@ func TestIntegration_WatchFlow(t *testing.T) {
 			defer cancel()
 
 			// Issue監視を開始
-			issueWatcher.Start(ctx, func(issue *gh.Issue) {
+			issueWatcher.Start(ctx, func(issue *github.Issue) {
 				callbackCount++
 				t.Logf("Callback executed for issue #%d: %s", *issue.Number, *issue.Title)
 			})

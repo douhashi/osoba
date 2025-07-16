@@ -3,7 +3,7 @@ package watcher
 import (
 	"fmt"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
 )
 
 // トリガーラベルの定数定義

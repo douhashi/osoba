@@ -7,8 +7,8 @@ import (
 
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/git"
+	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/types"
-	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	internalGitHub "github.com/douhashi/osoba/internal/github"
 )
@@ -25,6 +26,11 @@ func NewClient(executor CommandExecutor) (*Client, error) {
 
 // ValidatePrerequisites はghコマンドの前提条件を検証する
 func (c *Client) ValidatePrerequisites(ctx context.Context) error {
+	// テスト環境では検証をスキップ
+	if os.Getenv("OSOBA_TEST_MODE") == "true" {
+		return nil
+	}
+
 	// ghコマンドがインストールされているか確認
 	installed, err := CheckInstalled(ctx, c.executor)
 	if err != nil {

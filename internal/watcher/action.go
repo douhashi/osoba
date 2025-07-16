@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/types"
-	"github.com/google/go-github/v67/github"
 )
 
 // ActionExecutor はIssueに対するアクションを実行するインターフェース
@@ -145,11 +145,11 @@ func (m *ActionManager) ExecuteAction(ctx context.Context, issue *github.Issue) 
 
 	action := m.GetActionForIssue(issue)
 	if action == nil {
-		return fmt.Errorf("no action found for issue #%d", issue.GetNumber())
+		return fmt.Errorf("no action found for issue #%d", *issue.Number)
 	}
 
 	if !action.CanExecute(issue) {
-		return fmt.Errorf("action cannot be executed for issue #%d", issue.GetNumber())
+		return fmt.Errorf("action cannot be executed for issue #%d", *issue.Number)
 	}
 
 	return action.Execute(ctx, issue)

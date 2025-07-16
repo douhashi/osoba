@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
 )
 
 // GetRateLimit はGitHub APIのレート制限情報を取得する
@@ -27,19 +27,22 @@ func (c *Client) GetRateLimit(ctx context.Context) (*github.RateLimits, error) {
 
 	// ghRateLimitResources から github.RateLimits に変換
 	limits := &github.RateLimits{
-		Core:    convertToGitHubRate(response.Resources.Core),
-		Search:  convertToGitHubRate(response.Resources.Search),
-		GraphQL: convertToGitHubRate(response.Resources.GraphQL),
+		Core: &github.RateLimit{
+			Limit:     response.Resources.Core.Limit,
+			Remaining: response.Resources.Core.Remaining,
+			Reset:     time.Unix(response.Resources.Core.Reset, 0),
+		},
+		Search: &github.RateLimit{
+			Limit:     response.Resources.Search.Limit,
+			Remaining: response.Resources.Search.Remaining,
+			Reset:     time.Unix(response.Resources.Search.Reset, 0),
+		},
+		GraphQL: &github.RateLimit{
+			Limit:     response.Resources.GraphQL.Limit,
+			Remaining: response.Resources.GraphQL.Remaining,
+			Reset:     time.Unix(response.Resources.GraphQL.Reset, 0),
+		},
 	}
 
 	return limits, nil
-}
-
-// convertToGitHubRate は ghRateLimitResource を github.Rate に変換する
-func convertToGitHubRate(ghRate ghRateLimitResource) *github.Rate {
-	return &github.Rate{
-		Limit:     ghRate.Limit,
-		Remaining: ghRate.Remaining,
-		Reset:     github.Timestamp{Time: time.Unix(ghRate.Reset, 0)},
-	}
 }

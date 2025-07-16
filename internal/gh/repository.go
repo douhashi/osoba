@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
 )
 
 // GetRepository はリポジトリ情報を取得する
@@ -37,32 +37,21 @@ func (c *Client) GetRepository(ctx context.Context, owner, repo string) (*github
 		return nil, fmt.Errorf("failed to parse repository data: %w", err)
 	}
 
-	// github.Repository型に変換
-	return convertToGitHubRepository(&ghRepo), nil
+	// Repository型に変換
+	return convertToRepository(&ghRepo), nil
 }
 
-// convertToGitHubRepository はgh用の構造体をgithub.Repository型に変換する
-func convertToGitHubRepository(ghRepo *ghRepository) *github.Repository {
+// convertToRepository はgh用の構造体をgithub.Repository型に変換する
+func convertToRepository(ghRepo *ghRepository) *github.Repository {
 	repo := &github.Repository{
 		Name:        github.String(ghRepo.Name),
 		Description: github.String(ghRepo.Description),
 		Private:     github.Bool(ghRepo.IsPrivate),
 		HTMLURL:     github.String(ghRepo.URL),
-		SSHURL:      github.String(ghRepo.SSHURL),
-		CreatedAt:   &github.Timestamp{Time: ghRepo.CreatedAt},
-		UpdatedAt:   &github.Timestamp{Time: ghRepo.UpdatedAt},
-		Archived:    github.Bool(ghRepo.IsArchived),
 		Fork:        github.Bool(ghRepo.IsFork),
-	}
-
-	if ghRepo.Owner.Login != "" {
-		repo.Owner = &github.User{
+		Owner: &github.User{
 			Login: github.String(ghRepo.Owner.Login),
-		}
-	}
-
-	if ghRepo.DefaultBranchRef.Name != "" {
-		repo.DefaultBranch = github.String(ghRepo.DefaultBranchRef.Name)
+		},
 	}
 
 	return repo

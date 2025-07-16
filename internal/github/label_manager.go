@@ -2,40 +2,32 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os/exec"
+	"strconv"
+	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/logger"
 )
 
-// LabelDefinition defines a GitHub label with its properties
-type LabelDefinition struct {
-	Name        string
-	Color       string
-	Description string
-}
-
-// LabelService defines the interface for GitHub label operations
-type LabelService interface {
-	ListLabelsByIssue(ctx context.Context, owner, repo string, number int, opts *github.ListOptions) ([]*github.Label, *github.Response, error)
-	AddLabelsToIssue(ctx context.Context, owner, repo string, number int, labels []string) ([]*github.Label, *github.Response, error)
-	RemoveLabelForIssue(ctx context.Context, owner, repo string, number int, label string) (*github.Response, error)
-	ListLabels(ctx context.Context, owner, repo string, opts *github.ListOptions) ([]*github.Label, *github.Response, error)
-	CreateLabel(ctx context.Context, owner, repo string, label *github.Label) (*github.Label, *github.Response, error)
-}
-
-// LabelManager manages GitHub label operations and transitions
-type LabelManager struct {
-	client           LabelService
+// GHLabelManager はghコマンドを使用するラベルマネージャー
+type GHLabelManager struct {
+	logger           logger.Logger
 	labelDefinitions map[string]LabelDefinition
 	transitionRules  map[string]string
+	maxRetries       int
+	retryDelay       time.Duration
 }
 
-// NewLabelManager creates a new LabelManager instance
-func NewLabelManager(client LabelService) *LabelManager {
-	lm := &LabelManager{
-		client:           client,
+// NewGHLabelManager は新しいghコマンドベースのLabelManagerを作成する
+func NewGHLabelManager(logger logger.Logger, maxRetries int, retryDelay time.Duration) *GHLabelManager {
+	lm := &GHLabelManager{
+		logger:           logger,
 		labelDefinitions: make(map[string]LabelDefinition),
 		transitionRules:  make(map[string]string),
+		maxRetries:       maxRetries,
+		retryDelay:       retryDelay,
 	}
 
 	// Initialize label definitions
@@ -47,200 +39,247 @@ func NewLabelManager(client LabelService) *LabelManager {
 	return lm
 }
 
-// is404Error checks if the error indicates a 404 Not Found response
-func is404Error(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errMsg := err.Error()
-
-	// 404エラーを示すメッセージをチェック
-	return containsIgnoreCase(errMsg, "not found") ||
-		containsIgnoreCase(errMsg, "404") ||
-		containsIgnoreCase(errMsg, "does not exist")
-}
-
-// containsIgnoreCase checks if a string contains a substring (case-insensitive)
-func containsIgnoreCase(s, substr string) bool {
-	// シンプルな実装: 小文字に変換して比較
-	sLower := ""
-	substrLower := ""
-
-	for _, r := range s {
-		if r >= 'A' && r <= 'Z' {
-			sLower += string(r + 32)
-		} else {
-			sLower += string(r)
-		}
-	}
-
-	for _, r := range substr {
-		if r >= 'A' && r <= 'Z' {
-			substrLower += string(r + 32)
-		} else {
-			substrLower += string(r)
-		}
-	}
-
-	for i := 0; i <= len(sLower)-len(substrLower); i++ {
-		if sLower[i:i+len(substrLower)] == substrLower {
-			return true
-		}
-	}
-	return false
-}
-
 // initializeLabelDefinitions sets up the label definitions
-func (lm *LabelManager) initializeLabelDefinitions() {
+func (lm *GHLabelManager) initializeLabelDefinitions() {
 	// Trigger labels
 	lm.labelDefinitions["status:needs-plan"] = LabelDefinition{
 		Name:        "status:needs-plan",
 		Color:       "0075ca",
 		Description: "Planning phase required",
 	}
-
 	lm.labelDefinitions["status:ready"] = LabelDefinition{
 		Name:        "status:ready",
-		Color:       "0e8a16",
+		Color:       "0E8A16",
 		Description: "Ready for implementation",
 	}
-
 	lm.labelDefinitions["status:review-requested"] = LabelDefinition{
 		Name:        "status:review-requested",
-		Color:       "d93f0b",
-		Description: "Review requested",
+		Color:       "fbca04",
+		Description: "Code review requested",
 	}
 
-	// In-progress labels
+	// Progress labels
 	lm.labelDefinitions["status:planning"] = LabelDefinition{
 		Name:        "status:planning",
-		Color:       "1d76db",
+		Color:       "c5def5",
 		Description: "Currently in planning phase",
 	}
-
 	lm.labelDefinitions["status:implementing"] = LabelDefinition{
 		Name:        "status:implementing",
-		Color:       "28a745",
+		Color:       "bfd4f2",
 		Description: "Currently being implemented",
 	}
-
 	lm.labelDefinitions["status:reviewing"] = LabelDefinition{
 		Name:        "status:reviewing",
-		Color:       "e99695",
+		Color:       "fef2c0",
 		Description: "Currently under review",
 	}
 }
 
 // initializeTransitionRules sets up the label transition rules
-func (lm *LabelManager) initializeTransitionRules() {
+func (lm *GHLabelManager) initializeTransitionRules() {
 	lm.transitionRules["status:needs-plan"] = "status:planning"
 	lm.transitionRules["status:ready"] = "status:implementing"
 	lm.transitionRules["status:review-requested"] = "status:reviewing"
 }
 
-// GetLabelDefinitions returns all label definitions
-func (lm *LabelManager) GetLabelDefinitions() map[string]LabelDefinition {
-	return lm.labelDefinitions
+// TransitionLabelWithRetry はリトライ機能付きでラベルを遷移させる
+func (lm *GHLabelManager) TransitionLabelWithRetry(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
+	transitioned, _, err := lm.TransitionLabelWithInfoWithRetry(ctx, owner, repo, issueNumber)
+	return transitioned, err
 }
 
-// GetTransitionRules returns all transition rules
-func (lm *LabelManager) GetTransitionRules() map[string]string {
-	return lm.transitionRules
-}
+// TransitionLabelWithInfoWithRetry はリトライ機能付きでラベルを遷移させ、詳細情報を返す
+func (lm *GHLabelManager) TransitionLabelWithInfoWithRetry(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error) {
+	var lastErr error
+	for i := 0; i < lm.maxRetries; i++ {
+		if i > 0 {
+			if lm.logger != nil {
+				lm.logger.Debug("Retrying label transition",
+					"attempt", i+1,
+					"issue", issueNumber,
+					"delay", lm.retryDelay.String())
+			}
+			time.Sleep(lm.retryDelay)
+		}
 
-// TransitionLabel transitions an issue from a trigger label to an in-progress label
-func (lm *LabelManager) TransitionLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
-	// Get current labels
-	labels, _, err := lm.client.ListLabelsByIssue(ctx, owner, repo, issueNumber, nil)
-	if err != nil {
-		return false, fmt.Errorf("failed to list labels: %w", err)
-	}
+		transitioned, info, err := lm.transitionLabel(ctx, owner, repo, issueNumber)
+		if err == nil {
+			return transitioned, info, nil
+		}
 
-	// Check if already has an in-progress label
-	for _, label := range labels {
-		labelName := *label.Name
-		if lm.isInProgressLabel(labelName) {
-			// Already in progress, skip transition
-			return false, nil
+		lastErr = err
+		if lm.logger != nil {
+			lm.logger.Warn("Label transition failed",
+				"attempt", i+1,
+				"issue", issueNumber,
+				"error", err)
 		}
 	}
 
-	// Find trigger label and perform transition
+	return false, nil, fmt.Errorf("failed after %d retries: %w", lm.maxRetries, lastErr)
+}
+
+// transitionLabel は実際のラベル遷移を実行する
+func (lm *GHLabelManager) transitionLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error) {
+	// Issueの現在のラベルを取得
+	labels, err := lm.getIssueLabels(ctx, owner, repo, issueNumber)
+	if err != nil {
+		return false, nil, fmt.Errorf("get issue labels: %w", err)
+	}
+
+	// 遷移可能なラベルを探す
 	for _, label := range labels {
-		labelName := *label.Name
-		if targetLabel, exists := lm.transitionRules[labelName]; exists {
-			// Remove trigger label
-			_, err := lm.client.RemoveLabelForIssue(ctx, owner, repo, issueNumber, labelName)
-			if err != nil {
-				// 404エラー（ラベルが存在しない）の場合は無視して処理を続行
-				if is404Error(err) {
-					// ラベルが既に存在しないので削除をスキップして次のステップに進む
-				} else {
-					return false, fmt.Errorf("failed to remove label %s: %w", labelName, err)
-				}
+		if toLabel, exists := lm.transitionRules[label]; exists {
+			// ラベルを削除
+			if err := lm.removeLabel(ctx, owner, repo, issueNumber, label); err != nil {
+				return false, nil, fmt.Errorf("remove label %s: %w", label, err)
 			}
 
-			// Add in-progress label
-			_, _, err = lm.client.AddLabelsToIssue(ctx, owner, repo, issueNumber, []string{targetLabel})
-			if err != nil {
-				// Try to restore the original label
-				lm.client.AddLabelsToIssue(ctx, owner, repo, issueNumber, []string{labelName})
-				return false, fmt.Errorf("failed to add label %s: %w", targetLabel, err)
+			// 新しいラベルを追加
+			if err := lm.addLabel(ctx, owner, repo, issueNumber, toLabel); err != nil {
+				return false, nil, fmt.Errorf("add label %s: %w", toLabel, err)
 			}
 
-			return true, nil
+			info := &TransitionInfo{
+				TransitionFound: true,
+				FromLabel:       label,
+				ToLabel:         toLabel,
+			}
+
+			if lm.logger != nil {
+				lm.logger.Info("Label transitioned",
+					"issue", issueNumber,
+					"from", label,
+					"to", toLabel)
+			}
+
+			return true, info, nil
 		}
 	}
 
-	// No trigger label found
-	return false, nil
-}
-
-// isInProgressLabel checks if a label is an in-progress label
-func (lm *LabelManager) isInProgressLabel(labelName string) bool {
-	inProgressLabels := []string{
-		"status:planning",
-		"status:implementing",
-		"status:reviewing",
+	info := &TransitionInfo{
+		TransitionFound: false,
+		CurrentLabels:   labels,
 	}
 
-	for _, inProgressLabel := range inProgressLabels {
-		if labelName == inProgressLabel {
-			return true
-		}
-	}
-
-	return false
+	return false, info, nil
 }
 
-// EnsureLabelsExist ensures all required labels exist in the repository
-func (lm *LabelManager) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
-	// Get existing labels
-	existingLabels, _, err := lm.client.ListLabels(ctx, owner, repo, nil)
+// getIssueLabels はIssueの現在のラベルを取得する
+func (lm *GHLabelManager) getIssueLabels(ctx context.Context, owner, repo string, issueNumber int) ([]string, error) {
+	args := []string{
+		"issue", "view", strconv.Itoa(issueNumber),
+		"--repo", fmt.Sprintf("%s/%s", owner, repo),
+		"--json", "labels",
+	}
+
+	output, err := lm.executeGHCommand(ctx, args...)
 	if err != nil {
-		return fmt.Errorf("failed to list repository labels: %w", err)
+		return nil, fmt.Errorf("execute gh command: %w", err)
 	}
 
-	// Create a map of existing labels for quick lookup
-	existingLabelMap := make(map[string]bool)
+	var issue struct {
+		Labels []struct {
+			Name string `json:"name"`
+		} `json:"labels"`
+	}
+
+	if err := json.Unmarshal(output, &issue); err != nil {
+		return nil, fmt.Errorf("parse issue response: %w", err)
+	}
+
+	var labels []string
+	for _, label := range issue.Labels {
+		labels = append(labels, label.Name)
+	}
+
+	return labels, nil
+}
+
+// addLabel はIssueにラベルを追加する
+func (lm *GHLabelManager) addLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	args := []string{
+		"issue", "edit", strconv.Itoa(issueNumber),
+		"--repo", fmt.Sprintf("%s/%s", owner, repo),
+		"--add-label", label,
+	}
+
+	if _, err := lm.executeGHCommand(ctx, args...); err != nil {
+		return fmt.Errorf("add label: %w", err)
+	}
+
+	return nil
+}
+
+// removeLabel はIssueからラベルを削除する
+func (lm *GHLabelManager) removeLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	args := []string{
+		"issue", "edit", strconv.Itoa(issueNumber),
+		"--repo", fmt.Sprintf("%s/%s", owner, repo),
+		"--remove-label", label,
+	}
+
+	if _, err := lm.executeGHCommand(ctx, args...); err != nil {
+		return fmt.Errorf("remove label: %w", err)
+	}
+
+	return nil
+}
+
+// EnsureLabelsExistWithRetry は必要なラベルが存在することを確認する
+func (lm *GHLabelManager) EnsureLabelsExistWithRetry(ctx context.Context, owner, repo string) error {
+	var lastErr error
+	for i := 0; i < lm.maxRetries; i++ {
+		if i > 0 {
+			if lm.logger != nil {
+				lm.logger.Debug("Retrying ensure labels exist",
+					"attempt", i+1,
+					"delay", lm.retryDelay.String())
+			}
+			time.Sleep(lm.retryDelay)
+		}
+
+		if err := lm.ensureLabelsExist(ctx, owner, repo); err == nil {
+			return nil
+		} else {
+			lastErr = err
+			if lm.logger != nil {
+				lm.logger.Warn("Ensure labels exist failed",
+					"attempt", i+1,
+					"error", err)
+			}
+		}
+	}
+
+	return fmt.Errorf("failed after %d retries: %w", lm.maxRetries, lastErr)
+}
+
+// ensureLabelsExist は実際のラベル存在確認を実行する
+func (lm *GHLabelManager) ensureLabelsExist(ctx context.Context, owner, repo string) error {
+	// 既存のラベルを取得
+	existingLabels, err := lm.listLabels(ctx, owner, repo)
+	if err != nil {
+		return fmt.Errorf("list labels: %w", err)
+	}
+
+	// 既存ラベルのマップを作成
+	existing := make(map[string]bool)
 	for _, label := range existingLabels {
-		existingLabelMap[*label.Name] = true
+		existing[label] = true
 	}
 
-	// Create missing labels
-	for _, labelDef := range lm.labelDefinitions {
-		if !existingLabelMap[labelDef.Name] {
-			// Label doesn't exist, create it
-			newLabel := &github.Label{
-				Name:        github.String(labelDef.Name),
-				Color:       github.String(labelDef.Color),
-				Description: github.String(labelDef.Description),
+	// 不足しているラベルを作成
+	for name, def := range lm.labelDefinitions {
+		if !existing[name] {
+			if err := lm.createLabel(ctx, owner, repo, def); err != nil {
+				return fmt.Errorf("create label %s: %w", name, err)
 			}
-
-			_, _, err := lm.client.CreateLabel(ctx, owner, repo, newLabel)
-			if err != nil {
-				return fmt.Errorf("failed to create label %s: %w", labelDef.Name, err)
+			if lm.logger != nil {
+				lm.logger.Info("Created label",
+					"label", name,
+					"color", def.Color,
+					"description", def.Description)
 			}
 		}
 	}
@@ -248,49 +287,60 @@ func (lm *LabelManager) EnsureLabelsExist(ctx context.Context, owner, repo strin
 	return nil
 }
 
-// TransitionLabelWithInfo transitions an issue from a trigger label to an in-progress label and returns transition info
-func (lm *LabelManager) TransitionLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error) {
-	// Get current labels
-	labels, _, err := lm.client.ListLabelsByIssue(ctx, owner, repo, issueNumber, nil)
+// listLabels はリポジトリのラベル一覧を取得する
+func (lm *GHLabelManager) listLabels(ctx context.Context, owner, repo string) ([]string, error) {
+	args := []string{
+		"label", "list",
+		"--repo", fmt.Sprintf("%s/%s", owner, repo),
+		"--json", "name",
+	}
+
+	output, err := lm.executeGHCommand(ctx, args...)
 	if err != nil {
-		return false, nil, fmt.Errorf("failed to list labels: %w", err)
+		return nil, fmt.Errorf("execute gh command: %w", err)
 	}
 
-	// Check if already has an in-progress label
+	var labels []struct {
+		Name string `json:"name"`
+	}
+
+	if err := json.Unmarshal(output, &labels); err != nil {
+		return nil, fmt.Errorf("parse labels response: %w", err)
+	}
+
+	var names []string
 	for _, label := range labels {
-		labelName := *label.Name
-		if lm.isInProgressLabel(labelName) {
-			// Already in progress, skip transition
-			return false, nil, nil
-		}
+		names = append(names, label.Name)
 	}
 
-	// Find trigger label and perform transition
-	for _, label := range labels {
-		labelName := *label.Name
-		if targetLabel, exists := lm.transitionRules[labelName]; exists {
-			// Remove trigger label
-			_, err := lm.client.RemoveLabelForIssue(ctx, owner, repo, issueNumber, labelName)
-			if err != nil {
-				return false, nil, fmt.Errorf("failed to remove label %s: %w", labelName, err)
-			}
-
-			// Add in-progress label
-			_, _, err = lm.client.AddLabelsToIssue(ctx, owner, repo, issueNumber, []string{targetLabel})
-			if err != nil {
-				// Try to restore the original label
-				lm.client.AddLabelsToIssue(ctx, owner, repo, issueNumber, []string{labelName})
-				return false, nil, fmt.Errorf("failed to add label %s: %w", targetLabel, err)
-			}
-
-			// Return transition info
-			return true, &TransitionInfo{
-				From: labelName,
-				To:   targetLabel,
-			}, nil
-		}
-	}
-
-	// No trigger label found
-	return false, nil, nil
+	return names, nil
 }
+
+// createLabel は新しいラベルを作成する
+func (lm *GHLabelManager) createLabel(ctx context.Context, owner, repo string, def LabelDefinition) error {
+	args := []string{
+		"label", "create", def.Name,
+		"--repo", fmt.Sprintf("%s/%s", owner, repo),
+		"--color", def.Color,
+		"--description", def.Description,
+	}
+
+	if _, err := lm.executeGHCommand(ctx, args...); err != nil {
+		return fmt.Errorf("create label: %w", err)
+	}
+
+	return nil
+}
+
+// executeGHCommand はghコマンドを実行する
+func (lm *GHLabelManager) executeGHCommand(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "gh", args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("gh command failed: %w", err)
+	}
+	return output, nil
+}
+
+// Ensure GHLabelManager implements LabelManagerInterface
+var _ LabelManagerInterface = (*GHLabelManager)(nil)

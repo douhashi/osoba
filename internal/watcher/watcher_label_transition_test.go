@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
-	gogithub "github.com/google/go-github/v67/github"
+	gogithub "github.com/douhashi/osoba/internal/github"
 )
 
 type mockGitHubClientWithTransition struct {
@@ -27,8 +27,8 @@ func (m *mockGitHubClientWithTransition) TransitionIssueLabelWithInfo(ctx contex
 		issueNumber: issueNumber,
 	})
 	return true, &github.TransitionInfo{
-		From: "status:needs-plan",
-		To:   "status:planning",
+		FromLabel: "status:needs-plan",
+		ToLabel:   "status:planning",
 	}, nil
 }
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,8 +53,8 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 					State:     github.String("open"),
 					HTMLURL:   github.String("https://github.com/douhashi/osoba/issues/1"),
 					Body:      github.String("This is a bug report"),
-					CreatedAt: &github.Timestamp{Time: mustParseTime("2024-01-01T00:00:00Z")},
-					UpdatedAt: &github.Timestamp{Time: mustParseTime("2024-01-02T00:00:00Z")},
+					CreatedAt: timePtr(mustParseTime("2024-01-01T00:00:00Z")),
+					UpdatedAt: timePtr(mustParseTime("2024-01-02T00:00:00Z")),
 					User: &github.User{
 						Login: github.String("user1"),
 					},
@@ -131,8 +131,8 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 					State:     github.String("open"),
 					HTMLURL:   github.String("https://github.com/douhashi/osoba/issues/1"),
 					Body:      github.String("This is a bug report"),
-					CreatedAt: &github.Timestamp{Time: mustParseTime("2024-01-01T00:00:00Z")},
-					UpdatedAt: &github.Timestamp{Time: mustParseTime("2024-01-02T00:00:00Z")},
+					CreatedAt: timePtr(mustParseTime("2024-01-01T00:00:00Z")),
+					UpdatedAt: timePtr(mustParseTime("2024-01-02T00:00:00Z")),
 					User: &github.User{
 						Login: github.String("user1"),
 					},
@@ -150,8 +150,8 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 					State:     github.String("open"),
 					HTMLURL:   github.String("https://github.com/douhashi/osoba/issues/2"),
 					Body:      github.String("This is a feature request"),
-					CreatedAt: &github.Timestamp{Time: mustParseTime("2024-01-03T00:00:00Z")},
-					UpdatedAt: &github.Timestamp{Time: mustParseTime("2024-01-04T00:00:00Z")},
+					CreatedAt: timePtr(mustParseTime("2024-01-03T00:00:00Z")),
+					UpdatedAt: timePtr(mustParseTime("2024-01-04T00:00:00Z")),
 					User: &github.User{
 						Login: github.String("user2"),
 					},
@@ -198,8 +198,8 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 					State:     github.String("closed"),
 					HTMLURL:   github.String("https://github.com/douhashi/osoba/issues/3"),
 					Body:      github.String("This was fixed"),
-					CreatedAt: &github.Timestamp{Time: mustParseTime("2024-01-01T00:00:00Z")},
-					UpdatedAt: &github.Timestamp{Time: mustParseTime("2024-01-02T00:00:00Z")},
+					CreatedAt: timePtr(mustParseTime("2024-01-01T00:00:00Z")),
+					UpdatedAt: timePtr(mustParseTime("2024-01-02T00:00:00Z")),
 					User: &github.User{
 						Login: github.String("user1"),
 					},
@@ -302,8 +302,8 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 					State:     github.String("open"),
 					HTMLURL:   github.String("https://github.com/douhashi/osoba/issues/1"),
 					Body:      github.String("This is a critical bug"),
-					CreatedAt: &github.Timestamp{Time: mustParseTime("2024-01-01T00:00:00Z")},
-					UpdatedAt: &github.Timestamp{Time: mustParseTime("2024-01-02T00:00:00Z")},
+					CreatedAt: timePtr(mustParseTime("2024-01-01T00:00:00Z")),
+					UpdatedAt: timePtr(mustParseTime("2024-01-02T00:00:00Z")),
 					User: &github.User{
 						Login: github.String("user1"),
 					},
@@ -355,8 +355,8 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 				assert.Equal(t, *expected.State, *actual.State)
 				assert.Equal(t, *expected.HTMLURL, *actual.HTMLURL)
 				assert.Equal(t, *expected.Body, *actual.Body)
-				assert.Equal(t, expected.CreatedAt.Time, actual.CreatedAt.Time)
-				assert.Equal(t, expected.UpdatedAt.Time, actual.UpdatedAt.Time)
+				assert.Equal(t, expected.CreatedAt, actual.CreatedAt)
+				assert.Equal(t, expected.UpdatedAt, actual.UpdatedAt)
 				assert.Equal(t, *expected.User.Login, *actual.User.Login)
 
 				assert.Equal(t, len(expected.Labels), len(actual.Labels))
@@ -390,4 +390,8 @@ func mustParseTime(s string) time.Time {
 		panic(err)
 	}
 	return t
+}
+
+func timePtr(t time.Time) *time.Time {
+	return &t
 }

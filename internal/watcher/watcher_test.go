@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
-	gh "github.com/google/go-github/v67/github"
+	gh "github.com/douhashi/osoba/internal/github"
 )
 
 func TestNewIssueWatcher(t *testing.T) {
@@ -292,7 +292,7 @@ func TestIssueWatcher_GetRateLimit(t *testing.T) {
 	t.Run("正常系: レート制限情報を取得できる", func(t *testing.T) {
 		mockClient := &mockGitHubClient{
 			rateLimit: &gh.RateLimits{
-				Core: &gh.Rate{
+				Core: &gh.RateLimit{
 					Limit:     5000,
 					Remaining: 4999,
 				},
@@ -345,7 +345,7 @@ func (m *mockGitHubClient) GetRateLimit(ctx context.Context) (*gh.RateLimits, er
 		return m.rateLimit, nil
 	}
 	return &gh.RateLimits{
-		Core: &gh.Rate{
+		Core: &gh.RateLimit{
 			Limit:     5000,
 			Remaining: 5000,
 		},

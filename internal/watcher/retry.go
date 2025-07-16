@@ -7,11 +7,10 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"net/http"
 	"strings"
 	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
 )
 
 // RetryWithBackoff は指数バックオフでリトライを実行する
@@ -94,13 +93,13 @@ func IsRetryableError(err error) bool {
 
 	// GitHub APIのエラーレスポンス
 	var errResp *github.ErrorResponse
-	if errors.As(err, &errResp) && errResp.Response != nil {
-		// 5xxエラーはリトライ可能
-		if errResp.Response.StatusCode >= 500 && errResp.Response.StatusCode < 600 {
+	if errors.As(err, &errResp) {
+		// エラーメッセージでサーバーエラーやレート制限を判定
+		msg := strings.ToLower(errResp.Message)
+		if strings.Contains(msg, "server error") || strings.Contains(msg, "internal server error") || strings.Contains(msg, "service unavailable") || strings.Contains(msg, "bad gateway") {
 			return true
 		}
-		// 429 Too Many Requestsもリトライ可能
-		if errResp.Response.StatusCode == http.StatusTooManyRequests {
+		if strings.Contains(msg, "rate limit") || strings.Contains(msg, "too many requests") {
 			return true
 		}
 	}
@@ -149,7 +148,7 @@ func HandleRateLimitError(err error) (time.Duration, bool) {
 	}
 
 	// リセット時刻が設定されている場合
-	resetTime := rateLimitErr.Rate.Reset.Time
+	resetTime := rateLimitErr.Rate.Reset
 	if !resetTime.IsZero() {
 		sleepDuration := time.Until(resetTime)
 		if sleepDuration > 0 {

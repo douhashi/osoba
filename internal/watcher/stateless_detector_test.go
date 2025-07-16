@@ -3,7 +3,7 @@ package watcher
 import (
 	"testing"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
 	"github.com/stretchr/testify/assert"
 )
 

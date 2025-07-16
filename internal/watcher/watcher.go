@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
-	gh "github.com/google/go-github/v67/github"
+	gh "github.com/douhashi/osoba/internal/github"
 )
 
 // IssueCallback はIssue検出時に呼ばれるコールバック関数
@@ -142,7 +142,7 @@ func (w *IssueWatcher) StartWithActions(ctx context.Context) {
 	callback := func(issue *gh.Issue) {
 		// ActionManagerを使用してアクションを実行
 		if err := w.actionManager.ExecuteAction(ctx, issue); err != nil {
-			log.Printf("Failed to execute action for issue #%d: %v", issue.GetNumber(), err)
+			log.Printf("Failed to execute action for issue #%d: %v", *issue.Number, err)
 		}
 	}
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,10 +21,9 @@ func TestNewClient(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "異常系: 空のトークンでエラーになる",
+			name:    "正常系: 空のトークンでも作成できる（ghコマンドが環境変数で管理）",
 			token:   "",
-			wantErr: true,
-			errMsg:  "GitHub token is required",
+			wantErr: false,
 		},
 	}
 
@@ -79,9 +77,7 @@ func TestClient_GetRepository(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// バリデーションエラーのテスト
-			client := &Client{
-				github: github.NewClient(nil),
-			}
+			client, _ := NewClient("")
 
 			repo, err := client.GetRepository(ctx, tt.owner, tt.repo)
 			if (err != nil) != tt.wantErr {
@@ -135,9 +131,7 @@ func TestClient_ListIssuesByLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// バリデーションエラーのテスト
-			client := &Client{
-				github: github.NewClient(nil),
-			}
+			client, _ := NewClient("")
 
 			_, err := client.ListIssuesByLabels(ctx, tt.owner, tt.repo, tt.labels)
 			if (err != nil) != tt.wantErr {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/douhashi/osoba/internal/github"
 )
 
 // ListIssuesByLabels は指定されたラベルのいずれかを持つIssueを取得する（OR条件）
@@ -41,7 +41,7 @@ func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, lab
 		for _, ghIssue := range ghIssues {
 			issueNumber := ghIssue.Number
 			if _, exists := issueMap[issueNumber]; !exists {
-				issueMap[issueNumber] = convertToGitHubIssue(ghIssue)
+				issueMap[issueNumber] = convertToIssue(ghIssue)
 			}
 		}
 	}
@@ -55,8 +55,8 @@ func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, lab
 	return issues, nil
 }
 
-// convertToGitHubIssue は ghIssue を github.Issue に変換する
-func convertToGitHubIssue(ghIssue ghIssue) *github.Issue {
+// convertToIssue は ghIssue を github.Issue に変換する
+func convertToIssue(ghIssue ghIssue) *github.Issue {
 	// ステートを正規化（OPEN -> open, CLOSED -> closed）
 	state := strings.ToLower(ghIssue.State)
 
@@ -66,8 +66,8 @@ func convertToGitHubIssue(ghIssue ghIssue) *github.Issue {
 		State:     github.String(state),
 		HTMLURL:   github.String(ghIssue.URL),
 		Body:      github.String(ghIssue.Body),
-		CreatedAt: &github.Timestamp{Time: ghIssue.CreatedAt},
-		UpdatedAt: &github.Timestamp{Time: ghIssue.UpdatedAt},
+		CreatedAt: &ghIssue.CreatedAt,
+		UpdatedAt: &ghIssue.UpdatedAt,
 		User: &github.User{
 			Login: github.String(ghIssue.Author.Login),
 		},
