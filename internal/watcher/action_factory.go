@@ -18,7 +18,7 @@ type ActionFactory interface {
 // DefaultActionFactory はデフォルトのActionFactory実装
 type DefaultActionFactory struct {
 	sessionName     string
-	ghClient        *github.Client
+	ghClient        github.GitHubClient
 	worktreeManager git.WorktreeManager
 	claudeExecutor  claude.ClaudeExecutor
 	claudeConfig    *claude.ClaudeConfig
@@ -31,7 +31,7 @@ type DefaultActionFactory struct {
 // NewDefaultActionFactory は新しいDefaultActionFactoryを作成する
 func NewDefaultActionFactory(
 	sessionName string,
-	ghClient *github.Client,
+	ghClient github.GitHubClient,
 	worktreeManager git.WorktreeManager,
 	claudeExecutor claude.ClaudeExecutor,
 	claudeConfig *claude.ClaudeConfig,
@@ -54,9 +54,17 @@ func NewDefaultActionFactory(
 
 // CreatePlanAction は計画フェーズのアクションを作成する
 func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
-	// GitHub APIのIssuesServiceを取得
-	issuesService := f.ghClient.GetIssuesService()
-	if issuesService == nil {
+	// 具体的なClient型かチェックしてLabelTransitionerを作成
+	var labelTransitioner github.LabelTransitioner
+	if apiClient, ok := f.ghClient.(*github.Client); ok {
+		// APIクライアントの場合
+		issuesService := apiClient.GetIssuesService()
+		if issuesService != nil {
+			labelTransitioner = github.NewLabelTransitioner(issuesService, f.owner, f.repo)
+		}
+	}
+
+	if labelTransitioner == nil {
 		// フォールバック：PhaseTransitionerなしで作成
 		return actions.NewPlanAction(
 			f.sessionName,
@@ -67,9 +75,6 @@ func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
 			f.claudeConfig,
 		)
 	}
-
-	// LabelTransitionerを作成
-	labelTransitioner := github.NewLabelTransitioner(issuesService, f.owner, f.repo)
 
 	// GitHubAdapterを作成
 	githubAdapter := actions.NewGitHubAdapter(f.ghClient, f.owner, f.repo, labelTransitioner)
@@ -97,9 +102,17 @@ func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 		GitHubClient: f.ghClient,
 	}
 
-	// GitHub APIのIssuesServiceを取得
-	issuesService := f.ghClient.GetIssuesService()
-	if issuesService == nil {
+	// 具体的なClient型かチェックしてLabelTransitionerを作成
+	var labelTransitioner github.LabelTransitioner
+	if apiClient, ok := f.ghClient.(*github.Client); ok {
+		// APIクライアントの場合
+		issuesService := apiClient.GetIssuesService()
+		if issuesService != nil {
+			labelTransitioner = github.NewLabelTransitioner(issuesService, f.owner, f.repo)
+		}
+	}
+
+	if labelTransitioner == nil {
 		// フォールバック：従来のLabelManagerのみを使用
 		return actions.NewImplementationAction(
 			f.sessionName,
@@ -111,9 +124,6 @@ func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 			f.claudeConfig,
 		)
 	}
-
-	// LabelTransitionerを作成
-	labelTransitioner := github.NewLabelTransitioner(issuesService, f.owner, f.repo)
 
 	// GitHubAdapterを作成
 	githubAdapter := actions.NewGitHubAdapter(f.ghClient, f.owner, f.repo, labelTransitioner)
@@ -142,9 +152,17 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 		GitHubClient: f.ghClient,
 	}
 
-	// GitHub APIのIssuesServiceを取得
-	issuesService := f.ghClient.GetIssuesService()
-	if issuesService == nil {
+	// 具体的なClient型かチェックしてLabelTransitionerを作成
+	var labelTransitioner github.LabelTransitioner
+	if apiClient, ok := f.ghClient.(*github.Client); ok {
+		// APIクライアントの場合
+		issuesService := apiClient.GetIssuesService()
+		if issuesService != nil {
+			labelTransitioner = github.NewLabelTransitioner(issuesService, f.owner, f.repo)
+		}
+	}
+
+	if labelTransitioner == nil {
 		// フォールバック：従来のLabelManagerのみを使用
 		return actions.NewReviewAction(
 			f.sessionName,
@@ -156,9 +174,6 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 			f.claudeConfig,
 		)
 	}
-
-	// LabelTransitionerを作成
-	labelTransitioner := github.NewLabelTransitioner(issuesService, f.owner, f.repo)
 
 	// GitHubAdapterを作成
 	githubAdapter := actions.NewGitHubAdapter(f.ghClient, f.owner, f.repo, labelTransitioner)

@@ -9,7 +9,7 @@ import (
 
 // DefaultLabelManager はデフォルトのラベル管理実装
 type DefaultLabelManager struct {
-	GitHubClient *github.Client
+	GitHubClient github.GitHubClient
 }
 
 // TransitionLabel はラベルを遷移させる
