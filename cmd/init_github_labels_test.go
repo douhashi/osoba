@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/douhashi/osoba/internal/utils"
 )
 
 func TestInitCmd_GitHubLabelManagement(t *testing.T) {
@@ -19,6 +21,7 @@ func TestInitCmd_GitHubLabelManagement(t *testing.T) {
 	origWriteFile := writeFileFunc
 	origGetRemoteURL := getRemoteURLFunc
 	origGitHubClient := createGitHubClientFunc
+	origGetGitHubRepoInfo := getGitHubRepoInfoFunc
 	defer func() {
 		isGitRepositoryFunc = origIsGitRepo
 		checkCommandFunc = origCheckCommand
@@ -28,6 +31,7 @@ func TestInitCmd_GitHubLabelManagement(t *testing.T) {
 		writeFileFunc = origWriteFile
 		getRemoteURLFunc = origGetRemoteURL
 		createGitHubClientFunc = origGitHubClient
+		getGitHubRepoInfoFunc = origGetGitHubRepoInfo
 	}()
 
 	// 基本的なモックを設定
@@ -51,6 +55,12 @@ func TestInitCmd_GitHubLabelManagement(t *testing.T) {
 	}
 	getRemoteURLFunc = func(remoteName string) (string, error) {
 		return "https://github.com/douhashi/osoba.git", nil
+	}
+	getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+		return &utils.GitHubRepoInfo{
+			Owner: "douhashi",
+			Repo:  "osoba",
+		}, nil
 	}
 
 	tests := []struct {
@@ -139,13 +149,17 @@ func TestInitCmd_GitHubLabelManagement(t *testing.T) {
 					}
 					return ""
 				}
-				getRemoteURLFunc = func(remoteName string) (string, error) {
-					return "", fmt.Errorf("not a git repository")
+				getGitHubRepoInfoFunc = func(ctx context.Context) (*utils.GitHubRepoInfo, error) {
+					return nil, &utils.GetGitHubRepoInfoError{
+						Step:    "remote_url",
+						Cause:   fmt.Errorf("not a git repository"),
+						Message: "リモートURL取得に失敗しました",
+					}
 				}
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"⚠️  GitリモートURLの取得に失敗しました",
+				"⚠️  リモートURL取得に失敗しました",
 			},
 		},
 	}

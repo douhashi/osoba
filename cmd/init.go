@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -35,6 +36,7 @@ var (
 		client, _ := github.NewClient(token)
 		return client
 	}
+	getGitHubRepoInfoFunc = utils.GetGitHubRepoInfo
 )
 
 // isGitRepository は指定されたパスがgitリポジトリかを確認する
@@ -328,18 +330,30 @@ func setupGitHubLabels(out, errOut io.Writer) {
 		return // Tokenがない場合はスキップ
 	}
 
-	// リポジトリ情報の取得
-	origin, err := GetRemoteURL("origin")
+	// リポジトリ情報の取得（共通関数を使用）
+	ctx := context.Background()
+	repoInfo, err := getGitHubRepoInfoFunc(ctx)
 	if err != nil {
 		fmt.Fprintln(out, "⚠️")
-		fmt.Fprintf(errOut, "⚠️  GitリモートURLの取得に失敗しました: %v\n", err)
-		return
-	}
-
-	owner, repo := parseGitHubURL(origin)
-	if owner == "" || repo == "" {
-		fmt.Fprintln(out, "⚠️")
-		fmt.Fprintf(errOut, "⚠️  GitHubリポジトリ情報の解析に失敗しました\n")
+		// 詳細なエラーメッセージを表示
+		if repoErr, ok := err.(*utils.GetGitHubRepoInfoError); ok {
+			switch repoErr.Step {
+			case "working_directory":
+				fmt.Fprintf(errOut, "⚠️  作業ディレクトリの取得に失敗しました: %v\n", repoErr.Cause)
+			case "git_directory":
+				fmt.Fprintf(errOut, "⚠️  Gitリポジトリが見つかりません。Gitリポジトリのルートディレクトリで実行してください\n")
+			case "remote_url":
+				fmt.Fprintf(errOut, "⚠️  リモートURL取得に失敗しました: %v\n", repoErr.Cause)
+				fmt.Fprintf(errOut, "   'git remote add origin <URL>' でリモートを設定してください\n")
+			case "url_parsing":
+				fmt.Fprintf(errOut, "⚠️  GitHubリポジトリ情報の解析に失敗しました: %v\n", repoErr.Cause)
+				fmt.Fprintf(errOut, "   GitHubのリポジトリURLが正しく設定されているか確認してください\n")
+			default:
+				fmt.Fprintf(errOut, "⚠️  GitHubリポジトリ情報の取得に失敗しました: %v\n", err)
+			}
+		} else {
+			fmt.Fprintf(errOut, "⚠️  GitHubリポジトリ情報の取得に失敗しました: %v\n", err)
+		}
 		return
 	}
 
@@ -347,8 +361,7 @@ func setupGitHubLabels(out, errOut io.Writer) {
 	client := createGitHubClientFunc(token)
 
 	// ラベルの作成のためにgithub.Clientを使用
-	ctx := context.Background()
-	if err := client.EnsureLabelsExist(ctx, owner, repo); err != nil {
+	if err := client.EnsureLabelsExist(ctx, repoInfo.Owner, repoInfo.Repo); err != nil {
 		fmt.Fprintln(out, "⚠️")
 		fmt.Fprintf(errOut, "⚠️  GitHubラベルの作成に失敗しました: %v\n", err)
 		fmt.Fprintln(errOut, "   手動でラベルを作成してください")
