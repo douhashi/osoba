@@ -127,7 +127,10 @@ func (c *Config) Load(configPath string) error {
 }
 
 // LoadOrDefault は設定ファイルを読み込み、失敗した場合はデフォルト値を使用する
-func (c *Config) LoadOrDefault(configPath string) {
+// 実際に読み込んだファイルパスを返す（読み込まなかった場合は空文字列）
+func (c *Config) LoadOrDefault(configPath string) string {
+	actualPath := configPath
+
 	// configPathが空の場合はデフォルトパスを試す
 	if configPath == "" {
 		home, err := os.UserHomeDir()
@@ -142,7 +145,7 @@ func (c *Config) LoadOrDefault(configPath string) {
 
 			for _, path := range defaultPaths {
 				if _, err := os.Stat(path); err == nil {
-					configPath = path
+					actualPath = path
 					break
 				}
 			}
@@ -150,10 +153,13 @@ func (c *Config) LoadOrDefault(configPath string) {
 	}
 
 	// 設定ファイルが見つかった場合は読み込む
-	if configPath != "" {
-		if _, err := os.Stat(configPath); err == nil {
+	if actualPath != "" {
+		if _, err := os.Stat(actualPath); err == nil {
 			// 設定ファイルを読み込む（エラーは無視）
-			_ = c.Load(configPath)
+			if err := c.Load(actualPath); err == nil {
+				// 読み込み成功時のみパスを返す
+				return actualPath
+			}
 		}
 	}
 
@@ -161,6 +167,8 @@ func (c *Config) LoadOrDefault(configPath string) {
 	if c.Claude == nil {
 		c.Claude = claude.NewDefaultClaudeConfig()
 	}
+
+	return ""
 }
 
 // Validate は設定の妥当性を検証する

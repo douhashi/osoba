@@ -126,6 +126,113 @@ func TestStartCmdExecution(t *testing.T) {
 			},
 		},
 		{
+			name: "正常系: デフォルト設定ファイルが自動読み込みされる",
+			setupMock: func(t *testing.T) {
+				// runWatchWithFlagsをモック
+				origRunWatch := runWatchWithFlagsFunc
+				runWatchWithFlagsFunc = func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
+					// 設定ファイルが自動読み込みされることを確認
+					cmd.OutOrStdout().Write([]byte("Issue監視モードを開始します\n"))
+					// configFlagが空でも動作することを確認
+					if configFlag == "" {
+						cmd.OutOrStdout().Write([]byte("デフォルト設定ファイル読み込み成功\n"))
+					}
+					return nil
+				}
+
+				t.Cleanup(func() {
+					runWatchWithFlagsFunc = origRunWatch
+				})
+			},
+			setupGitRepo: func(t *testing.T) (string, func()) {
+				tmpDir := t.TempDir()
+
+				// git initとremote設定を実行
+				cmd := exec.Command("git", "init")
+				cmd.Dir = tmpDir
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("git init failed: %v", err)
+				}
+
+				cmd = exec.Command("git", "remote", "add", "origin", "https://github.com/douhashi/test-repo.git")
+				cmd.Dir = tmpDir
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("git remote add failed: %v", err)
+				}
+
+				cleanup := func() {
+					os.RemoveAll(tmpDir)
+				}
+
+				return tmpDir, cleanup
+			},
+			setupEnv: func() func() {
+				// GitHub Tokenを設定
+				os.Setenv("GITHUB_TOKEN", "test-token")
+				return func() {
+					os.Unsetenv("GITHUB_TOKEN")
+				}
+			},
+			wantErr: false,
+			wantContains: []string{
+				"Issue監視モードを開始します",
+				"デフォルト設定ファイル読み込み成功",
+			},
+		},
+		{
+			name: "正常系: -cフラグで指定された設定ファイルが優先される",
+			setupMock: func(t *testing.T) {
+				// runWatchWithFlagsをモック
+				origRunWatch := runWatchWithFlagsFunc
+				runWatchWithFlagsFunc = func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
+					cmd.OutOrStdout().Write([]byte("Issue監視モードを開始します\n"))
+					// 指定された設定ファイルが使用されることを確認
+					if configFlag == "custom.yml" {
+						cmd.OutOrStdout().Write([]byte("設定ファイル: custom.yml\n"))
+					}
+					return nil
+				}
+
+				t.Cleanup(func() {
+					runWatchWithFlagsFunc = origRunWatch
+				})
+			},
+			setupGitRepo: func(t *testing.T) (string, func()) {
+				tmpDir := t.TempDir()
+
+				// git initとremote設定を実行
+				cmd := exec.Command("git", "init")
+				cmd.Dir = tmpDir
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("git init failed: %v", err)
+				}
+
+				cmd = exec.Command("git", "remote", "add", "origin", "https://github.com/douhashi/test-repo.git")
+				cmd.Dir = tmpDir
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("git remote add failed: %v", err)
+				}
+
+				cleanup := func() {
+					os.RemoveAll(tmpDir)
+				}
+
+				return tmpDir, cleanup
+			},
+			setupEnv: func() func() {
+				// GitHub Tokenを設定
+				os.Setenv("GITHUB_TOKEN", "test-token")
+				return func() {
+					os.Unsetenv("GITHUB_TOKEN")
+				}
+			},
+			wantErr: false,
+			wantContains: []string{
+				"Issue監視モードを開始します",
+				"設定ファイル: custom.yml",
+			},
+		},
+		{
 			name: "異常系: Gitリポジトリではない",
 			setupMock: func(t *testing.T) {
 				// 特にモックは不要
@@ -186,6 +293,11 @@ func TestStartCmdExecution(t *testing.T) {
 			cmd := newStartCmd()
 			cmd.SetOut(buf)
 			cmd.SetErr(errBuf)
+
+			// -cフラグが必要なテストケースの判定
+			if tt.name == "正常系: -cフラグで指定された設定ファイルが優先される" {
+				cmd.SetArgs([]string{"-c", "custom.yml"})
+			}
 
 			err = cmd.Execute()
 

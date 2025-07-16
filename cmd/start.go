@@ -50,15 +50,18 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 
 	// 設定を読み込む
 	cfg := config.NewConfig()
-	if configFlag != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "設定ファイル: %s\n", configFlag)
-		if err := cfg.Load(configFlag); err != nil {
-			return fmt.Errorf("設定ファイルの読み込みに失敗: %w", err)
+	// LoadOrDefaultを使用してデフォルト設定ファイルも読み込む
+	actualConfigPath := cfg.LoadOrDefault(configFlag)
+
+	// 設定ファイルの使用状況をログに出力
+	if actualConfigPath != "" {
+		if configFlag != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "設定ファイル: %s (指定されたファイル)\n", actualConfigPath)
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "設定ファイル: %s (デフォルト)\n", actualConfigPath)
 		}
 	} else {
-		// 設定ファイルが指定されていない場合、GetGitHubTokenで自動取得
-		token, _ := config.GetGitHubToken(cfg)
-		cfg.GitHub.Token = token
+		fmt.Fprintln(cmd.OutOrStdout(), "設定ファイル: なし (デフォルト値を使用)")
 	}
 
 	// ポーリング間隔を設定
@@ -68,7 +71,20 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 			return fmt.Errorf("不正なポーリング間隔: %w", err)
 		}
 		cfg.GitHub.PollInterval = interval
-		fmt.Fprintf(cmd.OutOrStdout(), "ポーリング間隔: %s\n", interval)
+	}
+
+	// 設定値の詳細をログ出力
+	fmt.Fprintln(cmd.OutOrStdout(), "\n設定値:")
+	fmt.Fprintf(cmd.OutOrStdout(), "  ポーリング間隔: %s\n", cfg.GitHub.PollInterval)
+
+	// トークンの取得元を表示
+	token, source := config.GetGitHubToken(cfg)
+	if token != "" {
+		// トークンの最初の3文字と長さを表示（セキュリティのため全体は表示しない）
+		maskedToken := fmt.Sprintf("%s... (長さ: %d文字)", token[:3], len(token))
+		fmt.Fprintf(cmd.OutOrStdout(), "  GitHubトークン: %s (取得元: %s)\n", maskedToken, source)
+	} else {
+		fmt.Fprintln(cmd.OutOrStdout(), "  GitHubトークン: 未設定")
 	}
 
 	// 設定の検証
