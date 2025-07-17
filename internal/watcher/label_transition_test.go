@@ -183,6 +183,7 @@ func TestExecuteLabelTransition(t *testing.T) {
 				client: mockClient,
 				owner:  "owner",
 				repo:   "repo",
+				logger: NewMockLogger(),
 			}
 
 			err := watcher.executeLabelTransition(context.Background(), tt.issue)
