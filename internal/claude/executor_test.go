@@ -124,3 +124,149 @@ func TestClaudeExecutor_ExecuteInTmux(t *testing.T) {
 		_ = executor.ExecuteInTmux(context.Background(), config, vars, sessionName, windowName, workdir)
 	})
 }
+
+func TestClaudeExecutor_WithLogger(t *testing.T) {
+	t.Run("loggerが正しく設定される", func(t *testing.T) {
+		ml := newMockLogger()
+		executor := NewClaudeExecutorWithLogger(ml)
+
+		// 型アサーションでDefaultClaudeExecutorにアクセス
+		defaultExecutor, ok := executor.(*DefaultClaudeExecutor)
+		assert.True(t, ok, "executor should be *DefaultClaudeExecutor")
+		assert.Equal(t, ml, defaultExecutor.logger)
+	})
+
+	t.Run("nilロガーでエラー", func(t *testing.T) {
+		executor := NewClaudeExecutorWithLogger(nil)
+		assert.Nil(t, executor, "executor should be nil when logger is nil")
+	})
+}
+
+func TestClaudeExecutor_LoggingBehavior(t *testing.T) {
+	t.Run("ExecuteInWorktreeでのログ出力", func(t *testing.T) {
+		ml := newMockLogger()
+		executor := &DefaultClaudeExecutor{
+			logger: ml,
+		}
+
+		config := &PhaseConfig{
+			Args:   []string{"--test"},
+			Prompt: "/osoba:test {{issue-number}}",
+		}
+		vars := &TemplateVariables{
+			IssueNumber: 123,
+		}
+		workdir := "/test/dir"
+
+		// Claudeコマンドの実行をテスト
+		err := executor.ExecuteInWorktree(context.Background(), config, vars, workdir)
+
+		// Claudeコマンドが存在する場合はInfoログ、存在しない場合はエラーログが記録される
+		if err != nil {
+			// エラーログが記録されているか確認
+			hasErrorLog := false
+			for _, call := range ml.errorCalls {
+				if call.msg == "Claude command not found" || call.msg == "Failed to execute Claude" {
+					hasErrorLog = true
+					break
+				}
+			}
+			assert.True(t, hasErrorLog, "Should log error when claude execution fails")
+		} else {
+			// 成功した場合はInfoログが記録されているか確認
+			hasInfoLog := false
+			for _, call := range ml.infoCalls {
+				if call.msg == "Executing Claude in worktree" || call.msg == "Claude execution completed successfully" {
+					hasInfoLog = true
+					break
+				}
+			}
+			assert.True(t, hasInfoLog, "Should log info when claude execution succeeds")
+		}
+	})
+
+	t.Run("ExecuteInTmuxでのログ出力", func(t *testing.T) {
+		ml := newMockLogger()
+		executor := &DefaultClaudeExecutor{
+			logger: ml,
+		}
+
+		config := &PhaseConfig{
+			Args:   []string{"--test"},
+			Prompt: "/osoba:test {{issue-number}}",
+		}
+		vars := &TemplateVariables{
+			IssueNumber: 123,
+		}
+		sessionName := "test-session"
+		windowName := "test-window"
+		workdir := "/test/dir"
+
+		// Claudeコマンドの実行をテスト
+		err := executor.ExecuteInTmux(context.Background(), config, vars, sessionName, windowName, workdir)
+
+		// Claudeコマンドが存在する場合はInfoログ、存在しない場合はエラーログが記録される
+		if err != nil {
+			// エラーログが記録されているか確認
+			hasErrorLog := false
+			for _, call := range ml.errorCalls {
+				if call.msg == "Claude command not found" || call.msg == "Failed to execute Claude in tmux" {
+					hasErrorLog = true
+					break
+				}
+			}
+			assert.True(t, hasErrorLog, "Should log error when claude execution fails")
+		} else {
+			// 成功した場合はInfoログが記録されているか確認
+			hasInfoLog := false
+			for _, call := range ml.infoCalls {
+				if call.msg == "Executing Claude in tmux window" || call.msg == "Claude command sent to tmux window successfully" {
+					hasInfoLog = true
+					break
+				}
+			}
+			assert.True(t, hasInfoLog, "Should log info when claude execution succeeds")
+		}
+	})
+}
+
+func TestClaudeExecutor_SensitiveDataMasking(t *testing.T) {
+	t.Run("プロンプトに機密情報が含まれる場合のマスキング", func(t *testing.T) {
+		ml := newMockLogger()
+		executor := &DefaultClaudeExecutor{
+			logger: ml,
+		}
+
+		// APIキーやトークンを含むプロンプトのテスト
+		config := &PhaseConfig{
+			Args:   []string{"--test"},
+			Prompt: "Test with token: ghp_1234567890abcdefghijklmnopqrstuvwxyz and key: sk-proj-abcd1234567890abcdefghijklmnopqrstuvwxyz123456",
+		}
+		vars := &TemplateVariables{
+			IssueNumber: 123,
+		}
+		workdir := "/test/dir"
+
+		_ = executor.ExecuteInWorktree(context.Background(), config, vars, workdir)
+
+		// ログに機密情報が含まれていないことを確認
+		for _, call := range ml.infoCalls {
+			for _, v := range call.keysAndValues {
+				str, ok := v.(string)
+				if ok {
+					assert.NotContains(t, str, "ghp_1234567890abcdefghijklmnopqrstuvwxyz", "GitHub token should be masked")
+					assert.NotContains(t, str, "sk-proj-abcd1234567890abcdefghijklmnopqrstuvwxyz123456", "API key should be masked")
+				}
+			}
+		}
+		for _, call := range ml.debugCalls {
+			for _, v := range call.keysAndValues {
+				str, ok := v.(string)
+				if ok {
+					assert.NotContains(t, str, "ghp_1234567890abcdefghijklmnopqrstuvwxyz", "GitHub token should be masked")
+					assert.NotContains(t, str, "sk-proj-abcd1234567890abcdefghijklmnopqrstuvwxyz123456", "API key should be masked")
+				}
+			}
+		}
+	})
+}

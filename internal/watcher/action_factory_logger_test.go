@@ -73,7 +73,8 @@ func TestActionFactoryWithLogger(t *testing.T) {
 		sessionName := "test-session"
 		ghClient := &github.Client{}
 		worktreeManager := &MockWorktreeManager{}
-		claudeExecutor := claude.NewClaudeExecutor()
+		ml := NewMockLogger()
+		claudeExecutor := claude.NewClaudeExecutorWithLogger(ml)
 		claudeConfig := &claude.ClaudeConfig{}
 
 		// Act
@@ -100,11 +101,12 @@ func TestActionFactoryWithLogger(t *testing.T) {
 	t.Run("PlanActionにloggerが注入されること", func(t *testing.T) {
 		// Arrange
 		testLogger, buf := createTestLogger()
+		ml2 := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
 			ghClient:        &github.Client{},
 			worktreeManager: &MockWorktreeManager{},
-			claudeExecutor:  claude.NewClaudeExecutor(),
+			claudeExecutor:  claude.NewClaudeExecutorWithLogger(ml2),
 			claudeConfig:    &claude.ClaudeConfig{},
 			stateManager:    NewIssueStateManager(),
 			logger:          testLogger,
@@ -124,11 +126,12 @@ func TestActionFactoryWithLogger(t *testing.T) {
 	t.Run("ImplementationActionにloggerが注入されること", func(t *testing.T) {
 		// Arrange
 		testLogger, buf := createTestLogger()
+		ml2 := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
 			ghClient:        &github.Client{},
 			worktreeManager: &MockWorktreeManager{},
-			claudeExecutor:  claude.NewClaudeExecutor(),
+			claudeExecutor:  claude.NewClaudeExecutorWithLogger(ml2),
 			claudeConfig:    &claude.ClaudeConfig{},
 			stateManager:    NewIssueStateManager(),
 			config:          config.NewConfig(),
@@ -148,11 +151,12 @@ func TestActionFactoryWithLogger(t *testing.T) {
 	t.Run("ReviewActionにloggerが注入されること", func(t *testing.T) {
 		// Arrange
 		testLogger, buf := createTestLogger()
+		ml2 := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
 			ghClient:        &github.Client{},
 			worktreeManager: &MockWorktreeManager{},
-			claudeExecutor:  claude.NewClaudeExecutor(),
+			claudeExecutor:  claude.NewClaudeExecutorWithLogger(ml2),
 			claudeConfig:    &claude.ClaudeConfig{},
 			stateManager:    NewIssueStateManager(),
 			config:          config.NewConfig(),
@@ -171,11 +175,12 @@ func TestActionFactoryWithLogger(t *testing.T) {
 
 	t.Run("logger未設定時のデフォルト動作", func(t *testing.T) {
 		// Arrange
+		ml2 := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
 			ghClient:        &github.Client{},
 			worktreeManager: &MockWorktreeManager{},
-			claudeExecutor:  claude.NewClaudeExecutor(),
+			claudeExecutor:  claude.NewClaudeExecutorWithLogger(ml2),
 			claudeConfig:    &claude.ClaudeConfig{},
 			stateManager:    NewIssueStateManager(),
 			// logger: nil (未設定)

@@ -48,7 +48,8 @@ func TestActionFactory(t *testing.T) {
 		sessionName := "test-session"
 		ghClient := &github.Client{}
 		worktreeManager := &MockWorktreeManager{}
-		claudeExecutor := claude.NewClaudeExecutor()
+		ml := NewMockLogger()
+		claudeExecutor := claude.NewClaudeExecutorWithLogger(ml)
 		claudeConfig := &claude.ClaudeConfig{}
 
 		// Act
@@ -75,11 +76,12 @@ func TestActionFactory(t *testing.T) {
 
 	t.Run("CreatePlanActionの作成", func(t *testing.T) {
 		// Arrange
+		ml := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
 			ghClient:        &github.Client{},
 			worktreeManager: &MockWorktreeManager{},
-			claudeExecutor:  claude.NewClaudeExecutor(),
+			claudeExecutor:  claude.NewClaudeExecutorWithLogger(ml),
 			claudeConfig:    &claude.ClaudeConfig{},
 			stateManager:    NewIssueStateManager(),
 		}
@@ -94,11 +96,12 @@ func TestActionFactory(t *testing.T) {
 	t.Run("CreatePlanActionの作成 - ghクライアント", func(t *testing.T) {
 		// Arrange
 		mockGhClient := &mockGitHubClient{}
+		ml := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
 			ghClient:        mockGhClient,
 			worktreeManager: &MockWorktreeManager{},
-			claudeExecutor:  claude.NewClaudeExecutor(),
+			claudeExecutor:  claude.NewClaudeExecutorWithLogger(ml),
 			claudeConfig:    &claude.ClaudeConfig{},
 			stateManager:    NewIssueStateManager(),
 			config:          config.NewConfig(),
@@ -118,11 +121,12 @@ func TestActionFactory(t *testing.T) {
 
 	t.Run("CreateImplementationActionの作成", func(t *testing.T) {
 		// Arrange
+		ml := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
 			ghClient:        &github.Client{},
 			worktreeManager: &MockWorktreeManager{},
-			claudeExecutor:  claude.NewClaudeExecutor(),
+			claudeExecutor:  claude.NewClaudeExecutorWithLogger(ml),
 			claudeConfig:    &claude.ClaudeConfig{},
 			stateManager:    NewIssueStateManager(),
 		}
@@ -137,11 +141,12 @@ func TestActionFactory(t *testing.T) {
 	t.Run("CreateImplementationActionの作成 - ghクライアント", func(t *testing.T) {
 		// Arrange
 		mockGhClient := &mockGitHubClient{}
+		ml := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
 			ghClient:        mockGhClient,
 			worktreeManager: &MockWorktreeManager{},
-			claudeExecutor:  claude.NewClaudeExecutor(),
+			claudeExecutor:  claude.NewClaudeExecutorWithLogger(ml),
 			claudeConfig:    &claude.ClaudeConfig{},
 			stateManager:    NewIssueStateManager(),
 			config:          config.NewConfig(),
@@ -158,11 +163,12 @@ func TestActionFactory(t *testing.T) {
 
 	t.Run("CreateReviewActionの作成", func(t *testing.T) {
 		// Arrange
+		ml := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
 			ghClient:        &github.Client{},
 			worktreeManager: &MockWorktreeManager{},
-			claudeExecutor:  claude.NewClaudeExecutor(),
+			claudeExecutor:  claude.NewClaudeExecutorWithLogger(ml),
 			claudeConfig:    &claude.ClaudeConfig{},
 			stateManager:    NewIssueStateManager(),
 		}
@@ -177,11 +183,12 @@ func TestActionFactory(t *testing.T) {
 	t.Run("CreateReviewActionの作成 - ghクライアント", func(t *testing.T) {
 		// Arrange
 		mockGhClient := &mockGitHubClient{}
+		ml := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
 			ghClient:        mockGhClient,
 			worktreeManager: &MockWorktreeManager{},
-			claudeExecutor:  claude.NewClaudeExecutor(),
+			claudeExecutor:  claude.NewClaudeExecutorWithLogger(ml),
 			claudeConfig:    &claude.ClaudeConfig{},
 			stateManager:    NewIssueStateManager(),
 			config:          config.NewConfig(),
@@ -202,11 +209,12 @@ func TestActionFactory(t *testing.T) {
 // TestDefaultLabelManager_OwnerRepoNotSet はowner/repoが設定されていない場合の動作を確認
 func TestDefaultLabelManager_OwnerRepoNotSet(t *testing.T) {
 	// Arrange
+	ml := NewMockLogger()
 	factory := &DefaultActionFactory{
 		sessionName:     "test-session",
 		ghClient:        &github.Client{},
 		worktreeManager: &MockWorktreeManager{},
-		claudeExecutor:  claude.NewClaudeExecutor(),
+		claudeExecutor:  claude.NewClaudeExecutorWithLogger(ml),
 		claudeConfig:    &claude.ClaudeConfig{},
 		stateManager:    NewIssueStateManager(),
 		config:          config.NewConfig(),
