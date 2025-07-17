@@ -41,21 +41,22 @@ func (a *GitHubAdapter) TransitionLabel(ctx context.Context, issueNumber int, fr
 		return a.transitioner.TransitionLabel(ctx, issueNumber, from, to)
 	}
 
-	// transitionerがnilの場合（ghクライアント）、GitHubClientのTransitionIssueLabelメソッドを使用
-	// このメソッドはIssueのラベルを自動的に遷移させる
-	log.Printf("DEBUG: Using GitHubClient.TransitionIssueLabel for issue #%d (repo: %s/%s)", issueNumber, a.owner, a.repo)
-	transitioned, err := a.client.TransitionIssueLabel(ctx, a.owner, a.repo, issueNumber)
-	if err != nil {
-		log.Printf("DEBUG: TransitionIssueLabel failed: %v", err)
-		return fmt.Errorf("failed to transition issue label: %w", err)
+	// transitionerがnilの場合（ghクライアント）、手動でラベルを削除/追加する
+	log.Printf("DEBUG: Using manual label transition for issue #%d: %s -> %s", issueNumber, from, to)
+
+	// 古いラベルを削除
+	if err := a.client.RemoveLabel(ctx, a.owner, a.repo, issueNumber, from); err != nil {
+		log.Printf("DEBUG: Failed to remove label %s: %v", from, err)
+		return fmt.Errorf("failed to remove label %s: %w", from, err)
 	}
 
-	if !transitioned {
-		log.Printf("DEBUG: No label transition occurred for issue #%d", issueNumber)
-		return fmt.Errorf("no label transition occurred for issue #%d", issueNumber)
+	// 新しいラベルを追加
+	if err := a.client.AddLabel(ctx, a.owner, a.repo, issueNumber, to); err != nil {
+		log.Printf("DEBUG: Failed to add label %s: %v", to, err)
+		return fmt.Errorf("failed to add label %s: %w", to, err)
 	}
 
-	log.Printf("DEBUG: Label transition successful for issue #%d", issueNumber)
+	log.Printf("DEBUG: Label transition successful for issue #%d: %s -> %s", issueNumber, from, to)
 	return nil
 }
 
