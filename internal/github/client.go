@@ -46,6 +46,13 @@ func NewClientWithLogger(token string, logger logger.Logger) (*GHClient, error) 
 	}, nil
 }
 
+// NewClientWithLabelManager はテスト用のクライアントコンストラクタ
+func NewClientWithLabelManager(labelManager LabelManagerInterface) *GHClient {
+	return &GHClient{
+		labelManager: labelManager,
+	}
+}
+
 // GetRepository はリポジトリ情報を取得する
 func (c *GHClient) GetRepository(ctx context.Context, owner, repo string) (*Repository, error) {
 	if owner == "" {
