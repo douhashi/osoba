@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"runtime/debug"
 	"sync"
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
 	gh "github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/logger"
 )
 
 // IssueCallback はIssue検出時に呼ばれるコールバック関数
@@ -42,6 +42,7 @@ type IssueWatcher struct {
 	eventNotifier       *EventNotifier     // イベント通知システム
 	labelChangeTracking bool               // ラベル変更追跡が有効かどうか
 	issueLabels         map[int64][]string // Issue IDとラベルのマッピング
+	logger              logger.Logger      // ロガー
 
 	// ヘルスチェック用のフィールド
 	lastExecutionTime    time.Time
@@ -53,7 +54,7 @@ type IssueWatcher struct {
 }
 
 // NewIssueWatcher は新しいIssueWatcherを作成する
-func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string, labels []string, pollInterval time.Duration) (*IssueWatcher, error) {
+func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string, labels []string, pollInterval time.Duration, logger logger.Logger) (*IssueWatcher, error) {
 	if owner == "" {
 		return nil, errors.New("owner is required")
 	}
@@ -69,6 +70,9 @@ func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string
 	if pollInterval < time.Second {
 		return nil, errors.New("poll interval must be at least 1 second")
 	}
+	if logger == nil {
+		return nil, errors.New("logger is required")
+	}
 
 	return &IssueWatcher{
 		client:              client,
@@ -80,6 +84,7 @@ func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string
 		labelChangeTracking: false,
 		issueLabels:         make(map[int64][]string),
 		startTime:           time.Now(),
+		logger:              logger.WithFields("component", "watcher", "owner", owner, "repo", repo),
 	}, nil
 }
 
@@ -117,8 +122,9 @@ func (w *IssueWatcher) GetPollInterval() time.Duration {
 func (w *IssueWatcher) Start(ctx context.Context, callback IssueCallback) {
 	// ポーリング間隔を安全に取得
 	pollInterval := w.GetPollInterval()
-	log.Printf("Starting issue watcher: owner=%s, repo=%s, labels=%v, interval=%v",
-		w.owner, w.repo, w.labels, pollInterval)
+	w.logger.Info("Starting issue watcher",
+		"labels", w.labels,
+		"interval", pollInterval)
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
@@ -129,7 +135,7 @@ func (w *IssueWatcher) Start(ctx context.Context, callback IssueCallback) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Stopping issue watcher")
+			w.logger.Info("Stopping issue watcher")
 			return
 		case <-ticker.C:
 			w.checkIssues(ctx, callback)
@@ -142,7 +148,9 @@ func (w *IssueWatcher) StartWithActions(ctx context.Context) {
 	callback := func(issue *gh.Issue) {
 		// ActionManagerを使用してアクションを実行
 		if err := w.actionManager.ExecuteAction(ctx, issue); err != nil {
-			log.Printf("Failed to execute action for issue #%d: %v", *issue.Number, err)
+			w.logger.Error("Failed to execute action for issue",
+				"issueNumber", *issue.Number,
+				"error", err)
 		}
 	}
 
@@ -153,7 +161,8 @@ func (w *IssueWatcher) StartWithActions(ctx context.Context) {
 func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) {
 	// サイクル開始時刻
 	startTime := time.Now()
-	log.Printf("Starting issue check cycle at %s", startTime.Format(time.RFC3339))
+	w.logger.Debug("Starting issue check cycle",
+		"startTime", startTime.Format(time.RFC3339))
 
 	// 統計情報の更新
 	w.mu.Lock()
@@ -165,8 +174,10 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 	var executionSuccessful bool
 	defer func() {
 		elapsed := time.Since(startTime)
-		log.Printf("Completed issue check cycle: checked issues: %d, processed issues: %d, time taken: %v",
-			processedCount, processedIssueCount, elapsed)
+		w.logger.Debug("Completed issue check cycle",
+			"checkedIssues", processedCount,
+			"processedIssues", processedIssueCount,
+			"duration", elapsed)
 
 		// ヘルスチェック情報の更新
 		w.mu.Lock()
@@ -182,7 +193,9 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 	// パニックリカバリー
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Panic recovered in checkIssues: %v\nStack trace:\n%s", r, string(debug.Stack()))
+			w.logger.Error("Panic recovered in checkIssues",
+				"panic", r,
+				"stackTrace", string(debug.Stack()))
 		}
 	}()
 
@@ -203,8 +216,9 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 	})
 
 	if err != nil {
-		log.Printf("Failed to list issues: %v (owner=%s, repo=%s, labels=%v)",
-			err, w.owner, w.repo, w.labels)
+		w.logger.Error("Failed to list issues",
+			"error", err,
+			"labels", w.labels)
 		return
 	}
 
@@ -223,12 +237,12 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 		// ステートレスな判定ロジックを使用してIssueを処理すべきか判断
 		shouldProcess, reason := ShouldProcessIssue(issue)
 
-		log.Printf("Issue #%d - %s (labels: %v) - Process: %v - Reason: %s",
-			*issue.Number,
-			safeString(issue.Title),
-			currentLabels,
-			shouldProcess,
-			reason)
+		w.logger.Debug("Issue check result",
+			"issueNumber", *issue.Number,
+			"title", safeString(issue.Title),
+			"labels", currentLabels,
+			"shouldProcess", shouldProcess,
+			"reason", reason)
 
 		if shouldProcess {
 			processedIssueCount++
@@ -253,8 +267,10 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						log.Printf("Panic recovered in callback for issue #%d: %v\nStack trace:\n%s",
-							*issue.Number, r, string(debug.Stack()))
+						w.logger.Error("Panic recovered in callback",
+							"issueNumber", *issue.Number,
+							"panic", r,
+							"stackTrace", string(debug.Stack()))
 					}
 				}()
 				callback(issue)
@@ -279,8 +295,11 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 					event.Repo = w.repo
 					event.Timestamp = time.Now()
 
-					log.Printf("Label change detected for issue #%d: %s %s -> %s",
-						*issue.Number, event.Type, event.FromLabel, event.ToLabel)
+					w.logger.Info("Label change detected",
+						"issueNumber", *issue.Number,
+						"eventType", event.Type,
+						"fromLabel", event.FromLabel,
+						"toLabel", event.ToLabel)
 
 					// イベント通知
 					if w.eventNotifier != nil {
@@ -391,8 +410,8 @@ func (w *IssueWatcher) EnableLabelChangeTracking(enable bool) {
 }
 
 // NewIssueWatcherWithLabelTracking はラベル変更追跡機能付きのIssueWatcherを作成する
-func NewIssueWatcherWithLabelTracking(client github.GitHubClient, owner, repo, sessionName string, labels []string, pollInterval time.Duration) (*IssueWatcher, error) {
-	watcher, err := NewIssueWatcher(client, owner, repo, sessionName, labels, pollInterval)
+func NewIssueWatcherWithLabelTracking(client github.GitHubClient, owner, repo, sessionName string, labels []string, pollInterval time.Duration, logger logger.Logger) (*IssueWatcher, error) {
+	watcher, err := NewIssueWatcher(client, owner, repo, sessionName, labels, pollInterval, logger)
 	if err != nil {
 		return nil, err
 	}

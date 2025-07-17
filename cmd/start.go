@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -190,7 +189,7 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	)
 
 	// Issue監視を作成
-	issueWatcher, err := watcher.NewIssueWatcher(githubClient, owner, repoName, sessionName, cfg.GetLabels(), cfg.GitHub.PollInterval)
+	issueWatcher, err := watcher.NewIssueWatcher(githubClient, owner, repoName, sessionName, cfg.GetLabels(), cfg.GitHub.PollInterval, appLogger)
 	if err != nil {
 		return fmt.Errorf("Issue監視の作成に失敗: %w", err)
 	}
@@ -207,7 +206,7 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 
 	go func() {
 		<-sigCh
-		log.Println("シグナルを受信しました。終了します...")
+		appLogger.Info("シグナルを受信しました。終了します...")
 		cancel()
 	}()
 

@@ -71,6 +71,7 @@ func TestIssueWatcherIntegration(t *testing.T) {
 			"test-session",
 			[]string{"status:needs-plan", "status:ready"},
 			5*time.Second,
+			NewMockLogger(),
 		)
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
@@ -219,6 +220,7 @@ func TestRetryIntegration(t *testing.T) {
 			"test-session",
 			[]string{"status:ready"},
 			5*time.Second,
+			NewMockLogger(),
 		)
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
@@ -341,6 +343,7 @@ github:
 			"test-session",
 			config.GitHub.Labels,
 			config.GitHub.PollInterval,
+			NewMockLogger(),
 		)
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
