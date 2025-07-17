@@ -29,10 +29,9 @@ osobaは、tmux + git worktree + Claude を統合した自律的なソフトウ�
 
 ## 必要な環境
 
-- Go 1.21以上
 - tmux 3.0以上
 - git 2.x以上
-- GitHub CLI（gh） - **必須** （osobaはデフォルトでghコマンドを使用）
+- GitHub CLI（gh）
 - Claude CLI（claude）
 
 ### GitHub認証
@@ -42,12 +41,6 @@ osobaはデフォルトでGitHub CLI（gh）を使用してGitHubにアクセス
 ```bash
 gh auth login
 ```
-
-#### GitHub APIを直接使用する場合（オプション）
-
-設定ファイルで`use_gh_command: false`を設定し、以下のいずれかの方法でトークンを設定してください：
-- 環境変数 `GITHUB_TOKEN` を設定
-- 設定ファイルにgithub.tokenを設定
 
 ## インストール
 
@@ -88,6 +81,8 @@ gh auth login
 
 # osobaの初期設定を実行
 osoba init
+
+※ .claude/commands 以下に osoba 用のコマンドが生成されます
 ```
 
 ### 2. 基本的な使い方
