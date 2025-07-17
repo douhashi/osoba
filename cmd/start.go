@@ -174,10 +174,10 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	if claudeConfig == nil {
 		claudeConfig = claude.NewDefaultClaudeConfig()
 	}
-	claudeExecutor := claude.NewClaudeExecutor()
+	claudeExecutor := claude.NewClaudeExecutorWithLogger(appLogger)
 
 	// ActionFactoryを作成
-	actionFactory := watcher.NewDefaultActionFactory(
+	actionFactory := watcher.NewDefaultActionFactoryWithLogger(
 		sessionName,
 		githubClient,
 		worktreeManager,
@@ -186,6 +186,7 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 		cfg,
 		owner,
 		repoName,
+		appLogger,
 	)
 
 	// Issue監視を作成
