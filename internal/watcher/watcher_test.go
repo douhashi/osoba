@@ -97,8 +97,8 @@ func TestIssueWatcher_WatchConcurrent(t *testing.T) {
 					builders.NewIssueBuilder().WithNumber(2).WithTitle("Issue 2").WithLabels([]string{"status:ready"}).Build(),
 					builders.NewIssueBuilder().WithNumber(3).WithTitle("Issue 3").WithLabels([]string{"status:review-requested"}).Build(),
 				}
-				m.On("ListIssuesByLabels", mock.Anything, "owner", "repo", mock.Anything).Return(issues, nil)
-				m.On("GetRateLimit", mock.Anything).Return(builders.NewRateLimitsBuilder().Build(), nil)
+				m.On("ListIssuesByLabels", mock.Anything, "owner", "repo", mock.Anything).Return(issues, nil).Maybe()
+				m.On("GetRateLimit", mock.Anything).Return(builders.NewRateLimitsBuilder().Build(), nil).Maybe()
 			},
 			expectedIssues: 3,
 			watchDuration:  100 * time.Millisecond,
@@ -106,8 +106,8 @@ func TestIssueWatcher_WatchConcurrent(t *testing.T) {
 		{
 			name: "空のIssueリストを処理できる",
 			setupMock: func(m *mocks.MockGitHubClient) {
-				m.On("ListIssuesByLabels", mock.Anything, "owner", "repo", mock.Anything).Return([]*gh.Issue{}, nil)
-				m.On("GetRateLimit", mock.Anything).Return(builders.NewRateLimitsBuilder().Build(), nil)
+				m.On("ListIssuesByLabels", mock.Anything, "owner", "repo", mock.Anything).Return([]*gh.Issue{}, nil).Maybe()
+				m.On("GetRateLimit", mock.Anything).Return(builders.NewRateLimitsBuilder().Build(), nil).Maybe()
 			},
 			expectedIssues: 0,
 			watchDuration:  100 * time.Millisecond,
@@ -222,9 +222,9 @@ func TestIssueWatcher_RateLimitHandling(t *testing.T) {
 			name: "Rate limit残量が十分な場合は正常に処理",
 			setupMock: func(m *mocks.MockGitHubClient) {
 				m.On("ListIssuesByLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return([]*gh.Issue{}, nil)
+					Return([]*gh.Issue{}, nil).Maybe()
 				m.On("GetRateLimit", mock.Anything).
-					Return(builders.NewRateLimitsBuilder().WithCoreLimit(5000, 1000).Build(), nil)
+					Return(builders.NewRateLimitsBuilder().WithCoreLimit(5000, 1000).Build(), nil).Maybe()
 			},
 			wantPanic: false,
 		},
@@ -232,9 +232,9 @@ func TestIssueWatcher_RateLimitHandling(t *testing.T) {
 			name: "Rate limit残量が少ない場合は警告",
 			setupMock: func(m *mocks.MockGitHubClient) {
 				m.On("ListIssuesByLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return([]*gh.Issue{}, nil)
+					Return([]*gh.Issue{}, nil).Maybe()
 				m.On("GetRateLimit", mock.Anything).
-					Return(builders.NewRateLimitsBuilder().WithCoreLimit(5000, 50).Build(), nil)
+					Return(builders.NewRateLimitsBuilder().WithCoreLimit(5000, 50).Build(), nil).Maybe()
 			},
 			wantPanic: false,
 		},
@@ -242,9 +242,9 @@ func TestIssueWatcher_RateLimitHandling(t *testing.T) {
 			name: "Rate limitが枯渇している場合",
 			setupMock: func(m *mocks.MockGitHubClient) {
 				m.On("ListIssuesByLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return([]*gh.Issue{}, nil)
+					Return([]*gh.Issue{}, nil).Maybe()
 				m.On("GetRateLimit", mock.Anything).
-					Return(builders.NewRateLimitsBuilder().AsExhausted().Build(), nil)
+					Return(builders.NewRateLimitsBuilder().AsExhausted().Build(), nil).Maybe()
 			},
 			wantPanic: false,
 		},
@@ -308,9 +308,9 @@ func TestIssueWatcher_ErrorHandling(t *testing.T) {
 					builders.NewIssueBuilder().WithNumber(1).Build(),
 				}
 				m.On("ListIssuesByLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return(issues, nil)
+					Return(issues, nil).Maybe()
 				m.On("GetRateLimit", mock.Anything).
-					Return(builders.NewRateLimitsBuilder().Build(), nil)
+					Return(builders.NewRateLimitsBuilder().Build(), nil).Maybe()
 			},
 			handler: func(issue *gh.Issue) {
 				// ハンドラーでエラーが発生したケースを想定
