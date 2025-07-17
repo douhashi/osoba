@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 )
@@ -63,19 +62,6 @@ func (r *RealCommandExecutor) Execute(ctx context.Context, command string, args 
 	return stdout.String(), nil
 }
 
-// MockCommandExecutor はテスト用のモック実装
-type MockCommandExecutor struct {
-	ExecuteFunc func(ctx context.Context, command string, args ...string) (string, error)
-}
-
-// Execute はモック関数を呼び出す
-func (m *MockCommandExecutor) Execute(ctx context.Context, command string, args ...string) (string, error) {
-	if m.ExecuteFunc != nil {
-		return m.ExecuteFunc(ctx, command, args...)
-	}
-	return "", nil
-}
-
 // Executor はghコマンドの実行インターフェース
 type Executor interface {
 	Execute(ctx context.Context, args []string) ([]byte, error)
@@ -88,17 +74,6 @@ type GHExecutor struct {
 
 // NewExecutor は新しいGHExecutorを作成する
 func NewExecutor() Executor {
-	// テスト環境では常に成功するモックを使用
-	if os.Getenv("OSOBA_TEST_MODE") == "true" {
-		return &GHExecutor{
-			cmdExecutor: &MockCommandExecutor{
-				ExecuteFunc: func(ctx context.Context, command string, args ...string) (string, error) {
-					// テスト用のデフォルトレスポンス
-					return "{}", nil
-				},
-			},
-		}
-	}
 	return &GHExecutor{
 		cmdExecutor: NewRealCommandExecutor(),
 	}

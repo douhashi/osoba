@@ -5,61 +5,17 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/testutil/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
-
-// mockGitHubLabelClient はGitHubラベル操作のモック
-type mockGitHubLabelClient struct {
-	mock.Mock
-}
-
-func (m *mockGitHubLabelClient) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
-	args := m.Called(ctx, owner, repo, issueNumber, label)
-	return args.Error(0)
-}
-
-func (m *mockGitHubLabelClient) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
-	args := m.Called(ctx, owner, repo, issueNumber, label)
-	return args.Error(0)
-}
-
-// GitHub APIクライアントのその他のメソッド（テストでは使用しないが、インターフェースを満たすため）
-func (m *mockGitHubLabelClient) GetRepository(ctx context.Context, owner, repo string) (*github.Repository, error) {
-	return nil, nil
-}
-
-func (m *mockGitHubLabelClient) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
-	return nil, nil
-}
-
-func (m *mockGitHubLabelClient) GetRateLimit(ctx context.Context) (*github.RateLimits, error) {
-	return nil, nil
-}
-
-func (m *mockGitHubLabelClient) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
-	return false, nil
-}
-
-func (m *mockGitHubLabelClient) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *github.TransitionInfo, error) {
-	return false, nil, nil
-}
-
-func (m *mockGitHubLabelClient) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
-	return nil
-}
-
-func (m *mockGitHubLabelClient) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
-	return nil
-}
 
 func TestDefaultLabelManager_AddLabel(t *testing.T) {
 	tests := []struct {
 		name        string
 		issueNumber int
 		label       string
-		setupMock   func(*mockGitHubLabelClient)
+		setupMock   func(*mocks.MockGitHubClient)
 		wantErr     bool
 		errMsg      string
 	}{
@@ -67,7 +23,7 @@ func TestDefaultLabelManager_AddLabel(t *testing.T) {
 			name:        "正常なラベル追加",
 			issueNumber: 123,
 			label:       "status:implementing",
-			setupMock: func(client *mockGitHubLabelClient) {
+			setupMock: func(client *mocks.MockGitHubClient) {
 				client.On("AddLabel", mock.Anything, "owner", "repo", 123, "status:implementing").Return(nil)
 			},
 			wantErr: false,
@@ -76,7 +32,7 @@ func TestDefaultLabelManager_AddLabel(t *testing.T) {
 			name:        "GitHub APIエラー",
 			issueNumber: 456,
 			label:       "status:planning",
-			setupMock: func(client *mockGitHubLabelClient) {
+			setupMock: func(client *mocks.MockGitHubClient) {
 				client.On("AddLabel", mock.Anything, "owner", "repo", 456, "status:planning").Return(errors.New("API error"))
 			},
 			wantErr: true,
@@ -87,7 +43,7 @@ func TestDefaultLabelManager_AddLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// モックのセットアップ
-			mockClient := new(mockGitHubLabelClient)
+			mockClient := new(mocks.MockGitHubClient)
 			tt.setupMock(mockClient)
 
 			// DefaultLabelManagerの作成
@@ -121,7 +77,7 @@ func TestDefaultLabelManager_RemoveLabel(t *testing.T) {
 		name        string
 		issueNumber int
 		label       string
-		setupMock   func(*mockGitHubLabelClient)
+		setupMock   func(*mocks.MockGitHubClient)
 		wantErr     bool
 		errMsg      string
 	}{
@@ -129,7 +85,7 @@ func TestDefaultLabelManager_RemoveLabel(t *testing.T) {
 			name:        "正常なラベル削除",
 			issueNumber: 123,
 			label:       "status:ready",
-			setupMock: func(client *mockGitHubLabelClient) {
+			setupMock: func(client *mocks.MockGitHubClient) {
 				client.On("RemoveLabel", mock.Anything, "owner", "repo", 123, "status:ready").Return(nil)
 			},
 			wantErr: false,
@@ -138,7 +94,7 @@ func TestDefaultLabelManager_RemoveLabel(t *testing.T) {
 			name:        "存在しないラベル",
 			issueNumber: 456,
 			label:       "status:unknown",
-			setupMock: func(client *mockGitHubLabelClient) {
+			setupMock: func(client *mocks.MockGitHubClient) {
 				client.On("RemoveLabel", mock.Anything, "owner", "repo", 456, "status:unknown").Return(errors.New("label not found"))
 			},
 			wantErr: true,
@@ -149,7 +105,7 @@ func TestDefaultLabelManager_RemoveLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// モックのセットアップ
-			mockClient := new(mockGitHubLabelClient)
+			mockClient := new(mocks.MockGitHubClient)
 			tt.setupMock(mockClient)
 
 			// DefaultLabelManagerの作成
@@ -184,7 +140,7 @@ func TestDefaultLabelManager_TransitionLabel(t *testing.T) {
 		issueNumber int
 		from        string
 		to          string
-		setupMock   func(*mockGitHubLabelClient)
+		setupMock   func(*mocks.MockGitHubClient)
 		wantErr     bool
 		errMsg      string
 	}{
@@ -193,7 +149,7 @@ func TestDefaultLabelManager_TransitionLabel(t *testing.T) {
 			issueNumber: 123,
 			from:        "status:ready",
 			to:          "status:implementing",
-			setupMock: func(client *mockGitHubLabelClient) {
+			setupMock: func(client *mocks.MockGitHubClient) {
 				client.On("RemoveLabel", mock.Anything, "owner", "repo", 123, "status:ready").Return(nil)
 				client.On("AddLabel", mock.Anything, "owner", "repo", 123, "status:implementing").Return(nil)
 			},
@@ -204,7 +160,7 @@ func TestDefaultLabelManager_TransitionLabel(t *testing.T) {
 			issueNumber: 456,
 			from:        "status:unknown",
 			to:          "status:implementing",
-			setupMock: func(client *mockGitHubLabelClient) {
+			setupMock: func(client *mocks.MockGitHubClient) {
 				client.On("RemoveLabel", mock.Anything, "owner", "repo", 456, "status:unknown").Return(errors.New("label not found"))
 			},
 			wantErr: true,
@@ -215,7 +171,7 @@ func TestDefaultLabelManager_TransitionLabel(t *testing.T) {
 			issueNumber: 789,
 			from:        "status:ready",
 			to:          "status:implementing",
-			setupMock: func(client *mockGitHubLabelClient) {
+			setupMock: func(client *mocks.MockGitHubClient) {
 				client.On("RemoveLabel", mock.Anything, "owner", "repo", 789, "status:ready").Return(nil)
 				client.On("AddLabel", mock.Anything, "owner", "repo", 789, "status:implementing").Return(errors.New("permission denied"))
 			},
@@ -227,7 +183,7 @@ func TestDefaultLabelManager_TransitionLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// モックのセットアップ
-			mockClient := new(mockGitHubLabelClient)
+			mockClient := new(mocks.MockGitHubClient)
 			tt.setupMock(mockClient)
 
 			// DefaultLabelManagerの作成
@@ -316,14 +272,14 @@ func TestDefaultLabelManager_EmptyOwnerRepo(t *testing.T) {
 		name      string
 		owner     string
 		repo      string
-		setupMock func(*mockGitHubLabelClient)
+		setupMock func(*mocks.MockGitHubClient)
 		wantErr   bool
 	}{
 		{
 			name:  "owner が空の場合",
 			owner: "",
 			repo:  "test-repo",
-			setupMock: func(client *mockGitHubLabelClient) {
+			setupMock: func(client *mocks.MockGitHubClient) {
 				// GitHub APIクライアントがowner空文字列でエラーを返すことを期待
 				client.On("RemoveLabel", mock.Anything, "", "test-repo", 123, "status:ready").
 					Return(errors.New("owner is required"))
@@ -334,7 +290,7 @@ func TestDefaultLabelManager_EmptyOwnerRepo(t *testing.T) {
 			name:  "repo が空の場合",
 			owner: "test-owner",
 			repo:  "",
-			setupMock: func(client *mockGitHubLabelClient) {
+			setupMock: func(client *mocks.MockGitHubClient) {
 				// GitHub APIクライアントがrepo空文字列でエラーを返すことを期待
 				client.On("RemoveLabel", mock.Anything, "test-owner", "", 123, "status:ready").
 					Return(errors.New("repo is required"))
@@ -345,7 +301,7 @@ func TestDefaultLabelManager_EmptyOwnerRepo(t *testing.T) {
 			name:  "owner と repo が両方空の場合",
 			owner: "",
 			repo:  "",
-			setupMock: func(client *mockGitHubLabelClient) {
+			setupMock: func(client *mocks.MockGitHubClient) {
 				// GitHub APIクライアントがowner/repo空文字列でエラーを返すことを期待
 				client.On("RemoveLabel", mock.Anything, "", "", 123, "status:ready").
 					Return(errors.New("owner is required"))
@@ -357,7 +313,7 @@ func TestDefaultLabelManager_EmptyOwnerRepo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// モックのセットアップ
-			mockClient := new(mockGitHubLabelClient)
+			mockClient := new(mocks.MockGitHubClient)
 			tt.setupMock(mockClient)
 
 			// DefaultLabelManagerの作成（owner/repoを意図的に空にする）
