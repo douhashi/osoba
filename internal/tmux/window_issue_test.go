@@ -1,9 +1,11 @@
-package tmux
+package tmux_test
 
 import (
 	"errors"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/testutil/mocks"
+	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,14 +17,14 @@ func TestCreateWindowForIssue(t *testing.T) {
 		phase := "plan"
 		expectedWindowName := "33-plan"
 
-		mockExec := new(MockCommandExecutor)
+		mockExec := mocks.NewMockCommandExecutor()
 		// WindowExists: ウィンドウが存在しない
-		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_name}").Return("other-window", nil)
+		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("other-window", nil)
 		// CreateWindow
-		mockExec.On("Execute", "tmux", "new-window", "-t", sessionName, "-n", expectedWindowName).Return("", nil)
+		mockExec.On("Execute", "tmux", []string{"new-window", "-t", sessionName, "-n", expectedWindowName}).Return("", nil)
 
 		// Act
-		err := CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.NoError(t, err)
@@ -36,14 +38,14 @@ func TestCreateWindowForIssue(t *testing.T) {
 		phase := "implement"
 		expectedWindowName := "33-implement"
 
-		mockExec := new(MockCommandExecutor)
+		mockExec := mocks.NewMockCommandExecutor()
 		// WindowExists: ウィンドウが存在しない
-		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_name}").Return("33-plan\nother-window", nil)
+		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("33-plan\nother-window", nil)
 		// CreateWindow
-		mockExec.On("Execute", "tmux", "new-window", "-t", sessionName, "-n", expectedWindowName).Return("", nil)
+		mockExec.On("Execute", "tmux", []string{"new-window", "-t", sessionName, "-n", expectedWindowName}).Return("", nil)
 
 		// Act
-		err := CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.NoError(t, err)
@@ -57,14 +59,14 @@ func TestCreateWindowForIssue(t *testing.T) {
 		phase := "review"
 		expectedWindowName := "33-review"
 
-		mockExec := new(MockCommandExecutor)
+		mockExec := mocks.NewMockCommandExecutor()
 		// WindowExists: ウィンドウが存在しない
-		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_name}").Return("33-plan\n33-implement", nil)
+		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("33-plan\n33-implement", nil)
 		// CreateWindow
-		mockExec.On("Execute", "tmux", "new-window", "-t", sessionName, "-n", expectedWindowName).Return("", nil)
+		mockExec.On("Execute", "tmux", []string{"new-window", "-t", sessionName, "-n", expectedWindowName}).Return("", nil)
 
 		// Act
-		err := CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.NoError(t, err)
@@ -77,13 +79,13 @@ func TestCreateWindowForIssue(t *testing.T) {
 		issueNumber := 33
 		phase := "plan"
 
-		mockExec := new(MockCommandExecutor)
+		mockExec := mocks.NewMockCommandExecutor()
 		// WindowExists: ウィンドウが既に存在する
-		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_name}").Return("33-plan\nother-window", nil)
+		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("33-plan\nother-window", nil)
 		// CreateWindowは呼ばれない
 
 		// Act
-		err := CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.NoError(t, err)
@@ -96,11 +98,11 @@ func TestCreateWindowForIssue(t *testing.T) {
 		issueNumber := 33
 		phase := "invalid"
 
-		mockExec := new(MockCommandExecutor)
+		mockExec := mocks.NewMockCommandExecutor()
 		// WindowExistsは呼ばれない
 
 		// Act
-		err := CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.Error(t, err)
@@ -114,10 +116,10 @@ func TestCreateWindowForIssue(t *testing.T) {
 		issueNumber := 33
 		phase := ""
 
-		mockExec := new(MockCommandExecutor)
+		mockExec := mocks.NewMockCommandExecutor()
 
 		// Act
-		err := CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.Error(t, err)
@@ -132,14 +134,14 @@ func TestCreateWindowForIssue(t *testing.T) {
 		phase := "plan"
 		expectedWindowName := "33-plan"
 
-		mockExec := new(MockCommandExecutor)
+		mockExec := mocks.NewMockCommandExecutor()
 		// WindowExists: ウィンドウが存在しない
-		mockExec.On("Execute", "tmux", "list-windows", "-t", sessionName, "-F", "#{window_name}").Return("other-window", nil)
+		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("other-window", nil)
 		// CreateWindow: 失敗
-		mockExec.On("Execute", "tmux", "new-window", "-t", sessionName, "-n", expectedWindowName).Return("", errors.New("creation failed"))
+		mockExec.On("Execute", "tmux", []string{"new-window", "-t", sessionName, "-n", expectedWindowName}).Return("", errors.New("creation failed"))
 
 		// Act
-		err := CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.CreateWindowForIssueWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.Error(t, err)
@@ -157,11 +159,11 @@ func TestSwitchToIssueWindow(t *testing.T) {
 		expectedWindowName := "33-plan"
 		expectedTarget := sessionName + ":" + expectedWindowName
 
-		mockExec := new(MockCommandExecutor)
-		mockExec.On("Execute", "tmux", "select-window", "-t", expectedTarget).Return("", nil)
+		mockExec := mocks.NewMockCommandExecutor()
+		mockExec.On("Execute", "tmux", []string{"select-window", "-t", expectedTarget}).Return("", nil)
 
 		// Act
-		err := SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.NoError(t, err)
@@ -176,11 +178,11 @@ func TestSwitchToIssueWindow(t *testing.T) {
 		expectedWindowName := "33-implement"
 		expectedTarget := sessionName + ":" + expectedWindowName
 
-		mockExec := new(MockCommandExecutor)
-		mockExec.On("Execute", "tmux", "select-window", "-t", expectedTarget).Return("", nil)
+		mockExec := mocks.NewMockCommandExecutor()
+		mockExec.On("Execute", "tmux", []string{"select-window", "-t", expectedTarget}).Return("", nil)
 
 		// Act
-		err := SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.NoError(t, err)
@@ -195,11 +197,11 @@ func TestSwitchToIssueWindow(t *testing.T) {
 		expectedWindowName := "33-review"
 		expectedTarget := sessionName + ":" + expectedWindowName
 
-		mockExec := new(MockCommandExecutor)
-		mockExec.On("Execute", "tmux", "select-window", "-t", expectedTarget).Return("", nil)
+		mockExec := mocks.NewMockCommandExecutor()
+		mockExec.On("Execute", "tmux", []string{"select-window", "-t", expectedTarget}).Return("", nil)
 
 		// Act
-		err := SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.NoError(t, err)
@@ -212,10 +214,10 @@ func TestSwitchToIssueWindow(t *testing.T) {
 		issueNumber := 33
 		phase := "invalid"
 
-		mockExec := new(MockCommandExecutor)
+		mockExec := mocks.NewMockCommandExecutor()
 
 		// Act
-		err := SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.Error(t, err)
@@ -229,10 +231,10 @@ func TestSwitchToIssueWindow(t *testing.T) {
 		issueNumber := 33
 		phase := ""
 
-		mockExec := new(MockCommandExecutor)
+		mockExec := mocks.NewMockCommandExecutor()
 
 		// Act
-		err := SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.Error(t, err)
@@ -248,11 +250,11 @@ func TestSwitchToIssueWindow(t *testing.T) {
 		expectedWindowName := "33-plan"
 		expectedTarget := sessionName + ":" + expectedWindowName
 
-		mockExec := new(MockCommandExecutor)
-		mockExec.On("Execute", "tmux", "select-window", "-t", expectedTarget).Return("", errors.New("window not found"))
+		mockExec := mocks.NewMockCommandExecutor()
+		mockExec.On("Execute", "tmux", []string{"select-window", "-t", expectedTarget}).Return("", errors.New("window not found"))
 
 		// Act
-		err := SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
+		err := tmux.SwitchToIssueWindowWithExecutor(sessionName, issueNumber, phase, mockExec)
 
 		// Assert
 		assert.Error(t, err)

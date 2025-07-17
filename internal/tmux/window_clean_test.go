@@ -1,8 +1,11 @@
-package tmux
+package tmux_test
 
 import (
 	"fmt"
 	"testing"
+
+	"github.com/douhashi/osoba/internal/testutil/mocks"
+	"github.com/douhashi/osoba/internal/tmux"
 )
 
 // TestListWindowsByPattern はパターンに一致するウィンドウのリストを取得するテスト
@@ -83,11 +86,11 @@ func TestListWindowsByPattern(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			executor := &MockCommandExecutor{}
-			executor.On("Execute", "tmux", "list-windows", "-t", tt.sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}").
+			executor := mocks.NewMockCommandExecutor()
+			executor.On("Execute", "tmux", []string{"list-windows", "-t", tt.sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 				Return(tt.windowList, tt.executorError)
 
-			windows, err := ListWindowsByPatternWithExecutor(tt.sessionName, tt.pattern, executor)
+			windows, err := tmux.ListWindowsByPatternWithExecutor(tt.sessionName, tt.pattern, executor)
 
 			if tt.expectedError {
 				if err == nil {
@@ -183,11 +186,11 @@ func TestListWindowsForIssue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			executor := &MockCommandExecutor{}
-			executor.On("Execute", "tmux", "list-windows", "-t", tt.sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}").
+			executor := mocks.NewMockCommandExecutor()
+			executor.On("Execute", "tmux", []string{"list-windows", "-t", tt.sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 				Return(tt.windowList, tt.executorError)
 
-			windows, err := ListWindowsForIssueWithExecutor(tt.sessionName, tt.issueNumber, executor)
+			windows, err := tmux.ListWindowsForIssueWithExecutor(tt.sessionName, tt.issueNumber, executor)
 
 			if tt.expectedError {
 				if err == nil {
@@ -270,7 +273,7 @@ func TestKillWindows(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			executor := &MockCommandExecutor{}
+			executor := mocks.NewMockCommandExecutor()
 
 			// 各ウィンドウに対するkill-windowのモック設定
 			killIdx := 0
@@ -280,13 +283,13 @@ func TestKillWindows(t *testing.T) {
 					if killIdx < len(tt.killErrors) {
 						err = tt.killErrors[killIdx]
 					}
-					executor.On("Execute", "tmux", "kill-window", "-t", fmt.Sprintf("%s:%s", tt.sessionName, windowName)).
+					executor.On("Execute", "tmux", []string{"kill-window", "-t", fmt.Sprintf("%s:%s", tt.sessionName, windowName)}).
 						Return("", err)
 					killIdx++
 				}
 			}
 
-			err := KillWindowsWithExecutor(tt.sessionName, tt.windowNames, executor)
+			err := tmux.KillWindowsWithExecutor(tt.sessionName, tt.windowNames, executor)
 
 			if tt.expectedError {
 				if err == nil {
@@ -365,11 +368,11 @@ func TestKillWindowsForIssue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			executor := &MockCommandExecutor{}
+			executor := mocks.NewMockCommandExecutor()
 
 			// list-windowsのモック設定
 			if tt.sessionName != "" && tt.issueNumber > 0 {
-				executor.On("Execute", "tmux", "list-windows", "-t", tt.sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}").
+				executor.On("Execute", "tmux", []string{"list-windows", "-t", tt.sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 					Return(tt.windowList, tt.listError)
 			}
 
@@ -379,11 +382,11 @@ func TestKillWindowsForIssue(t *testing.T) {
 				if i < len(tt.killErrors) {
 					err = tt.killErrors[i]
 				}
-				executor.On("Execute", "tmux", "kill-window", "-t", fmt.Sprintf("%s:%s", tt.sessionName, windowName)).
+				executor.On("Execute", "tmux", []string{"kill-window", "-t", fmt.Sprintf("%s:%s", tt.sessionName, windowName)}).
 					Return("", err)
 			}
 
-			err := KillWindowsForIssueWithExecutor(tt.sessionName, tt.issueNumber, executor)
+			err := tmux.KillWindowsForIssueWithExecutor(tt.sessionName, tt.issueNumber, executor)
 
 			if tt.expectedError {
 				if err == nil {

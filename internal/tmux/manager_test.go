@@ -4,61 +4,28 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/testutil/mocks"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
-
-// MockSessionManager はSessionManagerインターフェースのモック実装
-type MockSessionManager struct {
-	mock.Mock
-}
-
-func (m *MockSessionManager) CheckTmuxInstalled() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
-func (m *MockSessionManager) SessionExists(sessionName string) (bool, error) {
-	args := m.Called(sessionName)
-	return args.Bool(0), args.Error(1)
-}
-
-func (m *MockSessionManager) CreateSession(sessionName string) error {
-	args := m.Called(sessionName)
-	return args.Error(0)
-}
-
-func (m *MockSessionManager) EnsureSession(sessionName string) error {
-	args := m.Called(sessionName)
-	return args.Error(0)
-}
-
-func (m *MockSessionManager) ListSessions(prefix string) ([]string, error) {
-	args := m.Called(prefix)
-	if result := args.Get(0); result == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]string), args.Error(1)
-}
 
 func TestSessionManager_CheckTmuxInstalled(t *testing.T) {
 	tests := []struct {
 		name    string
-		setup   func(*MockSessionManager)
+		setup   func(*mocks.MockTmuxManager)
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "tmuxがインストールされている場合",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("CheckTmuxInstalled").Return(nil)
 			},
 			wantErr: false,
 		},
 		{
 			name: "tmuxがインストールされていない場合",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("CheckTmuxInstalled").Return(tmux.ErrTmuxNotInstalled)
 			},
 			wantErr: true,
@@ -69,7 +36,7 @@ func TestSessionManager_CheckTmuxInstalled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockManager := new(MockSessionManager)
+			mockManager := mocks.NewMockTmuxManager()
 			tt.setup(mockManager)
 
 			// Act
@@ -93,14 +60,14 @@ func TestSessionManager_SessionExists(t *testing.T) {
 	tests := []struct {
 		name        string
 		sessionName string
-		setup       func(*MockSessionManager)
+		setup       func(*mocks.MockTmuxManager)
 		want        bool
 		wantErr     bool
 	}{
 		{
 			name:        "セッションが存在する場合",
 			sessionName: "test-session",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("SessionExists", "test-session").Return(true, nil)
 			},
 			want:    true,
@@ -109,7 +76,7 @@ func TestSessionManager_SessionExists(t *testing.T) {
 		{
 			name:        "セッションが存在しない場合",
 			sessionName: "non-existent",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("SessionExists", "non-existent").Return(false, nil)
 			},
 			want:    false,
@@ -118,7 +85,7 @@ func TestSessionManager_SessionExists(t *testing.T) {
 		{
 			name:        "エラーが発生する場合",
 			sessionName: "error-session",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("SessionExists", "error-session").Return(false, errors.New("tmux error"))
 			},
 			want:    false,
@@ -129,7 +96,7 @@ func TestSessionManager_SessionExists(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockManager := new(MockSessionManager)
+			mockManager := mocks.NewMockTmuxManager()
 			tt.setup(mockManager)
 
 			// Act
@@ -151,13 +118,13 @@ func TestSessionManager_CreateSession(t *testing.T) {
 	tests := []struct {
 		name        string
 		sessionName string
-		setup       func(*MockSessionManager)
+		setup       func(*mocks.MockTmuxManager)
 		wantErr     bool
 	}{
 		{
 			name:        "セッションを正常に作成",
 			sessionName: "new-session",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("CreateSession", "new-session").Return(nil)
 			},
 			wantErr: false,
@@ -165,7 +132,7 @@ func TestSessionManager_CreateSession(t *testing.T) {
 		{
 			name:        "セッション作成に失敗",
 			sessionName: "fail-session",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("CreateSession", "fail-session").Return(errors.New("creation failed"))
 			},
 			wantErr: true,
@@ -175,7 +142,7 @@ func TestSessionManager_CreateSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockManager := new(MockSessionManager)
+			mockManager := mocks.NewMockTmuxManager()
 			tt.setup(mockManager)
 
 			// Act
@@ -196,13 +163,13 @@ func TestSessionManager_EnsureSession(t *testing.T) {
 	tests := []struct {
 		name        string
 		sessionName string
-		setup       func(*MockSessionManager)
+		setup       func(*mocks.MockTmuxManager)
 		wantErr     bool
 	}{
 		{
 			name:        "既存のセッションの場合",
 			sessionName: "existing-session",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("EnsureSession", "existing-session").Return(nil)
 			},
 			wantErr: false,
@@ -210,7 +177,7 @@ func TestSessionManager_EnsureSession(t *testing.T) {
 		{
 			name:        "新規セッション作成の場合",
 			sessionName: "new-session",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("EnsureSession", "new-session").Return(nil)
 			},
 			wantErr: false,
@@ -218,7 +185,7 @@ func TestSessionManager_EnsureSession(t *testing.T) {
 		{
 			name:        "エラーが発生する場合",
 			sessionName: "error-session",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("EnsureSession", "error-session").Return(errors.New("ensure failed"))
 			},
 			wantErr: true,
@@ -228,7 +195,7 @@ func TestSessionManager_EnsureSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockManager := new(MockSessionManager)
+			mockManager := mocks.NewMockTmuxManager()
 			tt.setup(mockManager)
 
 			// Act
@@ -249,14 +216,14 @@ func TestSessionManager_ListSessions(t *testing.T) {
 	tests := []struct {
 		name    string
 		prefix  string
-		setup   func(*MockSessionManager)
+		setup   func(*mocks.MockTmuxManager)
 		want    []string
 		wantErr bool
 	}{
 		{
 			name:   "セッション一覧を取得",
 			prefix: "test-",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("ListSessions", "test-").Return([]string{"test-1", "test-2"}, nil)
 			},
 			want:    []string{"test-1", "test-2"},
@@ -265,7 +232,7 @@ func TestSessionManager_ListSessions(t *testing.T) {
 		{
 			name:   "空のセッション一覧",
 			prefix: "empty-",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("ListSessions", "empty-").Return([]string{}, nil)
 			},
 			want:    []string{},
@@ -274,7 +241,7 @@ func TestSessionManager_ListSessions(t *testing.T) {
 		{
 			name:   "エラーが発生する場合",
 			prefix: "error-",
-			setup: func(m *MockSessionManager) {
+			setup: func(m *mocks.MockTmuxManager) {
 				m.On("ListSessions", "error-").Return(nil, errors.New("list failed"))
 			},
 			want:    nil,
@@ -285,7 +252,7 @@ func TestSessionManager_ListSessions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockManager := new(MockSessionManager)
+			mockManager := mocks.NewMockTmuxManager()
 			tt.setup(mockManager)
 
 			// Act
