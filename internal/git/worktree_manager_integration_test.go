@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/testutil/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func TestWorktreeManager_Integration(t *testing.T) {
@@ -22,7 +23,7 @@ func TestWorktreeManager_Integration(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// ロガーを作成
-	logger := &testLoggerImpl{sugar: zap.NewNop().Sugar()}
+	logger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
 
 	// コンポーネントを初期化
 	repository := NewRepository(logger)

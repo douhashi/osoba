@@ -9,12 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/douhashi/osoba/internal/logger"
+	"github.com/douhashi/osoba/internal/testutil/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestCommand_Run(t *testing.T) {
@@ -73,10 +71,7 @@ func TestCommand_Run(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// ログ出力をキャプチャするための設定（DEBUGレベル）
-			core, recorded := observer.New(zapcore.DebugLevel)
-			testLogger := &testLoggerImpl{
-				sugar: zap.New(core).Sugar(),
-			}
+			testLogger, recorded := helpers.NewObservableLogger(zapcore.DebugLevel)
 
 			cmd := &Command{
 				logger: testLogger,
@@ -116,7 +111,7 @@ func TestCommand_Run(t *testing.T) {
 				assert.Equal(t, "Executing git command", startEntry.Message)
 
 				// フィールドの存在確認（commandフィールドのみ検証）
-				fields := getFieldsAsMap(startEntry.Context)
+				fields := helpers.GetZapFieldsAsMap(startEntry.Context)
 				if cmdField, ok := fields["command"]; ok {
 					assert.Equal(t, tt.cmd, cmdField)
 				}
@@ -134,10 +129,7 @@ func TestCommand_Run(t *testing.T) {
 
 func TestCommand_RunWithTimeout(t *testing.T) {
 	// ログ出力をキャプチャ
-	core, recorded := observer.New(zapcore.InfoLevel)
-	testLogger := &testLoggerImpl{
-		sugar: zap.New(core).Sugar(),
-	}
+	testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
 
 	cmd := &Command{
 		logger: testLogger,
@@ -160,7 +152,7 @@ func TestCommand_RunWithTimeout(t *testing.T) {
 	found := false
 	for _, entry := range entries {
 		if strings.Contains(entry.Message, "Git command failed") {
-			fields := getFieldsAsMap(entry.Context)
+			fields := helpers.GetZapFieldsAsMap(entry.Context)
 			if errField, ok := fields["error"].(string); ok &&
 				(strings.Contains(errField, "signal: killed") || strings.Contains(errField, "context deadline exceeded")) {
 				found = true
@@ -178,10 +170,9 @@ func TestCommand_RunWithLargeOutput(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// gitリポジトリを初期化
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
 	cmd := &Command{
-		logger: &testLoggerImpl{
-			sugar: zap.NewNop().Sugar(),
-		},
+		logger: testLogger,
 	}
 
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
@@ -201,10 +192,7 @@ func TestCommand_RunWithLargeOutput(t *testing.T) {
 	}
 
 	// ログ出力をキャプチャ
-	core, recorded := observer.New(zapcore.InfoLevel)
-	testLogger := &testLoggerImpl{
-		sugar: zap.New(core).Sugar(),
-	}
+	testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
 	cmd.logger = testLogger
 
 	// git statusを実行（大量の出力が期待される）
@@ -216,62 +204,11 @@ func TestCommand_RunWithLargeOutput(t *testing.T) {
 	entries := recorded.All()
 	for _, entry := range entries {
 		if entry.Message == "Git command completed successfully" {
-			fields := getFieldsAsMap(entry.Context)
+			fields := helpers.GetZapFieldsAsMap(entry.Context)
 			if outputField, ok := fields["output"].(string); ok {
 				// 出力が適切に記録されていることを確認
 				assert.True(t, len(outputField) > 0)
 			}
 		}
 	}
-}
-
-// テスト用のロガー実装
-type testLoggerImpl struct {
-	sugar *zap.SugaredLogger
-}
-
-func (l *testLoggerImpl) Debug(msg string, keysAndValues ...interface{}) {
-	l.sugar.Debugw(msg, keysAndValues...)
-}
-
-func (l *testLoggerImpl) Info(msg string, keysAndValues ...interface{}) {
-	l.sugar.Infow(msg, keysAndValues...)
-}
-
-func (l *testLoggerImpl) Warn(msg string, keysAndValues ...interface{}) {
-	l.sugar.Warnw(msg, keysAndValues...)
-}
-
-func (l *testLoggerImpl) Error(msg string, keysAndValues ...interface{}) {
-	l.sugar.Errorw(msg, keysAndValues...)
-}
-
-func (l *testLoggerImpl) WithFields(keysAndValues ...interface{}) logger.Logger {
-	return &testLoggerImpl{
-		sugar: l.sugar.With(keysAndValues...),
-	}
-}
-
-// ヘルパー関数: zapcore.Field[]をmap[string]interface{}に変換
-func getFieldsAsMap(fields []zapcore.Field) map[string]interface{} {
-	result := make(map[string]interface{})
-	for _, field := range fields {
-		switch field.Type {
-		case zapcore.StringType:
-			result[field.Key] = field.String
-		case zapcore.ArrayMarshalerType:
-			// stringArrayの場合
-			if arr, ok := field.Interface.(zapcore.ArrayMarshaler); ok {
-				// 簡易的な実装: argsフィールドのみ特別扱い
-				if field.Key == "args" {
-					// ここでは元の値を直接使うことはできないので、
-					// テスト側で別の方法で検証する
-					result[field.Key] = arr
-				}
-			}
-		default:
-			result[field.Key] = field.Interface
-		}
-	}
-	return result
 }

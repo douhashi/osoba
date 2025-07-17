@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/testutil/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
+	"go.uber.org/zap/zapcore"
 )
 
 func TestSync_Fetch(t *testing.T) {
@@ -20,7 +20,8 @@ func TestSync_Fetch(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// gitリポジトリを初期化
-	cmd := NewCommand(&testLoggerImpl{sugar: zap.NewNop().Sugar()})
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	cmd := NewCommand(testLogger)
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
@@ -40,8 +41,7 @@ func TestSync_Fetch(t *testing.T) {
 	require.NoError(t, err)
 
 	// ログ出力をキャプチャ
-	core, recorded := observer.New(zap.InfoLevel)
-	testLogger := &testLoggerImpl{sugar: zap.New(core).Sugar()}
+	testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
 
 	sync := &Sync{
 		logger:  testLogger,
@@ -78,7 +78,8 @@ func TestSync_Pull(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// gitリポジトリを初期化
-	cmd := NewCommand(&testLoggerImpl{sugar: zap.NewNop().Sugar()})
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	cmd := NewCommand(testLogger)
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
@@ -98,8 +99,7 @@ func TestSync_Pull(t *testing.T) {
 	require.NoError(t, err)
 
 	// ログ出力をキャプチャ
-	core, recorded := observer.New(zap.InfoLevel)
-	testLogger := &testLoggerImpl{sugar: zap.New(core).Sugar()}
+	testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
 
 	sync := &Sync{
 		logger:  testLogger,
@@ -136,7 +136,8 @@ func TestSync_Push(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// gitリポジトリを初期化
-	cmd := NewCommand(&testLoggerImpl{sugar: zap.NewNop().Sugar()})
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	cmd := NewCommand(testLogger)
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
@@ -156,8 +157,7 @@ func TestSync_Push(t *testing.T) {
 	require.NoError(t, err)
 
 	// ログ出力をキャプチャ
-	core, recorded := observer.New(zap.InfoLevel)
-	testLogger := &testLoggerImpl{sugar: zap.New(core).Sugar()}
+	testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
 
 	sync := &Sync{
 		logger:  testLogger,
@@ -194,7 +194,8 @@ func TestSync_GetRemotes(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// gitリポジトリを初期化
-	cmd := NewCommand(&testLoggerImpl{sugar: zap.NewNop().Sugar()})
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	cmd := NewCommand(testLogger)
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
@@ -211,8 +212,7 @@ func TestSync_GetRemotes(t *testing.T) {
 	require.NoError(t, err)
 
 	// ログ出力をキャプチャ
-	core, recorded := observer.New(zap.InfoLevel)
-	testLogger := &testLoggerImpl{sugar: zap.New(core).Sugar()}
+	testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
 
 	sync := &Sync{
 		logger:  testLogger,
@@ -248,7 +248,7 @@ func TestSync_GetRemotes(t *testing.T) {
 				found = true
 				// リモート数がログに記録されていることを確認
 				if strings.Contains(entry.Message, "listed successfully") {
-					fields := getFieldsAsMap(entry.Context)
+					fields := helpers.GetZapFieldsAsMap(entry.Context)
 					if count, ok := fields["count"].(float64); ok {
 						assert.Equal(t, float64(2), count)
 					}
@@ -267,7 +267,8 @@ func TestSync_GetStatus(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// gitリポジトリを初期化
-	cmd := NewCommand(&testLoggerImpl{sugar: zap.NewNop().Sugar()})
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	cmd := NewCommand(testLogger)
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
@@ -278,8 +279,7 @@ func TestSync_GetStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	// ログ出力をキャプチャ
-	core, recorded := observer.New(zap.InfoLevel)
-	testLogger := &testLoggerImpl{sugar: zap.New(core).Sugar()}
+	testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
 
 	sync := &Sync{
 		logger:  testLogger,

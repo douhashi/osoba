@@ -9,7 +9,7 @@ import (
 
 func TestClaudeExecutor_LoggerIntegration(t *testing.T) {
 	t.Run("ロガーを使用したClaude実行フロー", func(t *testing.T) {
-		ml := newMockLogger()
+		ml := newTestLogger()
 		executor := NewClaudeExecutorWithLogger(ml)
 		assert.NotNil(t, executor)
 
@@ -34,7 +34,7 @@ func TestClaudeExecutor_LoggerIntegration(t *testing.T) {
 		// 2. エラーログの内容を確認
 		foundCommandNotFound := false
 		for _, call := range ml.errorCalls {
-			if call.msg == "Claude command not found" || call.msg == "Failed to execute Claude" {
+			if call.Msg == "Claude command not found" || call.Msg == "Failed to execute Claude" {
 				foundCommandNotFound = true
 				break
 			}
@@ -43,7 +43,7 @@ func TestClaudeExecutor_LoggerIntegration(t *testing.T) {
 	})
 
 	t.Run("tmuxでのロガー使用", func(t *testing.T) {
-		ml := newMockLogger()
+		ml := newTestLogger()
 		executor := NewClaudeExecutorWithLogger(ml)
 		assert.NotNil(t, executor)
 
@@ -67,7 +67,7 @@ func TestClaudeExecutor_LoggerIntegration(t *testing.T) {
 	})
 
 	t.Run("構造化ログのコンテキスト情報", func(t *testing.T) {
-		ml := newMockLogger()
+		ml := newTestLogger()
 		executor := &DefaultClaudeExecutor{
 			logger: ml,
 		}
@@ -79,15 +79,15 @@ func TestClaudeExecutor_LoggerIntegration(t *testing.T) {
 		if len(ml.errorCalls) > 0 {
 			// エラーログが含まれていれば、適切なコンテキストがあることを確認
 			errorCall := ml.errorCalls[0]
-			assert.Equal(t, "Claude command not found", errorCall.msg)
+			assert.Equal(t, "Claude command not found", errorCall.Msg)
 
 			// key-valueペアが含まれているか確認
-			assert.Greater(t, len(errorCall.keysAndValues), 0, "Should have context in error log")
+			assert.Greater(t, len(errorCall.KeysAndValues), 0, "Should have context in error log")
 		}
 	})
 
 	t.Run("機密情報のマスキング確認", func(t *testing.T) {
-		ml := newMockLogger()
+		ml := newTestLogger()
 		executor := &DefaultClaudeExecutor{
 			logger: ml,
 		}
@@ -106,9 +106,9 @@ func TestClaudeExecutor_LoggerIntegration(t *testing.T) {
 
 		// デバッグログを確認
 		for _, call := range ml.debugCalls {
-			for i := 0; i < len(call.keysAndValues); i += 2 {
-				if call.keysAndValues[i] == "prompt" {
-					promptValue := call.keysAndValues[i+1].(string)
+			for i := 0; i < len(call.KeysAndValues); i += 2 {
+				if call.KeysAndValues[i] == "prompt" {
+					promptValue := call.KeysAndValues[i+1].(string)
 					// トークンがマスクされているか確認
 					assert.Contains(t, promptValue, "[GITHUB_TOKEN]", "Token should be masked")
 					assert.NotContains(t, promptValue, "ghp_1234567890abcdefghijklmnopqrstuvwxyz", "Raw token should not appear")
@@ -120,7 +120,7 @@ func TestClaudeExecutor_LoggerIntegration(t *testing.T) {
 
 func TestClaudeExecutor_LoggerLifecycle(t *testing.T) {
 	t.Run("複数フェーズでのログ出力", func(t *testing.T) {
-		ml := newMockLogger()
+		ml := newTestLogger()
 		executor := NewClaudeExecutorWithLogger(ml)
 
 		// 異なるフェーズの設定
