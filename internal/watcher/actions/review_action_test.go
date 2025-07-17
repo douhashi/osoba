@@ -39,9 +39,6 @@ func TestReviewAction_Execute(t *testing.T) {
 		// 処理開始
 		mockState.On("SetState", issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
 
-		// ラベル遷移
-		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:review-requested", "status:reviewing").Return(nil)
-
 		// tmuxウィンドウへの切り替え
 		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "review").Return(nil)
 
@@ -124,7 +121,7 @@ func TestReviewAction_Execute(t *testing.T) {
 		mockState.AssertExpectations(t)
 	})
 
-	t.Run("異常系: ラベル遷移失敗", func(t *testing.T) {
+	t.Run("異常系: tmuxウィンドウ作成失敗", func(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
 		sessionName := "osoba-test"
@@ -151,8 +148,8 @@ func TestReviewAction_Execute(t *testing.T) {
 		// 処理開始
 		mockState.On("SetState", issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
 
-		// ラベル遷移失敗
-		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:review-requested", "status:reviewing").Return(assert.AnError)
+		// tmuxウィンドウ作成失敗
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "review").Return(assert.AnError)
 
 		// 処理失敗
 		mockState.On("MarkAsFailed", issueNumber, types.IssueStateReview)
@@ -164,12 +161,11 @@ func TestReviewAction_Execute(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "transition label")
-		mockTmux.AssertNotCalled(t, "CreateWindowForIssue")
+		assert.Contains(t, err.Error(), "create tmux window")
 		mockWorktree.AssertNotCalled(t, "UpdateMainBranch")
 		mockClaude.AssertNotCalled(t, "ExecuteInTmux")
 		mockState.AssertExpectations(t)
-		mockLabel.AssertExpectations(t)
+		mockTmux.AssertExpectations(t)
 	})
 
 	t.Run("正常系: 独立したReviewフェーズのworktreeを作成", func(t *testing.T) {
@@ -198,9 +194,6 @@ func TestReviewAction_Execute(t *testing.T) {
 
 		// 処理開始
 		mockState.On("SetState", issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
-
-		// ラベル遷移
-		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:review-requested", "status:reviewing").Return(nil)
 
 		// tmuxウィンドウへの切り替え
 		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "review").Return(nil)
@@ -273,9 +266,6 @@ func TestReviewAction_Execute(t *testing.T) {
 
 		// 処理開始
 		mockState.On("SetState", issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
-
-		// ラベル遷移
-		mockLabel.On("TransitionLabel", ctx, int(issueNumber), "status:review-requested", "status:reviewing").Return(nil)
 
 		// tmuxウィンドウへの切り替え
 		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "review").Return(nil)

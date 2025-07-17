@@ -121,15 +121,6 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 	// 処理開始
 	a.stateManager.SetState(issueNumber, types.IssueStatePlan, types.IssueStatusProcessing)
 
-	// ラベル遷移（status:needs-plan → status:planning）
-	// PhaseTransitionerがある場合はそれを使用
-	if a.phaseTransitioner != nil {
-		if err := a.phaseTransitioner.TransitionPhase(ctx, int(issueNumber), "plan", "status:needs-plan", "status:planning"); err != nil {
-			a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
-			return fmt.Errorf("failed to transition phase: %w", err)
-		}
-	}
-
 	// tmuxウィンドウ作成
 	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber), "plan"); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
