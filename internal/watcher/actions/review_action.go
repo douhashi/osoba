@@ -96,6 +96,64 @@ func NewReviewActionWithLogger(
 	}
 }
 
+// logInfo はloggerが設定されている場合は構造化ログを、設定されていない場合は標準ログを出力する
+func (a *ReviewAction) logInfo(msg string, keysAndValues ...interface{}) {
+	if a.logger != nil {
+		a.logger.Info(msg, keysAndValues...)
+	} else {
+		// 後方互換性のため、標準ログ出力を維持
+		if len(keysAndValues) >= 2 {
+			// 特別なケースの処理
+			var issueNumber interface{}
+			var path interface{}
+			for i := 0; i < len(keysAndValues); i += 2 {
+				if keysAndValues[i] == "issue_number" {
+					issueNumber = keysAndValues[i+1]
+				} else if keysAndValues[i] == "path" {
+					path = keysAndValues[i+1]
+				}
+			}
+
+			// pathとissue_numberがある場合
+			if path != nil && msg == "Worktree created" {
+				log.Printf("%s at: %v", msg, path)
+				return
+			}
+
+			// issue_numberがある場合は既存のフォーマットを使用
+			if issueNumber != nil {
+				log.Printf("%s for issue #%v", msg, issueNumber)
+				return
+			}
+		}
+		log.Print(msg)
+	}
+}
+
+// logWarn はloggerが設定されている場合は構造化ログを、設定されていない場合は標準ログを出力する
+func (a *ReviewAction) logWarn(msg string, keysAndValues ...interface{}) {
+	if a.logger != nil {
+		a.logger.Warn(msg, keysAndValues...)
+	} else {
+		// 後方互換性のため、標準ログ出力を維持
+		if len(keysAndValues) >= 2 {
+			// errorフィールドを探す
+			var err interface{}
+			for i := 0; i < len(keysAndValues); i += 2 {
+				if keysAndValues[i] == "error" {
+					err = keysAndValues[i+1]
+					break
+				}
+			}
+			if err != nil {
+				log.Printf("Warning: %s: %v", msg, err)
+				return
+			}
+		}
+		log.Printf("Warning: %s", msg)
+	}
+}
+
 // Execute はレビューフェーズのアクションを実行する
 func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	if issue == nil || issue.Number == nil {
@@ -103,19 +161,11 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	issueNumber := int64(*issue.Number)
-	if a.logger != nil {
-		a.logger.Info("Executing review action", "issue_number", issueNumber)
-	} else {
-		log.Printf("Executing review action for issue #%d", issueNumber)
-	}
+	a.logInfo("Executing review action", "issue_number", issueNumber)
 
 	// 既に処理済みかチェック
 	if a.stateManager.HasBeenProcessed(issueNumber, types.IssueStateReview) {
-		if a.logger != nil {
-			a.logger.Info("Issue has already been processed for review phase", "issue_number", issueNumber)
-		} else {
-			log.Printf("Issue #%d has already been processed for review phase", issueNumber)
-		}
+		a.logInfo("Issue has already been processed for review phase", "issue_number", issueNumber)
 		return nil
 	}
 
@@ -134,32 +184,20 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	// mainブランチを最新化
-	if a.logger != nil {
-		a.logger.Info("Updating main branch", "issue_number", issueNumber)
-	} else {
-		log.Printf("Updating main branch for issue #%d", issueNumber)
-	}
+	a.logInfo("Updating main branch", "issue_number", issueNumber)
 	if err := a.worktreeManager.UpdateMainBranch(ctx); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to update main branch: %w", err)
 	}
 
 	// worktreeを作成（Reviewフェーズ用の独立したworktree）
-	if a.logger != nil {
-		a.logger.Info("Creating worktree", "issue_number", issueNumber, "phase", "review")
-	} else {
-		log.Printf("Creating worktree for issue #%d", issueNumber)
-	}
+	a.logInfo("Creating worktree", "issue_number", issueNumber, "phase", "review")
 	if err := a.worktreeManager.CreateWorktree(ctx, int(issueNumber), git.PhaseReview); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 	worktreePath := a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhaseReview)
-	if a.logger != nil {
-		a.logger.Info("Worktree created", "issue_number", issueNumber, "path", worktreePath, "phase", "review")
-	} else {
-		log.Printf("Worktree created at: %s", worktreePath)
-	}
+	a.logInfo("Worktree created", "issue_number", issueNumber, "path", worktreePath, "phase", "review")
 
 	// Claude実行用の変数を準備
 	templateVars := &claude.TemplateVariables{
@@ -177,11 +215,7 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 
 	// tmuxウィンドウ内でClaude実行
 	windowName := fmt.Sprintf("%d-review", issueNumber)
-	if a.logger != nil {
-		a.logger.Info("Executing Claude in tmux window", "issue_number", issueNumber, "window_name", windowName, "phase", "review")
-	} else {
-		log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
-	}
+	a.logInfo("Executing Claude in tmux window", "issue_number", issueNumber, "window_name", windowName, "phase", "review")
 	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to execute claude: %w", err)
@@ -189,21 +223,13 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 
 	// レビュー完了後、status:completedラベルを追加
 	if err := a.labelManager.AddLabel(ctx, int(issueNumber), "status:completed"); err != nil {
-		if a.logger != nil {
-			a.logger.Warn("Failed to add completed label", "issue_number", issueNumber, "error", err)
-		} else {
-			log.Printf("Warning: failed to add completed label: %v", err)
-		}
+		a.logWarn("failed to add completed label", "issue_number", issueNumber, "error", err)
 		// 完了ラベルの追加に失敗してもエラーとしない
 	}
 
 	// 処理完了
 	a.stateManager.MarkAsCompleted(issueNumber, types.IssueStateReview)
-	if a.logger != nil {
-		a.logger.Info("Successfully completed review action", "issue_number", issueNumber)
-	} else {
-		log.Printf("Successfully completed review action for issue #%d", issueNumber)
-	}
+	a.logInfo("Successfully completed review action", "issue_number", issueNumber)
 
 	return nil
 }
