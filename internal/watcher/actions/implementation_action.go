@@ -93,20 +93,6 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	// 処理開始
 	a.stateManager.SetState(issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
 
-	// ラベル遷移（status:ready → status:implementing）
-	// PhaseTransitionerがある場合はそれを使用、ない場合は従来のLabelManagerを使用
-	if a.phaseTransitioner != nil {
-		if err := a.phaseTransitioner.TransitionPhase(ctx, int(issueNumber), "implement", "status:ready", "status:implementing"); err != nil {
-			a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-			return fmt.Errorf("failed to transition phase: %w", err)
-		}
-	} else {
-		if err := a.labelManager.TransitionLabel(ctx, int(issueNumber), "status:ready", "status:implementing"); err != nil {
-			a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-			return fmt.Errorf("failed to transition label: %w", err)
-		}
-	}
-
 	// tmuxウィンドウ作成
 	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber), "implement"); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)

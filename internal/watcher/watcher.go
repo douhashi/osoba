@@ -31,6 +31,14 @@ type HealthStatus struct {
 	Message   string
 }
 
+// ActionManagerInterface はActionManagerのインターフェース
+type ActionManagerInterface interface {
+	ExecuteAction(ctx context.Context, issue *github.Issue) error
+	GetActionForIssue(issue *github.Issue) ActionExecutor
+	SetActionFactory(factory ActionFactory)
+	GetStateManager() *IssueStateManager
+}
+
 // IssueWatcher はGitHub Issueを監視する構造体
 type IssueWatcher struct {
 	client              github.GitHubClient
@@ -38,7 +46,7 @@ type IssueWatcher struct {
 	repo                string
 	labels              []string
 	pollInterval        time.Duration
-	actionManager       *ActionManager
+	actionManager       ActionManagerInterface
 	eventNotifier       *EventNotifier     // イベント通知システム
 	labelChangeTracking bool               // ラベル変更追跡が有効かどうか
 	issueLabels         map[int64][]string // Issue IDとラベルのマッピング
@@ -107,7 +115,7 @@ func (w *IssueWatcher) SetPollIntervalForTest(interval time.Duration) {
 }
 
 // GetActionManager はActionManagerを取得する
-func (w *IssueWatcher) GetActionManager() *ActionManager {
+func (w *IssueWatcher) GetActionManager() ActionManagerInterface {
 	return w.actionManager
 }
 
@@ -149,6 +157,13 @@ func (w *IssueWatcher) StartWithActions(ctx context.Context) {
 		// ActionManagerを使用してアクションを実行
 		if err := w.actionManager.ExecuteAction(ctx, issue); err != nil {
 			w.logger.Error("Failed to execute action for issue",
+				"issueNumber", *issue.Number,
+				"error", err)
+		}
+
+		// アクション実行後、必ずラベル遷移を実行
+		if err := w.executeLabelTransition(ctx, issue); err != nil {
+			w.logger.Error("Failed to execute label transition for issue",
 				"issueNumber", *issue.Number,
 				"error", err)
 		}
@@ -417,4 +432,58 @@ func NewIssueWatcherWithLabelTracking(client github.GitHubClient, owner, repo, s
 	}
 	watcher.labelChangeTracking = true
 	return watcher, nil
+}
+
+// executeLabelTransition は現在のラベルに基づいて適切なラベル遷移を実行する
+func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Issue) error {
+	if issue == nil || issue.Number == nil {
+		return fmt.Errorf("invalid issue")
+	}
+
+	// 現在のラベルを確認して適切な遷移を実行
+	transitions := []struct {
+		from string
+		to   string
+	}{
+		{"status:needs-plan", "status:planning"},
+		{"status:ready", "status:implementing"},
+		{"status:review-requested", "status:reviewing"},
+	}
+
+	currentLabels := getLabels(issue)
+	for _, transition := range transitions {
+		// 現在のラベルが遷移元ラベルを含んでいるか確認
+		hasFromLabel := false
+		for _, label := range currentLabels {
+			if label == transition.from {
+				hasFromLabel = true
+				break
+			}
+		}
+
+		if hasFromLabel {
+			w.logger.Info("Executing label transition",
+				"issueNumber", *issue.Number,
+				"from", transition.from,
+				"to", transition.to)
+
+			// ラベルを削除
+			if err := w.client.RemoveLabel(ctx, w.owner, w.repo, *issue.Number, transition.from); err != nil {
+				return fmt.Errorf("failed to remove label %s: %w", transition.from, err)
+			}
+
+			// 新しいラベルを追加
+			if err := w.client.AddLabel(ctx, w.owner, w.repo, *issue.Number, transition.to); err != nil {
+				return fmt.Errorf("failed to add label %s: %w", transition.to, err)
+			}
+
+			w.logger.Info("Successfully transitioned label",
+				"issueNumber", *issue.Number,
+				"from", transition.from,
+				"to", transition.to)
+			return nil
+		}
+	}
+
+	return nil
 }

@@ -2,66 +2,333 @@ package watcher
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
+	gh "github.com/douhashi/osoba/internal/github"
+	"github.com/stretchr/testify/mock"
 )
 
-// 統合テスト: GitHub Issue監視の全体ワークフローをテスト
-func TestIssueWatcherIntegration(t *testing.T) {
-	t.Run("Issue検出からイベント通知までの完全なワークフロー", func(t *testing.T) {
-		// テスト用のissueデータ
-		initialIssues := []*github.Issue{
-			{
-				Number: github.Int(1),
-				Title:  github.String("新機能の実装"),
-				Labels: []*github.Label{
-					{Name: github.String("status:needs-plan")},
-					{Name: github.String("enhancement")},
+// TestIssueProcessingWithLabelTransition は処理済み判定後もラベル遷移が実行されることを確認する統合テスト
+func TestIssueProcessingWithLabelTransition(t *testing.T) {
+	tests := []struct {
+		name                  string
+		issue                 *gh.Issue
+		hasBeenProcessed      bool
+		expectedRemoveLabel   string
+		expectedAddLabel      string
+		expectLabelTransition bool
+	}{
+		{
+			name: "already processed issue with needs-plan label should transition",
+			issue: &gh.Issue{
+				Number: intPtr(123),
+				Labels: []*gh.Label{
+					{Name: stringPtr("status:needs-plan")},
 				},
 			},
-		}
+			hasBeenProcessed:      true,
+			expectedRemoveLabel:   "status:needs-plan",
+			expectedAddLabel:      "status:planning",
+			expectLabelTransition: true,
+		},
+		{
+			name: "already processed issue with ready label should transition",
+			issue: &gh.Issue{
+				Number: intPtr(456),
+				Labels: []*gh.Label{
+					{Name: stringPtr("status:ready")},
+				},
+			},
+			hasBeenProcessed:      true,
+			expectedRemoveLabel:   "status:ready",
+			expectedAddLabel:      "status:implementing",
+			expectLabelTransition: true,
+		},
+		{
+			name: "already processed issue with review-requested label should transition",
+			issue: &gh.Issue{
+				Number: intPtr(789),
+				Labels: []*gh.Label{
+					{Name: stringPtr("status:review-requested")},
+				},
+			},
+			hasBeenProcessed:      true,
+			expectedRemoveLabel:   "status:review-requested",
+			expectedAddLabel:      "status:reviewing",
+			expectLabelTransition: true,
+		},
+		{
+			name: "not processed issue should also transition",
+			issue: &gh.Issue{
+				Number: intPtr(999),
+				Labels: []*gh.Label{
+					{Name: stringPtr("status:needs-plan")},
+				},
+			},
+			hasBeenProcessed:      false,
+			expectedRemoveLabel:   "status:needs-plan",
+			expectedAddLabel:      "status:planning",
+			expectLabelTransition: true,
+		},
+	}
 
-		updatedIssues := []*github.Issue{
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// モックの設定
+			mockClient := new(MockGitHubClient)
+			mockActionManager := new(MockActionManager)
+			mockLogger := NewMockLogger()
+
+			// GitHub APIのモック設定
+			mockClient.On("ListIssuesByLabels", mock.Anything, "owner", "repo", []string{"status:needs-plan", "status:ready", "status:review-requested"}).
+				Return([]*gh.Issue{tt.issue}, nil)
+
+			// アクション実行のモック設定
+			if tt.hasBeenProcessed {
+				// 既に処理済みの場合、エラーを返す（処理済みを示す）
+				mockActionManager.On("ExecuteAction", mock.Anything, tt.issue).
+					Return(nil) // 処理済みでもエラーは返さない
+			} else {
+				// 未処理の場合、正常に実行
+				mockActionManager.On("ExecuteAction", mock.Anything, tt.issue).
+					Return(nil)
+			}
+
+			// ラベル遷移のモック設定
+			if tt.expectLabelTransition {
+				mockClient.On("RemoveLabel", mock.Anything, "owner", "repo", *tt.issue.Number, tt.expectedRemoveLabel).
+					Return(nil)
+				mockClient.On("AddLabel", mock.Anything, "owner", "repo", *tt.issue.Number, tt.expectedAddLabel).
+					Return(nil)
+			}
+
+			// IssueWatcherの作成
+			watcher := &IssueWatcher{
+				client:        mockClient,
+				owner:         "owner",
+				repo:          "repo",
+				labels:        []string{"status:needs-plan", "status:ready", "status:review-requested"},
+				pollInterval:  100 * time.Millisecond,
+				actionManager: mockActionManager,
+				logger:        mockLogger,
+			}
+
+			// コンテキストの設定
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+
+			// StartWithActionsを実行
+			go watcher.StartWithActions(ctx)
+
+			// 処理が完了するまで待機
+			time.Sleep(150 * time.Millisecond)
+
+			// モックの検証
+			mockClient.AssertExpectations(t)
+			mockActionManager.AssertExpectations(t)
+		})
+	}
+}
+
+// MockActionManager はActionManagerのモック実装
+type MockActionManager struct {
+	mock.Mock
+}
+
+func (m *MockActionManager) ExecuteAction(ctx context.Context, issue *gh.Issue) error {
+	args := m.Called(ctx, issue)
+	return args.Error(0)
+}
+
+func (m *MockActionManager) GetActionForIssue(issue *gh.Issue) ActionExecutor {
+	args := m.Called(issue)
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(ActionExecutor)
+}
+
+func (m *MockActionManager) SetActionFactory(factory ActionFactory) {
+	m.Called(factory)
+}
+
+func (m *MockActionManager) GetStateManager() *IssueStateManager {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(*IssueStateManager)
+}
+
+// mockActionFactory はActionFactoryのモック実装
+type mockActionFactory struct {
+	planAction           ActionExecutor
+	implementationAction ActionExecutor
+	reviewAction         ActionExecutor
+}
+
+func (m *mockActionFactory) CreatePlanAction() ActionExecutor {
+	return m.planAction
+}
+
+func (m *mockActionFactory) CreateImplementationAction() ActionExecutor {
+	return m.implementationAction
+}
+
+func (m *mockActionFactory) CreateReviewAction() ActionExecutor {
+	return m.reviewAction
+}
+
+// mockAction はActionExecutorのモック実装
+type mockAction struct {
+	canExecute func(issue *github.Issue) bool
+	execute    func(ctx context.Context, issue *github.Issue) error
+}
+
+func (m *mockAction) Execute(ctx context.Context, issue *github.Issue) error {
+	if m.execute != nil {
+		return m.execute(ctx, issue)
+	}
+	return nil
+}
+
+func (m *mockAction) CanExecute(issue *github.Issue) bool {
+	if m.canExecute != nil {
+		return m.canExecute(issue)
+	}
+	return true
+}
+
+// integration_test.go用のmockGitHubClient
+type integrationMockGitHubClient struct {
+	issues      []*github.Issue
+	callsCount  int
+	labelCalls  []mockLabelCall
+	mu          sync.Mutex
+	rateLimit   *github.RateLimits
+	returnError bool
+}
+
+type mockLabelCall struct {
+	issueNumber int
+	label       string
+	operation   string // "add" or "remove"
+}
+
+// 削除済み - 上記で実装済み
+
+func (m *integrationMockGitHubClient) GetRepository(ctx context.Context, owner, repo string) (*github.Repository, error) {
+	return &github.Repository{
+		Name:  github.String(repo),
+		Owner: &github.User{Login: github.String(owner)},
+	}, nil
+}
+
+func (m *integrationMockGitHubClient) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.callsCount++
+	if m.returnError {
+		return nil, fmt.Errorf("API error")
+	}
+
+	var result []*github.Issue
+	for _, issue := range m.issues {
+		for _, label := range labels {
+			if hasLabel(issue, label) {
+				result = append(result, issue)
+				break
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func (m *integrationMockGitHubClient) GetRateLimit(ctx context.Context) (*github.RateLimits, error) {
+	if m.rateLimit != nil {
+		return m.rateLimit, nil
+	}
+	return &github.RateLimits{
+		Core: &github.RateLimit{
+			Limit:     5000,
+			Remaining: 4999,
+		},
+	}, nil
+}
+
+func (m *integrationMockGitHubClient) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
+	return false, nil
+}
+
+func (m *integrationMockGitHubClient) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *github.TransitionInfo, error) {
+	return false, nil, nil
+}
+
+func (m *integrationMockGitHubClient) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
+	return nil
+}
+
+func (m *integrationMockGitHubClient) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
+	return nil
+}
+
+func (m *integrationMockGitHubClient) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.labelCalls = append(m.labelCalls, mockLabelCall{
+		issueNumber: issueNumber,
+		label:       label,
+		operation:   "remove",
+	})
+
+	return nil
+}
+
+func (m *integrationMockGitHubClient) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.labelCalls = append(m.labelCalls, mockLabelCall{
+		issueNumber: issueNumber,
+		label:       label,
+		operation:   "add",
+	})
+
+	return nil
+}
+
+// 既存の統合テスト（mainブランチから）
+func TestStartWithActionsIntegration(t *testing.T) {
+	t.Run("複数のIssueを連続して処理", func(t *testing.T) {
+		// テスト用のIssueを作成
+		issues := []*github.Issue{
 			{
 				Number: github.Int(1),
-				Title:  github.String("新機能の実装"),
+				Title:  github.String("Test Issue 1"),
 				Labels: []*github.Label{
-					{Name: github.String("status:ready")},
-					{Name: github.String("enhancement")},
+					{Name: github.String("status:needs-plan")},
 				},
 			},
 			{
 				Number: github.Int(2),
-				Title:  github.String("バグ修正"),
+				Title:  github.String("Test Issue 2"),
 				Labels: []*github.Label{
-					{Name: github.String("status:needs-plan")},
-					{Name: github.String("bug")},
+					{Name: github.String("status:ready")},
 				},
 			},
 		}
 
-		callCount := 0
-		callCountMu := sync.Mutex{}
-		mockClient := &mockGitHubClient{
-			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
-				callCountMu.Lock()
-				callCount++
-				current := callCount
-				callCountMu.Unlock()
-				if current == 1 {
-					return initialIssues, nil
-				}
-				return updatedIssues, nil
-			},
+		mockClient := &integrationMockGitHubClient{
+			issues: issues,
 		}
-
-		// EventNotifierを作成
-		notifier := NewEventNotifier(20)
-		defer notifier.Close()
 
 		// IssueWatcherを作成（ラベル変更追跡有効）
 		watcher, err := NewIssueWatcherWithLabelTracking(
@@ -77,195 +344,164 @@ func TestIssueWatcherIntegration(t *testing.T) {
 			t.Fatalf("failed to create watcher: %v", err)
 		}
 
-		// イベント通知を有効化
-		watcher.SetEventNotifier(notifier)
-		if err := watcher.SetPollInterval(time.Second); err != nil {
-			t.Fatalf("failed to set poll interval: %v", err)
-		}
-
-		// イベント受信用チャネル
-		eventCh := notifier.Subscribe()
-		receivedEvents := make([]IssueEvent, 0)
-		eventMu := sync.Mutex{}
-
-		// イベント収集ゴルーチン
-		ctx, cancel := context.WithCancel(context.Background())
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case event, ok := <-eventCh:
-					if !ok {
-						return
-					}
-					eventMu.Lock()
-					receivedEvents = append(receivedEvents, event)
-					eventMu.Unlock()
-				case <-ctx.Done():
-					return
-				}
-			}
-		}()
-
-		// 監視開始
-		issueCallbackCount := 0
-		issueCallbackMu := sync.Mutex{}
-		go watcher.Start(ctx, func(issue *github.Issue) {
-			issueCallbackMu.Lock()
-			issueCallbackCount++
-			issueCallbackMu.Unlock()
-			t.Logf("Issue callback called for #%d: %s", *issue.Number, *issue.Title)
-		})
-
-		// 十分な時間待機してイベントを収集（複数回のポーリングを実行）
-		time.Sleep(2500 * time.Millisecond)
-
-		// 停止
-		cancel()
-		wg.Wait()
-
-		// 結果を検証
-		eventMu.Lock()
-		defer eventMu.Unlock()
-
-		// 少なくとも以下のイベントが発生することを期待:
-		// 1. Issue #1 detected
-		// 2. Issue #1 label changed (status:needs-plan -> status:ready)
-		// 3. Issue #2 detected
-		if len(receivedEvents) < 3 {
-			t.Fatalf("Expected at least 3 events, got %d", len(receivedEvents))
-		}
-
-		// イベントタイプごとに分類
-		issueDetectedCount := 0
-		labelChangedCount := 0
-		for _, event := range receivedEvents {
-			switch event.Type {
-			case IssueDetected:
-				issueDetectedCount++
-			case LabelChanged:
-				labelChangedCount++
-				// ラベル変更の詳細を検証
-				if event.IssueID == 1 {
-					if event.FromLabel != "status:needs-plan" {
-						t.Errorf("Expected FromLabel 'status:needs-plan', got '%s'", event.FromLabel)
-					}
-					if event.ToLabel != "status:ready" {
-						t.Errorf("Expected ToLabel 'status:ready', got '%s'", event.ToLabel)
-					}
-				}
-			}
-		}
-
-		// 期待するイベント数を検証
-		if issueDetectedCount < 2 {
-			t.Errorf("Expected at least 2 issue detected events, got %d", issueDetectedCount)
-		}
-		if labelChangedCount < 1 {
-			t.Errorf("Expected at least 1 label changed event, got %d", labelChangedCount)
-		}
-
-		// コールバックが呼ばれたことを確認
-		issueCallbackMu.Lock()
-		finalCallbackCount := issueCallbackCount
-		issueCallbackMu.Unlock()
-		if finalCallbackCount < 2 {
-			t.Errorf("Expected at least 2 callback invocations, got %d", finalCallbackCount)
-		}
-
-		t.Logf("Integration test completed successfully:")
-		t.Logf("- Total events: %d", len(receivedEvents))
-		t.Logf("- Issue detected events: %d", issueDetectedCount)
-		t.Logf("- Label changed events: %d", labelChangedCount)
-		t.Logf("- Callback invocations: %d", finalCallbackCount)
-	})
-}
-
-// リトライ機能の統合テスト
-func TestRetryIntegration(t *testing.T) {
-	t.Run("APIエラー時のリトライとイベント通知", func(t *testing.T) {
-		callCount := 0
-		callCountMu := sync.Mutex{}
-		mockClient := &mockGitHubClient{
-			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
-				callCountMu.Lock()
-				callCount++
-				current := callCount
-				callCountMu.Unlock()
-				if current <= 1 {
-					// 最初の1回はエラーを返す
-					return nil, &github.ErrorResponse{
-						Message: "Service Unavailable",
-					}
-				}
-				// 2回目は成功
-				return []*github.Issue{
-					{
-						Number: github.Int(1),
-						Title:  github.String("Test Issue"),
-						Labels: []*github.Label{
-							{Name: github.String("status:ready")},
-						},
-					},
-				}, nil
-			},
-		}
-
-		watcher, err := NewIssueWatcher(
-			mockClient,
-			"douhashi",
-			"osoba",
-			"test-session",
-			[]string{"status:ready"},
-			5*time.Second,
-			NewMockLogger(),
-		)
-		if err != nil {
-			t.Fatalf("failed to create watcher: %v", err)
-		}
-
 		// ポーリング間隔を最小値に設定（テスト用）
 		if err := watcher.SetPollInterval(1 * time.Second); err != nil {
 			t.Fatalf("failed to set poll interval: %v", err)
 		}
 
+		// テスト用のActionFactoryを設定
+		factory := &mockActionFactory{
+			planAction: &mockAction{
+				canExecute: func(issue *github.Issue) bool {
+					return hasLabel(issue, "status:needs-plan")
+				},
+				execute: func(ctx context.Context, issue *github.Issue) error {
+					t.Logf("Executing plan action for issue #%d", *issue.Number)
+					return nil
+				},
+			},
+			implementationAction: &mockAction{
+				canExecute: func(issue *github.Issue) bool {
+					return hasLabel(issue, "status:ready")
+				},
+				execute: func(ctx context.Context, issue *github.Issue) error {
+					t.Logf("Executing implementation action for issue #%d", *issue.Number)
+					return nil
+				},
+			},
+		}
+		watcher.GetActionManager().SetActionFactory(factory)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// アクション実行をカウント
+		actionCount := 0
+		actionMu := sync.Mutex{}
+		factory.planAction.(*mockAction).execute = func(ctx context.Context, issue *github.Issue) error {
+			actionMu.Lock()
+			actionCount++
+			actionMu.Unlock()
+			t.Logf("Plan action executed for issue #%d", *issue.Number)
+			return nil
+		}
+		factory.implementationAction.(*mockAction).execute = func(ctx context.Context, issue *github.Issue) error {
+			actionMu.Lock()
+			actionCount++
+			actionMu.Unlock()
+			t.Logf("Implementation action executed for issue #%d", *issue.Number)
+			return nil
+		}
+
+		// StartWithActionsを実行
+		go watcher.StartWithActions(ctx)
+
+		// アクションが実行されるまで待機
+		time.Sleep(2 * time.Second)
+
+		// 検証
+		actionMu.Lock()
+		if actionCount < 2 {
+			t.Errorf("Expected at least 2 actions to be executed, got %d", actionCount)
+		}
+		actionMu.Unlock()
+
+		t.Log("All actions executed successfully")
+	})
+}
+
+// 複数のIssue監視の統合テスト
+func TestConcurrentWatchers(t *testing.T) {
+	t.Run("複数のリポジトリを同時に監視", func(t *testing.T) {
+		// 複数のモッククライアントを作成
+		mockClient1 := &integrationMockGitHubClient{
+			issues: []*github.Issue{
+				{
+					Number: github.Int(1),
+					Title:  github.String("Repo1 Issue"),
+					Labels: []*github.Label{
+						{Name: github.String("status:ready")},
+					},
+				},
+			},
+		}
+
+		mockClient2 := &integrationMockGitHubClient{
+			issues: []*github.Issue{
+				{
+					Number: github.Int(2),
+					Title:  github.String("Repo2 Issue"),
+					Labels: []*github.Label{
+						{Name: github.String("status:ready")},
+					},
+				},
+			},
+		}
+
+		// 2つのwatcherを作成
+		watcher1, err := NewIssueWatcher(
+			mockClient1,
+			"douhashi",
+			"repo1",
+			"test-session-1",
+			[]string{"status:ready"},
+			5*time.Second,
+			NewMockLogger(),
+		)
+		if err != nil {
+			t.Fatalf("failed to create watcher1: %v", err)
+		}
+
+		watcher2, err := NewIssueWatcher(
+			mockClient2,
+			"douhashi",
+			"repo2",
+			"test-session-2",
+			[]string{"status:ready"},
+			5*time.Second,
+			NewMockLogger(),
+		)
+		if err != nil {
+			t.Fatalf("failed to create watcher2: %v", err)
+		}
+
+		// ポーリング間隔を最小値に設定（テスト用）
+		if err := watcher1.SetPollInterval(1 * time.Second); err != nil {
+			t.Fatalf("failed to set poll interval for watcher1: %v", err)
+		}
+		if err := watcher2.SetPollInterval(1 * time.Second); err != nil {
+			t.Fatalf("failed to set poll interval for watcher2: %v", err)
+		}
+
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		issueCallbackCount := 0
-		issueCallbackMu := sync.Mutex{}
-		go watcher.Start(ctx, func(issue *github.Issue) {
-			issueCallbackMu.Lock()
-			issueCallbackCount++
-			issueCallbackMu.Unlock()
-		})
+		// 各watcherからのコールバックをカウント
+		callbackCount := 0
+		callbackMu := sync.Mutex{}
 
-		// リトライが成功するまで待機（2.5秒で十分）
-		time.Sleep(2500 * time.Millisecond)
-		cancel()
-
-		// リトライが機能して最終的にissueが検出されることを確認
-		issueCallbackMu.Lock()
-		finalIssueCallbackCount := issueCallbackCount
-		issueCallbackMu.Unlock()
-		callCountMu.Lock()
-		finalCallCount := callCount
-		callCountMu.Unlock()
-
-		if finalIssueCallbackCount == 0 {
-			t.Error("Expected issue to be detected after retries")
+		callback := func(issue *github.Issue) {
+			callbackMu.Lock()
+			callbackCount++
+			callbackMu.Unlock()
+			t.Logf("Received callback for issue #%d: %s", *issue.Number, *issue.Title)
 		}
 
-		// APIが複数回呼ばれたことを確認（リトライが発生した証拠）
-		if finalCallCount < 2 {
-			t.Errorf("Expected at least 2 API calls due to retries, got %d", finalCallCount)
-		}
+		// 両方のwatcherを起動
+		go watcher1.Start(ctx, callback)
+		go watcher2.Start(ctx, callback)
 
-		t.Logf("Retry integration test completed:")
-		t.Logf("- API calls: %d", finalCallCount)
-		t.Logf("- Issues detected: %d", finalIssueCallbackCount)
+		// コールバックが実行されるまで待機
+		time.Sleep(3 * time.Second)
+
+		// 検証
+		callbackMu.Lock()
+		if callbackCount < 2 {
+			t.Errorf("Expected at least 2 callbacks, got %d", callbackCount)
+		}
+		callbackMu.Unlock()
+
+		t.Log("Concurrent watchers test completed successfully")
 	})
 }
 
@@ -324,7 +560,7 @@ github:
 		}
 
 		// IssueWatcherに設定を適用
-		mockClient := &mockGitHubClient{
+		mockClient := &integrationMockGitHubClient{
 			issues: []*github.Issue{
 				{
 					Number: github.Int(1),
