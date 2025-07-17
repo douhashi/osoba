@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/testutil/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
+	"go.uber.org/zap/zapcore"
 )
 
 func TestBranch_Create(t *testing.T) {
@@ -20,7 +20,8 @@ func TestBranch_Create(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// gitリポジトリを初期化
-	cmd := NewCommand(&testLoggerImpl{sugar: zap.NewNop().Sugar()})
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	cmd := NewCommand(testLogger)
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
@@ -96,8 +97,7 @@ func TestBranch_Create(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// ログ出力をキャプチャ
-			core, recorded := observer.New(zap.InfoLevel)
-			testLogger := &testLoggerImpl{sugar: zap.New(core).Sugar()}
+			testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
 
 			br := &Branch{
 				logger:  testLogger,
@@ -137,7 +137,8 @@ func TestBranch_Checkout(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// gitリポジトリを初期化
-	cmd := NewCommand(&testLoggerImpl{sugar: zap.NewNop().Sugar()})
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	cmd := NewCommand(testLogger)
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
@@ -161,8 +162,7 @@ func TestBranch_Checkout(t *testing.T) {
 	require.NoError(t, err)
 
 	// ログ出力をキャプチャ
-	core, recorded := observer.New(zap.InfoLevel)
-	testLogger := &testLoggerImpl{sugar: zap.New(core).Sugar()}
+	testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
 
 	br := &Branch{
 		logger:  testLogger,
@@ -203,7 +203,8 @@ func TestBranch_List(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// gitリポジトリを初期化
-	cmd := NewCommand(&testLoggerImpl{sugar: zap.NewNop().Sugar()})
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	cmd := NewCommand(testLogger)
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
@@ -230,8 +231,7 @@ func TestBranch_List(t *testing.T) {
 	}
 
 	// ログ出力をキャプチャ
-	core, recorded := observer.New(zap.InfoLevel)
-	testLogger := &testLoggerImpl{sugar: zap.New(core).Sugar()}
+	testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
 
 	br := &Branch{
 		logger:  testLogger,
@@ -268,7 +268,7 @@ func TestBranch_List(t *testing.T) {
 				found = true
 				// ブランチ数がログに記録されていることを確認
 				if strings.Contains(entry.Message, "listed successfully") {
-					fields := getFieldsAsMap(entry.Context)
+					fields := helpers.GetZapFieldsAsMap(entry.Context)
 					if count, ok := fields["count"].(float64); ok {
 						assert.Equal(t, float64(len(list)), count)
 					}
@@ -287,7 +287,8 @@ func TestBranch_Delete(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// gitリポジトリを初期化
-	cmd := NewCommand(&testLoggerImpl{sugar: zap.NewNop().Sugar()})
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	cmd := NewCommand(testLogger)
 	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
 	require.NoError(t, err)
 
@@ -311,8 +312,7 @@ func TestBranch_Delete(t *testing.T) {
 	require.NoError(t, err)
 
 	// ログ出力をキャプチャ
-	core, recorded := observer.New(zap.InfoLevel)
-	testLogger := &testLoggerImpl{sugar: zap.New(core).Sugar()}
+	testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
 
 	br := &Branch{
 		logger:  testLogger,

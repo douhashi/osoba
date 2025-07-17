@@ -2,26 +2,52 @@ package claude
 
 import (
 	"context"
-	"os/exec"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
-// MockCommandExecutor はコマンド実行のモック
-type MockCommandExecutor struct {
-	mock.Mock
+// testLogger はテスト用の観測可能なロガー
+type testLogger struct {
+	debugCalls []logCall
+	infoCalls  []logCall
+	warnCalls  []logCall
+	errorCalls []logCall
 }
 
-func (m *MockCommandExecutor) CommandContext(ctx context.Context, name string, arg ...string) *exec.Cmd {
-	args := m.Called(ctx, name, arg)
-	return args.Get(0).(*exec.Cmd)
+type logCall struct {
+	Msg           string
+	KeysAndValues []interface{}
 }
 
-func (m *MockCommandExecutor) LookPath(file string) (string, error) {
-	args := m.Called(file)
-	return args.String(0), args.Error(1)
+func (l *testLogger) Debug(msg string, keysAndValues ...interface{}) {
+	l.debugCalls = append(l.debugCalls, logCall{Msg: msg, KeysAndValues: keysAndValues})
+}
+
+func (l *testLogger) Info(msg string, keysAndValues ...interface{}) {
+	l.infoCalls = append(l.infoCalls, logCall{Msg: msg, KeysAndValues: keysAndValues})
+}
+
+func (l *testLogger) Warn(msg string, keysAndValues ...interface{}) {
+	l.warnCalls = append(l.warnCalls, logCall{Msg: msg, KeysAndValues: keysAndValues})
+}
+
+func (l *testLogger) Error(msg string, keysAndValues ...interface{}) {
+	l.errorCalls = append(l.errorCalls, logCall{Msg: msg, KeysAndValues: keysAndValues})
+}
+
+func (l *testLogger) WithFields(keysAndValues ...interface{}) logger.Logger {
+	return l
+}
+
+func newTestLogger() *testLogger {
+	return &testLogger{
+		debugCalls: []logCall{},
+		infoCalls:  []logCall{},
+		warnCalls:  []logCall{},
+		errorCalls: []logCall{},
+	}
 }
 
 func TestClaudeExecutor_CheckClaudeExists(t *testing.T) {
@@ -127,7 +153,7 @@ func TestClaudeExecutor_ExecuteInTmux(t *testing.T) {
 
 func TestClaudeExecutor_WithLogger(t *testing.T) {
 	t.Run("loggerが正しく設定される", func(t *testing.T) {
-		ml := newMockLogger()
+		ml := newTestLogger()
 		executor := NewClaudeExecutorWithLogger(ml)
 
 		// 型アサーションでDefaultClaudeExecutorにアクセス
@@ -144,7 +170,7 @@ func TestClaudeExecutor_WithLogger(t *testing.T) {
 
 func TestClaudeExecutor_LoggingBehavior(t *testing.T) {
 	t.Run("ExecuteInWorktreeでのログ出力", func(t *testing.T) {
-		ml := newMockLogger()
+		ml := newTestLogger()
 		executor := &DefaultClaudeExecutor{
 			logger: ml,
 		}
@@ -166,7 +192,7 @@ func TestClaudeExecutor_LoggingBehavior(t *testing.T) {
 			// エラーログが記録されているか確認
 			hasErrorLog := false
 			for _, call := range ml.errorCalls {
-				if call.msg == "Claude command not found" || call.msg == "Failed to execute Claude" {
+				if call.Msg == "Claude command not found" || call.Msg == "Failed to execute Claude" {
 					hasErrorLog = true
 					break
 				}
@@ -176,7 +202,7 @@ func TestClaudeExecutor_LoggingBehavior(t *testing.T) {
 			// 成功した場合はInfoログが記録されているか確認
 			hasInfoLog := false
 			for _, call := range ml.infoCalls {
-				if call.msg == "Executing Claude in worktree" || call.msg == "Claude execution completed successfully" {
+				if call.Msg == "Executing Claude in worktree" || call.Msg == "Claude execution completed successfully" {
 					hasInfoLog = true
 					break
 				}
@@ -186,7 +212,7 @@ func TestClaudeExecutor_LoggingBehavior(t *testing.T) {
 	})
 
 	t.Run("ExecuteInTmuxでのログ出力", func(t *testing.T) {
-		ml := newMockLogger()
+		ml := newTestLogger()
 		executor := &DefaultClaudeExecutor{
 			logger: ml,
 		}
@@ -210,7 +236,7 @@ func TestClaudeExecutor_LoggingBehavior(t *testing.T) {
 			// エラーログが記録されているか確認
 			hasErrorLog := false
 			for _, call := range ml.errorCalls {
-				if call.msg == "Claude command not found" || call.msg == "Failed to execute Claude in tmux" {
+				if call.Msg == "Claude command not found" || call.Msg == "Failed to execute Claude in tmux" {
 					hasErrorLog = true
 					break
 				}
@@ -220,7 +246,7 @@ func TestClaudeExecutor_LoggingBehavior(t *testing.T) {
 			// 成功した場合はInfoログが記録されているか確認
 			hasInfoLog := false
 			for _, call := range ml.infoCalls {
-				if call.msg == "Executing Claude in tmux window" || call.msg == "Claude command sent to tmux window successfully" {
+				if call.Msg == "Executing Claude in tmux window" || call.Msg == "Claude command sent to tmux window successfully" {
 					hasInfoLog = true
 					break
 				}
@@ -232,7 +258,7 @@ func TestClaudeExecutor_LoggingBehavior(t *testing.T) {
 
 func TestClaudeExecutor_SensitiveDataMasking(t *testing.T) {
 	t.Run("プロンプトに機密情報が含まれる場合のマスキング", func(t *testing.T) {
-		ml := newMockLogger()
+		ml := newTestLogger()
 		executor := &DefaultClaudeExecutor{
 			logger: ml,
 		}
@@ -251,7 +277,7 @@ func TestClaudeExecutor_SensitiveDataMasking(t *testing.T) {
 
 		// ログに機密情報が含まれていないことを確認
 		for _, call := range ml.infoCalls {
-			for _, v := range call.keysAndValues {
+			for _, v := range call.KeysAndValues {
 				str, ok := v.(string)
 				if ok {
 					assert.NotContains(t, str, "ghp_1234567890abcdefghijklmnopqrstuvwxyz", "GitHub token should be masked")
@@ -260,7 +286,7 @@ func TestClaudeExecutor_SensitiveDataMasking(t *testing.T) {
 			}
 		}
 		for _, call := range ml.debugCalls {
-			for _, v := range call.keysAndValues {
+			for _, v := range call.KeysAndValues {
 				str, ok := v.(string)
 				if ok {
 					assert.NotContains(t, str, "ghp_1234567890abcdefghijklmnopqrstuvwxyz", "GitHub token should be masked")

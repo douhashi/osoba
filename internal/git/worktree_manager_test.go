@@ -6,9 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/testutil/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func TestWorktreeManager_UpdateMainBranch(t *testing.T) {
@@ -18,7 +19,7 @@ func TestWorktreeManager_UpdateMainBranch(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// テスト用のgitリポジトリを初期化
-	logger := &testLoggerImpl{sugar: zap.NewNop().Sugar()}
+	logger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
 	cmd := NewCommand(logger)
 
 	// gitリポジトリを初期化
@@ -77,7 +78,7 @@ func TestWorktreeManager_CreateWorktree(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// テスト用のgitリポジトリを初期化
-	logger := &testLoggerImpl{sugar: zap.NewNop().Sugar()}
+	logger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
 	cmd := NewCommand(logger)
 
 	// gitリポジトリを初期化
@@ -178,7 +179,7 @@ func TestWorktreeManager_RemoveWorktree(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// テスト用のgitリポジトリを初期化
-	logger := &testLoggerImpl{sugar: zap.NewNop().Sugar()}
+	logger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
 	cmd := NewCommand(logger)
 
 	// gitリポジトリを初期化

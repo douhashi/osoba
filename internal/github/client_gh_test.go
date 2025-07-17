@@ -7,7 +7,6 @@ package github_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 
 	"github.com/douhashi/osoba/internal/gh"
