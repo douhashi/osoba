@@ -1,0 +1,124 @@
+package actions
+
+import (
+	"context"
+	"os/exec"
+
+	"github.com/douhashi/osoba/internal/claude"
+	"github.com/douhashi/osoba/internal/git"
+	"github.com/douhashi/osoba/internal/types"
+	"github.com/stretchr/testify/mock"
+)
+
+// MockTmuxClient はTmuxClientのモック
+type MockTmuxClient struct {
+	mock.Mock
+}
+
+func (m *MockTmuxClient) CreateWindowForIssue(sessionName string, issueNumber int, phase string) error {
+	args := m.Called(sessionName, issueNumber, phase)
+	return args.Error(0)
+}
+
+func (m *MockTmuxClient) SwitchToIssueWindow(sessionName string, issueNumber int, phase string) error {
+	args := m.Called(sessionName, issueNumber, phase)
+	return args.Error(0)
+}
+
+func (m *MockTmuxClient) WindowExists(sessionName, windowName string) (bool, error) {
+	args := m.Called(sessionName, windowName)
+	return args.Bool(0), args.Error(1)
+}
+
+// MockWorktreeManager はWorktreeManagerのモック
+type MockWorktreeManager struct {
+	mock.Mock
+}
+
+func (m *MockWorktreeManager) UpdateMainBranch(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockWorktreeManager) CreateWorktree(ctx context.Context, issueNumber int, phase git.Phase) error {
+	args := m.Called(ctx, issueNumber, phase)
+	return args.Error(0)
+}
+
+func (m *MockWorktreeManager) RemoveWorktree(ctx context.Context, issueNumber int, phase git.Phase) error {
+	args := m.Called(ctx, issueNumber, phase)
+	return args.Error(0)
+}
+
+func (m *MockWorktreeManager) GetWorktreePath(issueNumber int, phase git.Phase) string {
+	args := m.Called(issueNumber, phase)
+	return args.String(0)
+}
+
+func (m *MockWorktreeManager) WorktreeExists(ctx context.Context, issueNumber int, phase git.Phase) (bool, error) {
+	args := m.Called(ctx, issueNumber, phase)
+	return args.Bool(0), args.Error(1)
+}
+
+// MockClaudeExecutor はClaudeExecutorのモック
+type MockClaudeExecutor struct {
+	mock.Mock
+}
+
+func (m *MockClaudeExecutor) ExecuteInTmux(ctx context.Context, phaseConfig *claude.PhaseConfig, templateVars *claude.TemplateVariables, sessionName, windowName, workingDir string) error {
+	args := m.Called(ctx, phaseConfig, templateVars, sessionName, windowName, workingDir)
+	return args.Error(0)
+}
+
+func (m *MockClaudeExecutor) CheckClaudeExists() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockClaudeExecutor) BuildCommand(ctx context.Context, args []string, prompt string, workdir string) *exec.Cmd {
+	argList := m.Called(ctx, args, prompt, workdir)
+	if cmd := argList.Get(0); cmd != nil {
+		return cmd.(*exec.Cmd)
+	}
+	return nil
+}
+
+func (m *MockClaudeExecutor) ExecuteInWorktree(ctx context.Context, config *claude.PhaseConfig, vars *claude.TemplateVariables, workdir string) error {
+	args := m.Called(ctx, config, vars, workdir)
+	return args.Error(0)
+}
+
+// MockStateManager は状態管理のモック
+type MockStateManager struct {
+	mock.Mock
+}
+
+func (m *MockStateManager) GetState(issueNumber int64) (*types.IssueState, bool) {
+	args := m.Called(issueNumber)
+	if args.Get(0) == nil {
+		return nil, args.Bool(1)
+	}
+	return args.Get(0).(*types.IssueState), args.Bool(1)
+}
+
+func (m *MockStateManager) SetState(issueNumber int64, phase types.IssuePhase, status types.IssueStatus) {
+	m.Called(issueNumber, phase, status)
+}
+
+func (m *MockStateManager) IsProcessing(issueNumber int64) bool {
+	args := m.Called(issueNumber)
+	return args.Bool(0)
+}
+
+func (m *MockStateManager) HasBeenProcessed(issueNumber int64, phase types.IssuePhase) bool {
+	args := m.Called(issueNumber, phase)
+	return args.Bool(0)
+}
+
+func (m *MockStateManager) MarkAsCompleted(issueNumber int64, phase types.IssuePhase) {
+	m.Called(issueNumber, phase)
+}
+
+func (m *MockStateManager) MarkAsFailed(issueNumber int64, phase types.IssuePhase) {
+	m.Called(issueNumber, phase)
+}

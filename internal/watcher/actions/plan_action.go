@@ -8,6 +8,7 @@ import (
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/douhashi/osoba/internal/types"
 )
@@ -54,6 +55,7 @@ type PlanAction struct {
 	worktreeManager   git.WorktreeManager
 	claudeExecutor    claude.ClaudeExecutor
 	claudeConfig      *claude.ClaudeConfig
+	logger            logger.Logger
 }
 
 // NewPlanAction は新しいPlanActionを作成する
@@ -98,6 +100,28 @@ func NewPlanActionWithPhaseTransitioner(
 	}
 }
 
+// NewPlanActionWithLogger はloggerを注入したPlanActionを作成する
+func NewPlanActionWithLogger(
+	sessionName string,
+	tmuxClient TmuxClient,
+	stateManager StateManager,
+	worktreeManager git.WorktreeManager,
+	claudeExecutor claude.ClaudeExecutor,
+	claudeConfig *claude.ClaudeConfig,
+	logger logger.Logger,
+) *PlanAction {
+	return &PlanAction{
+		BaseAction:      types.BaseAction{Type: types.ActionTypePlan},
+		sessionName:     sessionName,
+		tmuxClient:      tmuxClient,
+		stateManager:    stateManager,
+		worktreeManager: worktreeManager,
+		claudeExecutor:  claudeExecutor,
+		claudeConfig:    claudeConfig,
+		logger:          logger,
+	}
+}
+
 // Execute は計画フェーズのアクションを実行する
 func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 	if issue == nil || issue.Number == nil {
@@ -105,11 +129,19 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	issueNumber := int64(*issue.Number)
-	log.Printf("Executing plan action for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Executing plan action", "issue_number", issueNumber)
+	} else {
+		log.Printf("Executing plan action for issue #%d", issueNumber)
+	}
 
 	// 既に処理済みかチェック
 	if a.stateManager.HasBeenProcessed(issueNumber, types.IssueStatePlan) {
-		log.Printf("Issue #%d has already been processed for plan phase", issueNumber)
+		if a.logger != nil {
+			a.logger.Info("Issue has already been processed for plan phase", "issue_number", issueNumber)
+		} else {
+			log.Printf("Issue #%d has already been processed for plan phase", issueNumber)
+		}
 		return nil
 	}
 
@@ -128,14 +160,22 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	// mainブランチを最新化
-	log.Printf("Updating main branch for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Updating main branch", "issue_number", issueNumber)
+	} else {
+		log.Printf("Updating main branch for issue #%d", issueNumber)
+	}
 	if err := a.worktreeManager.UpdateMainBranch(ctx); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to update main branch: %w", err)
 	}
 
 	// worktree作成
-	log.Printf("Creating worktree for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Creating worktree", "issue_number", issueNumber)
+	} else {
+		log.Printf("Creating worktree for issue #%d", issueNumber)
+	}
 	if err := a.worktreeManager.CreateWorktree(ctx, int(issueNumber), git.PhasePlan); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to create worktree: %w", err)
@@ -143,7 +183,11 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 
 	// worktreeパスを取得
 	worktreePath := a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhasePlan)
-	log.Printf("Worktree created at: %s", worktreePath)
+	if a.logger != nil {
+		a.logger.Info("Worktree created", "issue_number", issueNumber, "path", worktreePath)
+	} else {
+		log.Printf("Worktree created at: %s", worktreePath)
+	}
 
 	// Claude実行用の変数を準備
 	templateVars := &claude.TemplateVariables{
@@ -161,7 +205,11 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 
 	// tmuxウィンドウ内でClaude実行
 	windowName := fmt.Sprintf("%d-plan", issueNumber)
-	log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Executing Claude in tmux window", "issue_number", issueNumber, "window_name", windowName)
+	} else {
+		log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
+	}
 	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to execute claude: %w", err)
@@ -169,7 +217,11 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 
 	// 処理完了
 	a.stateManager.MarkAsCompleted(issueNumber, types.IssueStatePlan)
-	log.Printf("Successfully completed plan action for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Successfully completed plan action", "issue_number", issueNumber)
+	} else {
+		log.Printf("Successfully completed plan action for issue #%d", issueNumber)
+	}
 
 	return nil
 }

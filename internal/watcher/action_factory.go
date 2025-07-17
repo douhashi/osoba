@@ -5,6 +5,7 @@ import (
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/watcher/actions"
 )
 
@@ -26,6 +27,7 @@ type DefaultActionFactory struct {
 	config          *config.Config
 	owner           string
 	repo            string
+	logger          logger.Logger
 }
 
 // NewDefaultActionFactory は新しいDefaultActionFactoryを作成する
@@ -52,9 +54,47 @@ func NewDefaultActionFactory(
 	}
 }
 
+// NewDefaultActionFactoryWithLogger はloggerを含む新しいDefaultActionFactoryを作成する
+func NewDefaultActionFactoryWithLogger(
+	sessionName string,
+	ghClient github.GitHubClient,
+	worktreeManager git.WorktreeManager,
+	claudeExecutor claude.ClaudeExecutor,
+	claudeConfig *claude.ClaudeConfig,
+	cfg *config.Config,
+	owner string,
+	repo string,
+	logger logger.Logger,
+) *DefaultActionFactory {
+	return &DefaultActionFactory{
+		sessionName:     sessionName,
+		ghClient:        ghClient,
+		worktreeManager: worktreeManager,
+		claudeExecutor:  claudeExecutor,
+		claudeConfig:    claudeConfig,
+		stateManager:    NewIssueStateManager(),
+		config:          cfg,
+		owner:           owner,
+		repo:            repo,
+		logger:          logger,
+	}
+}
+
 // CreatePlanAction は計画フェーズのアクションを作成する
 func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
-	// 現在の実装ではPhaseTransitionerを使用せず、シンプルな実装を使用
+	if f.logger != nil {
+		// loggerが設定されている場合は、logger付きのActionを作成
+		return actions.NewPlanActionWithLogger(
+			f.sessionName,
+			&actions.DefaultTmuxClient{},
+			f.stateManager,
+			f.worktreeManager,
+			f.claudeExecutor,
+			f.claudeConfig,
+			f.logger.WithFields("component", "PlanAction"),
+		)
+	}
+	// 既存の実装との互換性のため、loggerがない場合は従来の方法で作成
 	return actions.NewPlanAction(
 		f.sessionName,
 		&actions.DefaultTmuxClient{},
@@ -73,7 +113,20 @@ func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 		Repo:         f.repo,
 	}
 
-	// 現在の実装ではPhaseTransitionerを使用せず、シンプルな実装を使用
+	if f.logger != nil {
+		// loggerが設定されている場合は、logger付きのActionを作成
+		return actions.NewImplementationActionWithLogger(
+			f.sessionName,
+			&actions.DefaultTmuxClient{},
+			f.stateManager,
+			labelManager,
+			f.worktreeManager,
+			f.claudeExecutor,
+			f.claudeConfig,
+			f.logger.WithFields("component", "ImplementationAction"),
+		)
+	}
+	// 既存の実装との互換性のため、loggerがない場合は従来の方法で作成
 	return actions.NewImplementationAction(
 		f.sessionName,
 		&actions.DefaultTmuxClient{},
@@ -93,7 +146,20 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 		Repo:         f.repo,
 	}
 
-	// 現在の実装ではPhaseTransitionerを使用せず、シンプルな実装を使用
+	if f.logger != nil {
+		// loggerが設定されている場合は、logger付きのActionを作成
+		return actions.NewReviewActionWithLogger(
+			f.sessionName,
+			&actions.DefaultTmuxClient{},
+			f.stateManager,
+			labelManager,
+			f.worktreeManager,
+			f.claudeExecutor,
+			f.claudeConfig,
+			f.logger.WithFields("component", "ReviewAction"),
+		)
+	}
+	// 既存の実装との互換性のため、loggerがない場合は従来の方法で作成
 	return actions.NewReviewAction(
 		f.sessionName,
 		&actions.DefaultTmuxClient{},

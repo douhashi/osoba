@@ -8,6 +8,7 @@ import (
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/types"
 )
 
@@ -22,6 +23,7 @@ type ImplementationAction struct {
 	worktreeManager   git.WorktreeManager
 	claudeExecutor    claude.ClaudeExecutor
 	claudeConfig      *claude.ClaudeConfig
+	logger            logger.Logger
 }
 
 // NewImplementationAction は新しいImplementationActionを作成する
@@ -70,6 +72,30 @@ func NewImplementationActionWithPhaseTransitioner(
 	}
 }
 
+// NewImplementationActionWithLogger はloggerを注入したImplementationActionを作成する
+func NewImplementationActionWithLogger(
+	sessionName string,
+	tmuxClient TmuxClient,
+	stateManager StateManager,
+	labelManager LabelManager,
+	worktreeManager git.WorktreeManager,
+	claudeExecutor claude.ClaudeExecutor,
+	claudeConfig *claude.ClaudeConfig,
+	logger logger.Logger,
+) *ImplementationAction {
+	return &ImplementationAction{
+		BaseAction:      types.BaseAction{Type: types.ActionTypeImplementation},
+		sessionName:     sessionName,
+		tmuxClient:      tmuxClient,
+		stateManager:    stateManager,
+		labelManager:    labelManager,
+		worktreeManager: worktreeManager,
+		claudeExecutor:  claudeExecutor,
+		claudeConfig:    claudeConfig,
+		logger:          logger,
+	}
+}
+
 // Execute は実装フェーズのアクションを実行する
 func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue) error {
 	if issue == nil || issue.Number == nil {
@@ -77,11 +103,19 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	}
 
 	issueNumber := int64(*issue.Number)
-	log.Printf("Executing implementation action for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Executing implementation action", "issue_number", issueNumber)
+	} else {
+		log.Printf("Executing implementation action for issue #%d", issueNumber)
+	}
 
 	// 既に処理済みかチェック
 	if a.stateManager.HasBeenProcessed(issueNumber, types.IssueStateImplementation) {
-		log.Printf("Issue #%d has already been processed for implementation phase", issueNumber)
+		if a.logger != nil {
+			a.logger.Info("Issue has already been processed for implementation phase", "issue_number", issueNumber)
+		} else {
+			log.Printf("Issue #%d has already been processed for implementation phase", issueNumber)
+		}
 		return nil
 	}
 
@@ -100,20 +134,32 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	}
 
 	// mainブランチを最新化
-	log.Printf("Updating main branch for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Updating main branch", "issue_number", issueNumber)
+	} else {
+		log.Printf("Updating main branch for issue #%d", issueNumber)
+	}
 	if err := a.worktreeManager.UpdateMainBranch(ctx); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
 		return fmt.Errorf("failed to update main branch: %w", err)
 	}
 
 	// worktreeを作成（Implementationフェーズ用の独立したworktree）
-	log.Printf("Creating worktree for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Creating worktree", "issue_number", issueNumber, "phase", "implementation")
+	} else {
+		log.Printf("Creating worktree for issue #%d", issueNumber)
+	}
 	if err := a.worktreeManager.CreateWorktree(ctx, int(issueNumber), git.PhaseImplementation); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 	worktreePath := a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhaseImplementation)
-	log.Printf("Worktree created at: %s", worktreePath)
+	if a.logger != nil {
+		a.logger.Info("Worktree created", "issue_number", issueNumber, "path", worktreePath, "phase", "implementation")
+	} else {
+		log.Printf("Worktree created at: %s", worktreePath)
+	}
 
 	// Claude実行用の変数を準備
 	templateVars := &claude.TemplateVariables{
@@ -131,7 +177,11 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 
 	// tmuxウィンドウ内でClaude実行
 	windowName := fmt.Sprintf("%d-implement", issueNumber)
-	log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Executing Claude in tmux window", "issue_number", issueNumber, "window_name", windowName, "phase", "implementation")
+	} else {
+		log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
+	}
 	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
 		return fmt.Errorf("failed to execute claude: %w", err)
@@ -139,7 +189,11 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 
 	// 処理完了
 	a.stateManager.MarkAsCompleted(issueNumber, types.IssueStateImplementation)
-	log.Printf("Successfully completed implementation action for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Successfully completed implementation action", "issue_number", issueNumber)
+	} else {
+		log.Printf("Successfully completed implementation action for issue #%d", issueNumber)
+	}
 
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/types"
 )
 
@@ -22,6 +23,7 @@ type ReviewAction struct {
 	worktreeManager   git.WorktreeManager
 	claudeExecutor    claude.ClaudeExecutor
 	claudeConfig      *claude.ClaudeConfig
+	logger            logger.Logger
 }
 
 // NewReviewAction は新しいReviewActionを作成する
@@ -70,6 +72,30 @@ func NewReviewActionWithPhaseTransitioner(
 	}
 }
 
+// NewReviewActionWithLogger はloggerを注入したReviewActionを作成する
+func NewReviewActionWithLogger(
+	sessionName string,
+	tmuxClient TmuxClient,
+	stateManager StateManager,
+	labelManager LabelManager,
+	worktreeManager git.WorktreeManager,
+	claudeExecutor claude.ClaudeExecutor,
+	claudeConfig *claude.ClaudeConfig,
+	logger logger.Logger,
+) *ReviewAction {
+	return &ReviewAction{
+		BaseAction:      types.BaseAction{Type: types.ActionTypeReview},
+		sessionName:     sessionName,
+		tmuxClient:      tmuxClient,
+		stateManager:    stateManager,
+		labelManager:    labelManager,
+		worktreeManager: worktreeManager,
+		claudeExecutor:  claudeExecutor,
+		claudeConfig:    claudeConfig,
+		logger:          logger,
+	}
+}
+
 // Execute はレビューフェーズのアクションを実行する
 func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	if issue == nil || issue.Number == nil {
@@ -77,11 +103,19 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	issueNumber := int64(*issue.Number)
-	log.Printf("Executing review action for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Executing review action", "issue_number", issueNumber)
+	} else {
+		log.Printf("Executing review action for issue #%d", issueNumber)
+	}
 
 	// 既に処理済みかチェック
 	if a.stateManager.HasBeenProcessed(issueNumber, types.IssueStateReview) {
-		log.Printf("Issue #%d has already been processed for review phase", issueNumber)
+		if a.logger != nil {
+			a.logger.Info("Issue has already been processed for review phase", "issue_number", issueNumber)
+		} else {
+			log.Printf("Issue #%d has already been processed for review phase", issueNumber)
+		}
 		return nil
 	}
 
@@ -100,20 +134,32 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	// mainブランチを最新化
-	log.Printf("Updating main branch for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Updating main branch", "issue_number", issueNumber)
+	} else {
+		log.Printf("Updating main branch for issue #%d", issueNumber)
+	}
 	if err := a.worktreeManager.UpdateMainBranch(ctx); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to update main branch: %w", err)
 	}
 
 	// worktreeを作成（Reviewフェーズ用の独立したworktree）
-	log.Printf("Creating worktree for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Creating worktree", "issue_number", issueNumber, "phase", "review")
+	} else {
+		log.Printf("Creating worktree for issue #%d", issueNumber)
+	}
 	if err := a.worktreeManager.CreateWorktree(ctx, int(issueNumber), git.PhaseReview); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 	worktreePath := a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhaseReview)
-	log.Printf("Worktree created at: %s", worktreePath)
+	if a.logger != nil {
+		a.logger.Info("Worktree created", "issue_number", issueNumber, "path", worktreePath, "phase", "review")
+	} else {
+		log.Printf("Worktree created at: %s", worktreePath)
+	}
 
 	// Claude実行用の変数を準備
 	templateVars := &claude.TemplateVariables{
@@ -131,7 +177,11 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 
 	// tmuxウィンドウ内でClaude実行
 	windowName := fmt.Sprintf("%d-review", issueNumber)
-	log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Executing Claude in tmux window", "issue_number", issueNumber, "window_name", windowName, "phase", "review")
+	} else {
+		log.Printf("Executing Claude in tmux window for issue #%d", issueNumber)
+	}
 	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to execute claude: %w", err)
@@ -139,13 +189,21 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 
 	// レビュー完了後、status:completedラベルを追加
 	if err := a.labelManager.AddLabel(ctx, int(issueNumber), "status:completed"); err != nil {
-		log.Printf("Warning: failed to add completed label: %v", err)
+		if a.logger != nil {
+			a.logger.Warn("Failed to add completed label", "issue_number", issueNumber, "error", err)
+		} else {
+			log.Printf("Warning: failed to add completed label: %v", err)
+		}
 		// 完了ラベルの追加に失敗してもエラーとしない
 	}
 
 	// 処理完了
 	a.stateManager.MarkAsCompleted(issueNumber, types.IssueStateReview)
-	log.Printf("Successfully completed review action for issue #%d", issueNumber)
+	if a.logger != nil {
+		a.logger.Info("Successfully completed review action", "issue_number", issueNumber)
+	} else {
+		log.Printf("Successfully completed review action for issue #%d", issueNumber)
+	}
 
 	return nil
 }
