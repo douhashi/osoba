@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/douhashi/osoba/internal/git"
+	"github.com/douhashi/osoba/internal/testutil/helpers"
 	"github.com/spf13/cobra"
 )
 
@@ -81,16 +82,14 @@ func TestStartCmdExecution(t *testing.T) {
 		{
 			name: "正常系: デフォルトでIssue監視モードが開始される",
 			setupMock: func(t *testing.T) {
-				// runWatchWithFlagsをモック
-				origRunWatch := runWatchWithFlagsFunc
-				runWatchWithFlagsFunc = func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
+				// FunctionMockerを使用してモック
+				mocker := helpers.NewFunctionMocker()
+				t.Cleanup(mocker.Restore)
+
+				mocker.MockFunc(&runWatchWithFlagsFunc, func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
 					// Issue監視モードが呼ばれたことを出力で確認
 					cmd.OutOrStdout().Write([]byte("Issue監視モードを開始します\n"))
 					return nil
-				}
-
-				t.Cleanup(func() {
-					runWatchWithFlagsFunc = origRunWatch
 				})
 			},
 			setupGitRepo: func(t *testing.T) (string, func()) {
@@ -130,9 +129,11 @@ func TestStartCmdExecution(t *testing.T) {
 		{
 			name: "正常系: デフォルト設定ファイルが自動読み込みされる",
 			setupMock: func(t *testing.T) {
-				// runWatchWithFlagsをモック
-				origRunWatch := runWatchWithFlagsFunc
-				runWatchWithFlagsFunc = func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
+				// FunctionMockerを使用してモック
+				mocker := helpers.NewFunctionMocker()
+				t.Cleanup(mocker.Restore)
+
+				mocker.MockFunc(&runWatchWithFlagsFunc, func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
 					// 設定ファイルが自動読み込みされることを確認
 					cmd.OutOrStdout().Write([]byte("Issue監視モードを開始します\n"))
 					// configFlagが空でも動作することを確認
@@ -140,10 +141,6 @@ func TestStartCmdExecution(t *testing.T) {
 						cmd.OutOrStdout().Write([]byte("デフォルト設定ファイル読み込み成功\n"))
 					}
 					return nil
-				}
-
-				t.Cleanup(func() {
-					runWatchWithFlagsFunc = origRunWatch
 				})
 			},
 			setupGitRepo: func(t *testing.T) (string, func()) {
@@ -184,19 +181,17 @@ func TestStartCmdExecution(t *testing.T) {
 		{
 			name: "正常系: -cフラグで指定された設定ファイルが優先される",
 			setupMock: func(t *testing.T) {
-				// runWatchWithFlagsをモック
-				origRunWatch := runWatchWithFlagsFunc
-				runWatchWithFlagsFunc = func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
+				// FunctionMockerを使用してモック
+				mocker := helpers.NewFunctionMocker()
+				t.Cleanup(mocker.Restore)
+
+				mocker.MockFunc(&runWatchWithFlagsFunc, func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
 					cmd.OutOrStdout().Write([]byte("Issue監視モードを開始します\n"))
 					// 指定された設定ファイルが使用されることを確認
 					if configFlag == "custom.yml" {
 						cmd.OutOrStdout().Write([]byte("設定ファイル: custom.yml\n"))
 					}
 					return nil
-				}
-
-				t.Cleanup(func() {
-					runWatchWithFlagsFunc = origRunWatch
 				})
 			},
 			setupGitRepo: func(t *testing.T) (string, func()) {
@@ -237,9 +232,11 @@ func TestStartCmdExecution(t *testing.T) {
 		{
 			name: "異常系: Gitリポジトリではない",
 			setupMock: func(t *testing.T) {
-				// runWatchWithFlagsをモックして、実際の実装を呼ばない
-				origRunWatch := runWatchWithFlagsFunc
-				runWatchWithFlagsFunc = func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
+				// FunctionMockerを使用してモック
+				mocker := helpers.NewFunctionMocker()
+				t.Cleanup(mocker.Restore)
+
+				mocker.MockFunc(&runWatchWithFlagsFunc, func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
 					// リポジトリ情報を取得（ここでエラーになることを期待）
 					_, err := git.GetRepositoryName()
 					if err != nil {
@@ -247,10 +244,6 @@ func TestStartCmdExecution(t *testing.T) {
 					}
 
 					return nil
-				}
-
-				t.Cleanup(func() {
-					runWatchWithFlagsFunc = origRunWatch
 				})
 			},
 			setupGitRepo: func(t *testing.T) (string, func()) {
