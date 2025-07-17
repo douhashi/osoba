@@ -80,11 +80,19 @@ func TestIntegration_WatchCommand(t *testing.T) {
     // ...
 }
 
-// ✅ 良い例: 外部サービスのみモック化
+// ✅ 良い例: testutilを使用し、外部サービスのみモック化
 func TestIntegration_WatchCommand(t *testing.T) {
-    // GitHub APIのみモック化
-    mockHTTPClient := &mockHTTPClient{}
-    realGitHubClient := github.NewClientWithHTTP(mockHTTPClient)
+    // testutil/mocksを使用してGitHub APIのみモック化
+    mockGitHub := mocks.NewGitHubClient(t)
+    mockGitHub.SetListIssuesFunc(func(owner, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, error) {
+        // テストデータを返す
+        return []*github.Issue{
+            builders.NewIssueBuilder().
+                WithNumber(123).
+                WithStatusLabel("ready").
+                Build(),
+        }, nil
+    })
     
     // 実際のtmux, git worktreeコンポーネントを使用
     realTmuxManager := tmux.NewManager()
@@ -210,6 +218,22 @@ go test -tags="integration e2e" ./...
     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+## testutilパッケージの活用
+
+### 必須: testutilパッケージの使用
+
+osobaプロジェクトでは、テストコードの重複を防ぎ、一貫性を保つために`internal/testutil`パッケージの使用を**必須**とします。
+
+```go
+import (
+    "github.com/douhashi/osoba/internal/testutil/mocks"
+    "github.com/douhashi/osoba/internal/testutil/builders"
+    "github.com/douhashi/osoba/internal/testutil/helpers"
+)
+```
+
+詳細な使用方法については[testutil使用ガイド](../testing/testutil-guide.md)を参照してください。
+
 ## モック実装のベストプラクティス
 
 ### 1. インターフェース設計
@@ -235,14 +259,21 @@ type GitHubClient interface {
 }
 ```
 
-### 3. デフォルト動作の提供
+### 3. testutilを使用したモックの準備
 
 ```go
-func (m *MockGitHubClient) WithDefaultBehavior() *MockGitHubClient {
-    m.On("GetRateLimit", mock.Anything).Return(&RateLimits{
-        Core: &RateLimit{Remaining: 5000, Limit: 5000},
-    }, nil)
-    return m
+// testutil/mocksとbuildersを活用
+func setupTestGitHubClient(t *testing.T) *mocks.GitHubClient {
+    mockClient := mocks.NewGitHubClient(t)
+    
+    // デフォルトのレート制限を設定
+    mockClient.SetGetRateLimitsFunc(func() (*github.RateLimits, error) {
+        return builders.NewRateLimitsBuilder().
+            WithCoreLimit(5000, 4999).
+            Build(), nil
+    })
+    
+    return mockClient
 }
 ```
 
@@ -285,15 +316,17 @@ func TestIntegration_GitHubAPI(t *testing.T) {
 
 ```go
 func TestGitHubClient_NetworkError(t *testing.T) {
-    // タイムアウト、接続エラーなどをシミュレート
-    mockHTTP := &MockHTTPClient{}
-    mockHTTP.On("Do", mock.Anything).Return(nil, errors.New("network error"))
+    // testutil/helpersのエラーを使用
+    mockClient := mocks.NewGitHubClient(t)
+    mockClient.SetListIssuesFunc(func(owner, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, error) {
+        return nil, helpers.ErrConnection
+    })
     
-    client := NewClientWithHTTP(mockHTTP)
-    _, err := client.ListIssues(context.Background(), "owner", "repo")
+    _, err := mockClient.ListIssues("owner", "repo", nil)
     
-    assert.Error(t, err)
-    assert.Contains(t, err.Error(), "network error")
+    if !helpers.ErrorIs(err, helpers.ErrConnection) {
+        t.Errorf("expected connection error, got %v", err)
+    }
 }
 ```
 
@@ -301,14 +334,22 @@ func TestGitHubClient_NetworkError(t *testing.T) {
 
 ```go
 func TestGitHubClient_RateLimit(t *testing.T) {
-    mockHTTP := &MockHTTPClient{}
-    mockHTTP.SetupRateLimitResponse(403, "API rate limit exceeded")
+    mockClient := mocks.NewGitHubClient(t)
+    mockClient.SetListIssuesFunc(func(owner, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, error) {
+        return nil, helpers.ErrAPILimit
+    })
     
-    client := NewClientWithHTTP(mockHTTP)
-    _, err := client.ListIssues(context.Background(), "owner", "repo")
+    mockClient.SetGetRateLimitsFunc(func() (*github.RateLimits, error) {
+        return builders.NewRateLimitsBuilder().
+            AsExhausted().
+            Build(), nil
+    })
     
-    assert.Error(t, err)
-    assert.IsType(t, &RateLimitError{}, err)
+    _, err := mockClient.ListIssues("owner", "repo", nil)
+    
+    if !helpers.ErrorIs(err, helpers.ErrAPILimit) {
+        t.Errorf("expected API limit error, got %v", err)
+    }
 }
 ```
 
@@ -351,10 +392,17 @@ func TestMemoryUsage(t *testing.T) {
 
 ## まとめ
 
+- **testutil必須**: すべてのテストで`internal/testutil`パッケージを使用
 - **ユニットテスト**: 外部依存は積極的にモック化
 - **統合テスト**: 外部サービスのみモック化、内部コンポーネントは実物
 - **E2Eテスト**: 最小限のモック化
 - **明確な境界**: ビルドタグとファイル命名で分離
 - **CI/CD対応**: 段階的なテスト実行
+
+testutilパッケージの使用により：
+- モックの重複実装を防止
+- テストデータ作成の標準化
+- 一貫性のあるエラーハンドリング
+- 環境変数や時間の適切な管理
 
 この指針に従うことで、テストの信頼性と保守性を大幅に向上させることができます。

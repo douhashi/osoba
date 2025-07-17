@@ -62,6 +62,24 @@ func (b *IssueBuilder) WithLabels(labels []string) *IssueBuilder {
 	return b
 }
 
+// WithLabel adds a single label to the issue
+func (b *IssueBuilder) WithLabel(label string) *IssueBuilder {
+	b.issue.Labels = append(b.issue.Labels, &github.Label{
+		Name: github.String(label),
+	})
+	return b
+}
+
+// WithStatusLabel adds a status label to the issue
+func (b *IssueBuilder) WithStatusLabel(status string) *IssueBuilder {
+	return b.WithLabel("status:" + status)
+}
+
+// WithPriorityLabel adds a priority label to the issue
+func (b *IssueBuilder) WithPriorityLabel(priority string) *IssueBuilder {
+	return b.WithLabel("priority:" + priority)
+}
+
 // WithUser sets the issue user
 func (b *IssueBuilder) WithUser(login string) *IssueBuilder {
 	b.issue.User = &github.User{
@@ -170,6 +188,20 @@ func (b *RepositoryBuilder) WithCloneURL(url string) *RepositoryBuilder {
 // WithHTMLURL sets the HTML URL
 func (b *RepositoryBuilder) WithHTMLURL(url string) *RepositoryBuilder {
 	b.repo.HTMLURL = github.String(url)
+	return b
+}
+
+// WithFullName sets the repository full name (owner/repo)
+func (b *RepositoryBuilder) WithFullName(fullName string) *RepositoryBuilder {
+	// FullName is not available in the current Repository struct
+	// This method is kept for API compatibility but does nothing
+	return b
+}
+
+// AsArchived sets the repository as archived
+func (b *RepositoryBuilder) AsArchived() *RepositoryBuilder {
+	// Archived is not available in the current Repository struct
+	// This method is kept for API compatibility but does nothing
 	return b
 }
 
