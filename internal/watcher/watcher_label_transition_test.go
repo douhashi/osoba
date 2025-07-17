@@ -93,7 +93,7 @@ func TestIssueWatcher_CurrentProblemWithLabelTransition(t *testing.T) {
 		}
 
 		// IssueWatcherを作成
-		watcher, err := NewIssueWatcher(mockClient, "test-owner", "test-repo", "test-session", []string{"status:needs-plan"}, 5*time.Second)
+		watcher, err := NewIssueWatcher(mockClient, "test-owner", "test-repo", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
 		if err != nil {
 			t.Fatalf("NewIssueWatcher failed: %v", err)
 		}
@@ -121,7 +121,7 @@ func TestIssueWatcher_FixedLabelTransition(t *testing.T) {
 		}
 
 		// IssueWatcherを作成
-		watcher, err := NewIssueWatcher(mockClient, "test-owner", "test-repo", "test-session", []string{"status:needs-plan"}, 5*time.Second)
+		watcher, err := NewIssueWatcher(mockClient, "test-owner", "test-repo", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
 		if err != nil {
 			t.Fatalf("NewIssueWatcher failed: %v", err)
 		}

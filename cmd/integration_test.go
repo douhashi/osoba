@@ -9,6 +9,7 @@ import (
 
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/watcher"
 )
 
@@ -148,6 +149,12 @@ func TestIntegration_WatchFlow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := tt.setupConfig()
 
+			// テスト用のロガーを作成
+			testLogger, err := logger.New(logger.WithLevel("error"))
+			if err != nil {
+				t.Fatalf("Failed to create logger: %v", err)
+			}
+
 			// Issue監視を作成
 			issueWatcher, err := watcher.NewIssueWatcher(
 				tt.mockClient,
@@ -156,6 +163,7 @@ func TestIntegration_WatchFlow(t *testing.T) {
 				"test-session",
 				cfg.GetLabels(),
 				cfg.GitHub.PollInterval,
+				testLogger,
 			)
 			if err != nil {
 				t.Fatalf("Failed to create issue watcher: %v", err)
