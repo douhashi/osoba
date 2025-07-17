@@ -480,11 +480,24 @@ func TestConcurrentWatchers(t *testing.T) {
 		callbackCount := 0
 		callbackMu := sync.Mutex{}
 
+		// テスト実行中かどうかを管理
+		testRunning := true
+		testRunningMu := sync.Mutex{}
+
 		callback := func(issue *github.Issue) {
 			callbackMu.Lock()
 			callbackCount++
+			count := callbackCount
 			callbackMu.Unlock()
-			t.Logf("Received callback for issue #%d: %s", *issue.Number, *issue.Title)
+
+			// テストが実行中の場合のみログを出力
+			testRunningMu.Lock()
+			if testRunning {
+				// goroutineセーフなログ出力（テスト外でログを出力しない）
+				// t.Logfは使わず、デバッグ情報は変数に保存
+				_ = fmt.Sprintf("Received callback for issue #%d: %s (count: %d)", *issue.Number, *issue.Title, count)
+			}
+			testRunningMu.Unlock()
 		}
 
 		// 両方のwatcherを起動
@@ -496,10 +509,17 @@ func TestConcurrentWatchers(t *testing.T) {
 
 		// 検証
 		callbackMu.Lock()
-		if callbackCount < 2 {
-			t.Errorf("Expected at least 2 callbacks, got %d", callbackCount)
-		}
+		finalCount := callbackCount
 		callbackMu.Unlock()
+
+		if finalCount < 2 {
+			t.Errorf("Expected at least 2 callbacks, got %d", finalCount)
+		}
+
+		// テスト終了をマーク
+		testRunningMu.Lock()
+		testRunning = false
+		testRunningMu.Unlock()
 
 		t.Log("Concurrent watchers test completed successfully")
 	})

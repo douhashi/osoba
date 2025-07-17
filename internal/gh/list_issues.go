@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/douhashi/osoba/internal/github"
@@ -46,11 +47,16 @@ func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, lab
 		}
 	}
 
-	// マップから配列に変換
+	// マップから配列に変換（Issue番号でソート）
 	issues := make([]*github.Issue, 0, len(issueMap))
 	for _, issue := range issueMap {
 		issues = append(issues, issue)
 	}
+
+	// Issue番号でソート（安定した順序を保証）
+	sort.Slice(issues, func(i, j int) bool {
+		return *issues[i].Number < *issues[j].Number
+	})
 
 	return issues, nil
 }
