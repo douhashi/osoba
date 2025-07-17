@@ -69,6 +69,8 @@ func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
 func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 	labelManager := &actions.DefaultLabelManager{
 		GitHubClient: f.ghClient,
+		Owner:        f.owner,
+		Repo:         f.repo,
 	}
 
 	// 現在の実装ではPhaseTransitionerを使用せず、シンプルな実装を使用
@@ -87,6 +89,8 @@ func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 	labelManager := &actions.DefaultLabelManager{
 		GitHubClient: f.ghClient,
+		Owner:        f.owner,
+		Repo:         f.repo,
 	}
 
 	// 現在の実装ではPhaseTransitionerを使用せず、シンプルな実装を使用

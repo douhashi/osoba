@@ -309,3 +309,76 @@ func TestDefaultLabelManager_InitializationError(t *testing.T) {
 		})
 	}
 }
+
+// TestDefaultLabelManager_EmptyOwnerRepo はowner/repoが空の場合のエラー処理を確認
+func TestDefaultLabelManager_EmptyOwnerRepo(t *testing.T) {
+	tests := []struct {
+		name      string
+		owner     string
+		repo      string
+		setupMock func(*mockGitHubLabelClient)
+		wantErr   bool
+	}{
+		{
+			name:  "owner が空の場合",
+			owner: "",
+			repo:  "test-repo",
+			setupMock: func(client *mockGitHubLabelClient) {
+				// GitHub APIクライアントがowner空文字列でエラーを返すことを期待
+				client.On("RemoveLabel", mock.Anything, "", "test-repo", 123, "status:ready").
+					Return(errors.New("owner is required"))
+			},
+			wantErr: true,
+		},
+		{
+			name:  "repo が空の場合",
+			owner: "test-owner",
+			repo:  "",
+			setupMock: func(client *mockGitHubLabelClient) {
+				// GitHub APIクライアントがrepo空文字列でエラーを返すことを期待
+				client.On("RemoveLabel", mock.Anything, "test-owner", "", 123, "status:ready").
+					Return(errors.New("repo is required"))
+			},
+			wantErr: true,
+		},
+		{
+			name:  "owner と repo が両方空の場合",
+			owner: "",
+			repo:  "",
+			setupMock: func(client *mockGitHubLabelClient) {
+				// GitHub APIクライアントがowner/repo空文字列でエラーを返すことを期待
+				client.On("RemoveLabel", mock.Anything, "", "", 123, "status:ready").
+					Return(errors.New("owner is required"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// モックのセットアップ
+			mockClient := new(mockGitHubLabelClient)
+			tt.setupMock(mockClient)
+
+			// DefaultLabelManagerの作成（owner/repoを意図的に空にする）
+			manager := &DefaultLabelManager{
+				Owner:        tt.owner,
+				Repo:         tt.repo,
+				GitHubClient: mockClient,
+			}
+
+			// テスト実行 - RemoveLabelを呼び出す
+			err := manager.RemoveLabel(context.Background(), 123, "status:ready")
+
+			// アサーション - エラーが発生することを確認
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// モックの期待値を検証
+			mockClient.AssertExpectations(t)
+		})
+	}
+}
