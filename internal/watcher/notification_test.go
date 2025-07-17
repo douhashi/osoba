@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/testutil/builders"
 	"github.com/douhashi/osoba/internal/testutil/mocks"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestEventNotifier(t *testing.T) {
@@ -154,6 +156,19 @@ func TestWatcherWithEventNotification(t *testing.T) {
 
 		mockClient := mocks.NewMockGitHubClient()
 
+		// モックの設定
+		testIssues := []*github.Issue{
+			builders.NewIssueBuilder().
+				WithNumber(1).
+				WithTitle("Test Issue 1").
+				WithLabels([]string{"status:ready"}).
+				Build(),
+		}
+		mockClient.On("ListIssuesByLabels", mock.Anything, "douhashi", "osoba", []string{"status:ready"}).
+			Return(testIssues, nil).Maybe()
+		mockClient.On("GetRateLimit", mock.Anything).
+			Return(builders.NewRateLimitsBuilder().Build(), nil).Maybe()
+
 		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:ready"}, 5*time.Second, NewMockLogger())
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
@@ -213,7 +228,32 @@ func TestLabelChangeEventNotification(t *testing.T) {
 		defer cancel()
 
 		mockClient := mocks.NewMockGitHubClient()
-		// TODO: モックの設定が必要
+
+		// 初期状態のIssue
+		initialIssues := []*github.Issue{
+			builders.NewIssueBuilder().
+				WithNumber(1).
+				WithTitle("Test Issue").
+				WithLabels([]string{"bug"}).
+				Build(),
+		}
+
+		// 更新後の状態（ラベルが追加される）
+		updatedIssues := []*github.Issue{
+			builders.NewIssueBuilder().
+				WithNumber(1).
+				WithTitle("Test Issue").
+				WithLabels([]string{"bug", "status:ready"}).
+				Build(),
+		}
+
+		// 最初は初期状態、その後は更新後の状態を返す
+		mockClient.On("ListIssuesByLabels", mock.Anything, "douhashi", "osoba", []string{"bug", "status:ready"}).
+			Return(initialIssues, nil).Once()
+		mockClient.On("ListIssuesByLabels", mock.Anything, "douhashi", "osoba", []string{"bug", "status:ready"}).
+			Return(updatedIssues, nil).Maybe()
+		mockClient.On("GetRateLimit", mock.Anything).
+			Return(builders.NewRateLimitsBuilder().Build(), nil).Maybe()
 
 		watcher, err := NewIssueWatcherWithLabelTracking(mockClient, "douhashi", "osoba", "test-session", []string{"bug", "status:ready"}, 5*time.Second, NewMockLogger())
 		if err != nil {
