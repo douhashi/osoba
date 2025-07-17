@@ -91,33 +91,63 @@ func (lm *GHLabelManager) TransitionLabelWithRetry(ctx context.Context, owner, r
 
 // TransitionLabelWithInfoWithRetry はリトライ機能付きでラベルを遷移させ、詳細情報を返す
 func (lm *GHLabelManager) TransitionLabelWithInfoWithRetry(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error) {
-	var lastErr error
-	for i := 0; i < lm.maxRetries; i++ {
-		if i > 0 {
-			if lm.logger != nil {
-				lm.logger.Debug("Retrying label transition",
-					"attempt", i+1,
-					"issue", issueNumber,
-					"delay", lm.retryDelay.String())
+	var lastInfo *TransitionInfo
+	var transitioned bool
+
+	operation := func() error {
+		var err error
+		transitioned, lastInfo, err = lm.transitionLabel(ctx, owner, repo, issueNumber)
+		if err != nil {
+
+			// Parse error and log appropriate details
+			if ghErr, ok := err.(*GitHubError); ok {
+				if lm.logger != nil {
+					lm.logger.Warn("Label transition failed with GitHub error",
+						"issue", issueNumber,
+						"errorType", ghErr.Type.String(),
+						"statusCode", ghErr.StatusCode,
+						"message", ghErr.Message,
+						"retryable", ghErr.IsRetryable())
+				}
+			} else {
+				if lm.logger != nil {
+					lm.logger.Warn("Label transition failed",
+						"issue", issueNumber,
+						"error", err)
+				}
 			}
-			time.Sleep(lm.retryDelay)
+			return err
 		}
-
-		transitioned, info, err := lm.transitionLabel(ctx, owner, repo, issueNumber)
-		if err == nil {
-			return transitioned, info, nil
-		}
-
-		lastErr = err
-		if lm.logger != nil {
-			lm.logger.Warn("Label transition failed",
-				"attempt", i+1,
-				"issue", issueNumber,
-				"error", err)
-		}
+		return nil
 	}
 
-	return false, nil, fmt.Errorf("failed after %d retries: %w", lm.maxRetries, lastErr)
+	// Use dynamic retry strategy based on error type
+	err := operation()
+	if err != nil {
+		strategy := GetStrategyForError(err)
+		// Override strategy with configured values if they are more conservative
+		if lm.maxRetries < strategy.MaxAttempts {
+			strategy.MaxAttempts = lm.maxRetries
+		}
+		if lm.retryDelay > strategy.InitialDelay {
+			strategy.InitialDelay = lm.retryDelay
+		}
+
+		if lm.logger != nil {
+			lm.logger.Debug("Using retry strategy",
+				"maxAttempts", strategy.MaxAttempts,
+				"initialDelay", strategy.InitialDelay,
+				"errorType", fmt.Sprintf("%T", err))
+		}
+
+		err = RetryWithStrategy(ctx, strategy, operation)
+	}
+
+	if err != nil {
+		return false, nil, fmt.Errorf("label transition failed: %w", err)
+	}
+
+	return transitioned, lastInfo, nil
 }
 
 // transitionLabel は実際のラベル遷移を実行する
@@ -229,30 +259,57 @@ func (lm *GHLabelManager) removeLabel(ctx context.Context, owner, repo string, i
 
 // EnsureLabelsExistWithRetry は必要なラベルが存在することを確認する
 func (lm *GHLabelManager) EnsureLabelsExistWithRetry(ctx context.Context, owner, repo string) error {
-	var lastErr error
-	for i := 0; i < lm.maxRetries; i++ {
-		if i > 0 {
-			if lm.logger != nil {
-				lm.logger.Debug("Retrying ensure labels exist",
-					"attempt", i+1,
-					"delay", lm.retryDelay.String())
+	operation := func() error {
+		err := lm.ensureLabelsExist(ctx, owner, repo)
+		if err != nil {
+			// Parse error and log appropriate details
+			if ghErr, ok := err.(*GitHubError); ok {
+				if lm.logger != nil {
+					lm.logger.Warn("Ensure labels exist failed with GitHub error",
+						"repo", fmt.Sprintf("%s/%s", owner, repo),
+						"errorType", ghErr.Type.String(),
+						"statusCode", ghErr.StatusCode,
+						"message", ghErr.Message,
+						"retryable", ghErr.IsRetryable())
+				}
+			} else {
+				if lm.logger != nil {
+					lm.logger.Warn("Ensure labels exist failed",
+						"repo", fmt.Sprintf("%s/%s", owner, repo),
+						"error", err)
+				}
 			}
-			time.Sleep(lm.retryDelay)
 		}
-
-		if err := lm.ensureLabelsExist(ctx, owner, repo); err == nil {
-			return nil
-		} else {
-			lastErr = err
-			if lm.logger != nil {
-				lm.logger.Warn("Ensure labels exist failed",
-					"attempt", i+1,
-					"error", err)
-			}
-		}
+		return err
 	}
 
-	return fmt.Errorf("failed after %d retries: %w", lm.maxRetries, lastErr)
+	// Use dynamic retry strategy based on error type
+	err := operation()
+	if err != nil {
+		strategy := GetStrategyForError(err)
+		// Override strategy with configured values if they are more conservative
+		if lm.maxRetries < strategy.MaxAttempts {
+			strategy.MaxAttempts = lm.maxRetries
+		}
+		if lm.retryDelay > strategy.InitialDelay {
+			strategy.InitialDelay = lm.retryDelay
+		}
+
+		if lm.logger != nil {
+			lm.logger.Debug("Using retry strategy for ensure labels",
+				"maxAttempts", strategy.MaxAttempts,
+				"initialDelay", strategy.InitialDelay,
+				"errorType", fmt.Sprintf("%T", err))
+		}
+
+		err = RetryWithStrategy(ctx, strategy, operation)
+	}
+
+	if err != nil {
+		return fmt.Errorf("ensure labels exist failed: %w", err)
+	}
+
+	return nil
 }
 
 // ensureLabelsExist は実際のラベル存在確認を実行する
@@ -335,9 +392,11 @@ func (lm *GHLabelManager) createLabel(ctx context.Context, owner, repo string, d
 // executeGHCommand はghコマンドを実行する
 func (lm *GHLabelManager) executeGHCommand(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "gh", args...)
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("gh command failed: %w", err)
+		// Parse the error output to create a structured GitHubError
+		ghErr := ParseGHError(string(output), err)
+		return nil, ghErr
 	}
 	return output, nil
 }
