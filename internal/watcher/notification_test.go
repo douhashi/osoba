@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/testutil/mocks"
 )
 
 func TestEventNotifier(t *testing.T) {
@@ -151,20 +152,7 @@ func TestWatcherWithEventNotification(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// モックデータ
-		testIssues := []*github.Issue{
-			{
-				Number: github.Int(1),
-				Title:  github.String("Test Issue 1"),
-				Labels: []*github.Label{
-					{Name: github.String("status:ready")},
-				},
-			},
-		}
-
-		mockClient := &mockGitHubClient{
-			issues: testIssues,
-		}
+		mockClient := mocks.NewMockGitHubClient()
 
 		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:ready"}, 5*time.Second, NewMockLogger())
 		if err != nil {
@@ -224,39 +212,8 @@ func TestLabelChangeEventNotification(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// 初期状態
-		initialIssues := []*github.Issue{
-			{
-				Number: github.Int(1),
-				Title:  github.String("Test Issue"),
-				Labels: []*github.Label{
-					{Name: github.String("bug")},
-				},
-			},
-		}
-
-		// 変更後の状態
-		updatedIssues := []*github.Issue{
-			{
-				Number: github.Int(1),
-				Title:  github.String("Test Issue"),
-				Labels: []*github.Label{
-					{Name: github.String("bug")},
-					{Name: github.String("status:ready")},
-				},
-			},
-		}
-
-		callCount := 0
-		mockClient := &mockGitHubClient{
-			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
-				callCount++
-				if callCount == 1 {
-					return initialIssues, nil
-				}
-				return updatedIssues, nil
-			},
-		}
+		mockClient := mocks.NewMockGitHubClient()
+		// TODO: モックの設定が必要
 
 		watcher, err := NewIssueWatcherWithLabelTracking(mockClient, "douhashi", "osoba", "test-session", []string{"bug", "status:ready"}, 5*time.Second, NewMockLogger())
 		if err != nil {

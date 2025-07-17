@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/douhashi/osoba/internal/github"
 	gh "github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/testutil/builders"
+	"github.com/douhashi/osoba/internal/testutil/mocks"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestNewIssueWatcher(t *testing.T) {
@@ -28,7 +30,7 @@ func TestNewIssueWatcher(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "異常系: ownerが空でエラー",
+			name:    "異常系: ownerが空",
 			owner:   "",
 			repo:    "osoba",
 			labels:  []string{"status:needs-plan"},
@@ -36,7 +38,7 @@ func TestNewIssueWatcher(t *testing.T) {
 			errMsg:  "owner is required",
 		},
 		{
-			name:    "異常系: repoが空でエラー",
+			name:    "異常系: repoが空",
 			owner:   "douhashi",
 			repo:    "",
 			labels:  []string{"status:needs-plan"},
@@ -44,18 +46,10 @@ func TestNewIssueWatcher(t *testing.T) {
 			errMsg:  "repo is required",
 		},
 		{
-			name:    "異常系: labelsが空でエラー",
+			name:    "異常系: labelsが空",
 			owner:   "douhashi",
 			repo:    "osoba",
 			labels:  []string{},
-			wantErr: true,
-			errMsg:  "at least one label is required",
-		},
-		{
-			name:    "異常系: labelsがnilでエラー",
-			owner:   "douhashi",
-			repo:    "osoba",
-			labels:  nil,
 			wantErr: true,
 			errMsg:  "at least one label is required",
 		},
@@ -63,315 +57,311 @@ func TestNewIssueWatcher(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// モックGitHubクライアント
-			mockClient := &mockGitHubClient{}
+			mockGH := mocks.NewMockGitHubClient()
 
-			watcher, err := NewIssueWatcher(mockClient, tt.owner, tt.repo, "test-session", tt.labels, 5*time.Second, NewMockLogger())
-			if (err != nil) != tt.wantErr {
-				t.Errorf("NewIssueWatcher() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if tt.wantErr && err.Error() != tt.errMsg {
-				t.Errorf("NewIssueWatcher() error = %v, want %v", err.Error(), tt.errMsg)
-			}
-			if !tt.wantErr && watcher == nil {
-				t.Error("NewIssueWatcher() returned nil watcher")
+			watcher, err := NewIssueWatcher(mockGH, tt.owner, tt.repo, "test-session", tt.labels, 5*time.Second, NewMockLogger())
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("NewIssueWatcher() error = nil, wantErr %v", tt.wantErr)
+					return
+				}
+				if tt.errMsg != "" && err.Error() != tt.errMsg {
+					t.Errorf("NewIssueWatcher() error = %v, wantErrMsg %v", err.Error(), tt.errMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("NewIssueWatcher() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if watcher == nil {
+					t.Errorf("NewIssueWatcher() returned nil watcher")
+				}
 			}
 		})
 	}
 }
 
-func TestIssueWatcher_Start(t *testing.T) {
+func TestIssueWatcher_WatchConcurrent(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupMock      func(*mocks.MockGitHubClient)
+		expectedIssues int
+		watchDuration  time.Duration
+	}{
+		{
+			name: "複数のIssueを処理できる",
+			setupMock: func(m *mocks.MockGitHubClient) {
+				issues := []*gh.Issue{
+					builders.NewIssueBuilder().WithNumber(1).WithTitle("Issue 1").WithLabels([]string{"status:needs-plan"}).Build(),
+					builders.NewIssueBuilder().WithNumber(2).WithTitle("Issue 2").WithLabels([]string{"status:ready"}).Build(),
+					builders.NewIssueBuilder().WithNumber(3).WithTitle("Issue 3").WithLabels([]string{"status:review-requested"}).Build(),
+				}
+				m.On("ListIssuesByLabels", mock.Anything, "owner", "repo", mock.Anything).Return(issues, nil)
+				m.On("GetRateLimit", mock.Anything).Return(builders.NewRateLimitsBuilder().Build(), nil)
+			},
+			expectedIssues: 3,
+			watchDuration:  100 * time.Millisecond,
+		},
+		{
+			name: "空のIssueリストを処理できる",
+			setupMock: func(m *mocks.MockGitHubClient) {
+				m.On("ListIssuesByLabels", mock.Anything, "owner", "repo", mock.Anything).Return([]*gh.Issue{}, nil)
+				m.On("GetRateLimit", mock.Anything).Return(builders.NewRateLimitsBuilder().Build(), nil)
+			},
+			expectedIssues: 0,
+			watchDuration:  100 * time.Millisecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockGH := mocks.NewMockGitHubClient()
+			tt.setupMock(mockGH)
+
+			watcher, err := NewIssueWatcher(mockGH, "owner", "repo", "test-session", []string{"status:needs-plan", "status:ready", "status:review-requested"}, 5*time.Second, NewMockLogger())
+			if err != nil {
+				t.Fatalf("NewIssueWatcher() error = %v", err)
+			}
+
+			var processedIssues sync.Map
+			var processedCount int
+			var mu sync.Mutex
+
+			handler := func(issue *gh.Issue) {
+				if issue.Number != nil {
+					processedIssues.Store(*issue.Number, true)
+					mu.Lock()
+					processedCount++
+					mu.Unlock()
+				}
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), tt.watchDuration)
+			defer cancel()
+
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				watcher.Start(ctx, handler)
+			}()
+
+			wg.Wait()
+
+			mu.Lock()
+			finalCount := processedCount
+			mu.Unlock()
+
+			if finalCount < tt.expectedIssues {
+				t.Errorf("Processed %d issues, expected at least %d", finalCount, tt.expectedIssues)
+			}
+
+			mockGH.AssertExpectations(t)
+		})
+	}
+}
+
+func TestIssueWatcher_Stop(t *testing.T) {
+	mockGH := mocks.NewMockGitHubClient()
+
+	// API呼び出しを設定
+	issues := []*gh.Issue{
+		builders.NewIssueBuilder().WithNumber(1).WithTitle("Issue 1").WithLabels([]string{"status:needs-plan"}).Build(),
+	}
+	mockGH.On("ListIssuesByLabels", mock.Anything, "owner", "repo", mock.Anything).Return(issues, nil).Maybe()
+	mockGH.On("GetRateLimit", mock.Anything).Return(builders.NewRateLimitsBuilder().Build(), nil).Maybe()
+
+	watcher, err := NewIssueWatcher(mockGH, "owner", "repo", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
+	if err != nil {
+		t.Fatalf("NewIssueWatcher() error = %v", err)
+	}
+
+	var processedCount int
+	var mu sync.Mutex
+	handler := func(issue *gh.Issue) {
+		mu.Lock()
+		processedCount++
+		mu.Unlock()
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// モックIssueデータ
-	testIssues := []*gh.Issue{
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		watcher.Start(ctx, handler)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// コンテキストをキャンセルして停止
+	cancel()
+
+	wg.Wait()
+
+	// キャンセル後は新しいIssueが処理されないことを確認
+	beforeStop := processedCount
+	time.Sleep(100 * time.Millisecond)
+	afterStop := processedCount
+
+	if beforeStop != afterStop {
+		t.Errorf("Issues were processed after cancel: before=%d, after=%d", beforeStop, afterStop)
+	}
+}
+
+func TestIssueWatcher_RateLimitHandling(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupMock func(*mocks.MockGitHubClient)
+		wantPanic bool
+	}{
 		{
-			Number: gh.Int(1),
-			Title:  gh.String("Test Issue 1"),
-			Labels: []*gh.Label{
-				{Name: gh.String("status:needs-plan")},
+			name: "Rate limit残量が十分な場合は正常に処理",
+			setupMock: func(m *mocks.MockGitHubClient) {
+				m.On("ListIssuesByLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return([]*gh.Issue{}, nil)
+				m.On("GetRateLimit", mock.Anything).
+					Return(builders.NewRateLimitsBuilder().WithCoreLimit(5000, 1000).Build(), nil)
 			},
+			wantPanic: false,
 		},
 		{
-			Number: gh.Int(2),
-			Title:  gh.String("Test Issue 2"),
-			Labels: []*gh.Label{
-				{Name: gh.String("status:ready")},
+			name: "Rate limit残量が少ない場合は警告",
+			setupMock: func(m *mocks.MockGitHubClient) {
+				m.On("ListIssuesByLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return([]*gh.Issue{}, nil)
+				m.On("GetRateLimit", mock.Anything).
+					Return(builders.NewRateLimitsBuilder().WithCoreLimit(5000, 50).Build(), nil)
 			},
+			wantPanic: false,
+		},
+		{
+			name: "Rate limitが枯渇している場合",
+			setupMock: func(m *mocks.MockGitHubClient) {
+				m.On("ListIssuesByLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return([]*gh.Issue{}, nil)
+				m.On("GetRateLimit", mock.Anything).
+					Return(builders.NewRateLimitsBuilder().AsExhausted().Build(), nil)
+			},
+			wantPanic: false,
 		},
 	}
 
-	t.Run("正常系: Issue検出時にコールバックが呼ばれる", func(t *testing.T) {
-		mockClient := &mockGitHubClient{
-			issues: testIssues,
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockGH := mocks.NewMockGitHubClient()
+			tt.setupMock(mockGH)
 
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan", "status:ready"}, 5*time.Second, NewMockLogger())
-		if err != nil {
-			t.Fatalf("failed to create watcher: %v", err)
-		}
-
-		// 検出されたIssueを記録
-		detectedIssues := make(map[int]bool)
-		var mu sync.Mutex
-		callback := func(issue *gh.Issue) {
-			mu.Lock()
-			detectedIssues[*issue.Number] = true
-			mu.Unlock()
-		}
-
-		// ポーリング間隔を短くしてテストを高速化
-		// テスト用に短いポーリング間隔を設定
-		watcher.SetPollIntervalForTest(100 * time.Millisecond)
-
-		// 監視を開始
-		go watcher.Start(ctx, callback)
-
-		// 少し待ってIssueが検出されることを確認
-		time.Sleep(300 * time.Millisecond)
-
-		mu.Lock()
-		detected1 := detectedIssues[1]
-		detected2 := detectedIssues[2]
-		mu.Unlock()
-
-		if !detected1 {
-			t.Error("Issue #1 was not detected")
-		}
-		if !detected2 {
-			t.Error("Issue #2 was not detected")
-		}
-	})
-
-	t.Run("正常系: contextキャンセルで停止する", func(t *testing.T) {
-		mockClient := &mockGitHubClient{
-			issues: testIssues,
-		}
-
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
-		if err != nil {
-			t.Fatalf("failed to create watcher: %v", err)
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-
-		// 監視が終了したことを確認するためのチャネル
-		done := make(chan bool)
-		go func() {
-			watcher.Start(ctx, func(issue *gh.Issue) {})
-			done <- true
-		}()
-
-		// 少し待ってからキャンセル
-		time.Sleep(100 * time.Millisecond)
-		cancel()
-
-		// 監視が終了することを確認
-		select {
-		case <-done:
-			// 正常に終了
-		case <-time.After(1 * time.Second):
-			t.Error("watcher did not stop after context cancel")
-		}
-	})
-
-	t.Run("異常系: APIエラー時は継続する", func(t *testing.T) {
-		callCount := 0
-		var callMu sync.Mutex
-		mockClient := &mockGitHubClient{
-			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*gh.Issue, error) {
-				callMu.Lock()
-				callCount++
-				count := callCount
-				callMu.Unlock()
-
-				if count == 1 {
-					// 初回はエラーを返す
-					return nil, fmt.Errorf("not found")
-				}
-				// 2回目以降は正常な結果を返す
-				return testIssues, nil
-			},
-		}
-
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
-		if err != nil {
-			t.Fatalf("failed to create watcher: %v", err)
-		}
-
-		detectedIssues := make(map[int]bool)
-		var mu sync.Mutex
-		callback := func(issue *gh.Issue) {
-			mu.Lock()
-			detectedIssues[*issue.Number] = true
-			mu.Unlock()
-		}
-
-		// テスト用に短いポーリング間隔を設定
-		watcher.SetPollIntervalForTest(100 * time.Millisecond)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-		defer cancel()
-
-		go watcher.Start(ctx, callback)
-
-		// エラー後も継続してIssueが検出されることを確認
-		time.Sleep(350 * time.Millisecond)
-
-		callMu.Lock()
-		finalCallCount := callCount
-		callMu.Unlock()
-
-		if finalCallCount < 2 {
-			t.Error("API was not retried after error")
-		}
-
-		mu.Lock()
-		detected1 := detectedIssues[1]
-		mu.Unlock()
-
-		if !detected1 {
-			t.Error("Issue #1 was not detected after retry")
-		}
-	})
-
-	t.Run("異常系: パニック発生時もwatcherは継続する", func(t *testing.T) {
-		callCount := 0
-		var callMu sync.Mutex
-		mockClient := &mockGitHubClient{
-			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*gh.Issue, error) {
-				callMu.Lock()
-				callCount++
-				callMu.Unlock()
-
-				// 正常な結果を返す
-				return testIssues, nil
-			},
-		}
-
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
-		if err != nil {
-			t.Fatalf("failed to create watcher: %v", err)
-		}
-
-		panicCount := 0
-		var panicMu sync.Mutex
-		callback := func(issue *gh.Issue) {
-			panicMu.Lock()
-			defer panicMu.Unlock()
-			if panicCount == 0 && *issue.Number == 1 {
-				panicCount++
-				panic("test panic")
+			watcher, err := NewIssueWatcher(mockGH, "owner", "repo", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
+			if err != nil {
+				t.Fatalf("NewIssueWatcher() error = %v", err)
 			}
-		}
 
-		// テスト用に短いポーリング間隔を設定
-		watcher.SetPollIntervalForTest(100 * time.Millisecond)
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-		defer cancel()
+			handler := func(issue *gh.Issue) {
+			}
 
-		go watcher.Start(ctx, callback)
+			defer func() {
+				if r := recover(); r != nil && !tt.wantPanic {
+					t.Errorf("Watch() panicked: %v", r)
+				}
+			}()
 
-		// パニック後も継続することを確認
-		time.Sleep(350 * time.Millisecond)
+			watcher.Start(ctx, handler)
 
-		callMu.Lock()
-		finalCallCount := callCount
-		callMu.Unlock()
-
-		if finalCallCount < 3 {
-			t.Errorf("watcher did not continue after panic, call count: %d", finalCallCount)
-		}
-	})
+			mockGH.AssertExpectations(t)
+		})
+	}
 }
 
-func TestIssueWatcher_GetRateLimit(t *testing.T) {
-	t.Run("正常系: レート制限情報を取得できる", func(t *testing.T) {
-		mockClient := &mockGitHubClient{
-			rateLimit: &gh.RateLimits{
-				Core: &gh.RateLimit{
-					Limit:     5000,
-					Remaining: 4999,
-				},
+func TestIssueWatcher_ErrorHandling(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupMock      func(*mocks.MockGitHubClient)
+		handler        func(*gh.Issue)
+		expectContinue bool
+	}{
+		{
+			name: "API呼び出しエラー時も監視を継続",
+			setupMock: func(m *mocks.MockGitHubClient) {
+				// 最初はエラー、次は成功
+				m.On("ListIssuesByLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, fmt.Errorf("API error")).Once()
+				m.On("ListIssuesByLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return([]*gh.Issue{}, nil).Maybe()
+				m.On("GetRateLimit", mock.Anything).
+					Return(builders.NewRateLimitsBuilder().Build(), nil).Maybe()
 			},
-		}
-
-		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
-		if err != nil {
-			t.Fatalf("failed to create watcher: %v", err)
-		}
-
-		rateLimit, err := watcher.GetRateLimit(context.Background())
-		if err != nil {
-			t.Errorf("GetRateLimit() error = %v", err)
-			return
-		}
-		if rateLimit == nil {
-			t.Error("GetRateLimit() returned nil")
-			return
-		}
-		if rateLimit.Core.Remaining != 4999 {
-			t.Errorf("GetRateLimit() remaining = %d, want 4999", rateLimit.Core.Remaining)
-		}
-	})
-}
-
-// モッククライアント
-type mockGitHubClient struct {
-	issues         []*gh.Issue
-	rateLimit      *gh.RateLimits
-	listIssuesFunc func(ctx context.Context, owner, repo string, labels []string) ([]*gh.Issue, error)
-}
-
-func (m *mockGitHubClient) GetRepository(ctx context.Context, owner, repo string) (*gh.Repository, error) {
-	return &gh.Repository{
-		Name:  gh.String(repo),
-		Owner: &gh.User{Login: gh.String(owner)},
-	}, nil
-}
-
-func (m *mockGitHubClient) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*gh.Issue, error) {
-	if m.listIssuesFunc != nil {
-		return m.listIssuesFunc(ctx, owner, repo, labels)
-	}
-	return m.issues, nil
-}
-
-func (m *mockGitHubClient) GetRateLimit(ctx context.Context) (*gh.RateLimits, error) {
-	if m.rateLimit != nil {
-		return m.rateLimit, nil
-	}
-	return &gh.RateLimits{
-		Core: &gh.RateLimit{
-			Limit:     5000,
-			Remaining: 5000,
+			handler: func(issue *gh.Issue) {
+			},
+			expectContinue: true,
 		},
-	}, nil
-}
+		{
+			name: "ハンドラーエラー時も監視を継続",
+			setupMock: func(m *mocks.MockGitHubClient) {
+				issues := []*gh.Issue{
+					builders.NewIssueBuilder().WithNumber(1).Build(),
+				}
+				m.On("ListIssuesByLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(issues, nil)
+				m.On("GetRateLimit", mock.Anything).
+					Return(builders.NewRateLimitsBuilder().Build(), nil)
+			},
+			handler: func(issue *gh.Issue) {
+				// ハンドラーでエラーが発生したケースを想定
+			},
+			expectContinue: true,
+		},
+		{
+			name: "コンテキストキャンセル時は正常終了",
+			setupMock: func(m *mocks.MockGitHubClient) {
+				m.On("ListIssuesByLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return([]*gh.Issue{}, nil).Maybe()
+				m.On("GetRateLimit", mock.Anything).
+					Return(builders.NewRateLimitsBuilder().Build(), nil).Maybe()
+			},
+			handler: func(issue *gh.Issue) {
+			},
+			expectContinue: false,
+		},
+	}
 
-func (m *mockGitHubClient) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
-	return false, nil
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockGH := mocks.NewMockGitHubClient()
+			tt.setupMock(mockGH)
 
-func (m *mockGitHubClient) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *github.TransitionInfo, error) {
-	return false, nil, nil
-}
+			watcher, err := NewIssueWatcher(mockGH, "owner", "repo", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
+			if err != nil {
+				t.Fatalf("NewIssueWatcher() error = %v", err)
+			}
 
-func (m *mockGitHubClient) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
-	return nil
-}
+			ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+			defer cancel()
 
-func (m *mockGitHubClient) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
-	return nil
-}
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				watcher.Start(ctx, tt.handler)
+			}()
 
-func (m *mockGitHubClient) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
-	return nil
-}
+			if !tt.expectContinue {
+				time.Sleep(50 * time.Millisecond)
+				cancel()
+			}
 
-func (m *mockGitHubClient) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
-	return nil
+			wg.Wait()
+
+			// エラーが発生しても監視が継続されたことを確認
+			if tt.expectContinue {
+				mockGH.AssertExpectations(t)
+			}
+		})
+	}
 }

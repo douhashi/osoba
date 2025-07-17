@@ -5,13 +5,14 @@ import (
 
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/config"
+	"github.com/douhashi/osoba/internal/testutil/mocks"
 	"github.com/stretchr/testify/assert"
 )
 
 // 修正後：owner/repoが正しく設定されることを確認するテスト
 func TestActionFactory_LabelManagerOwnerRepoSet(t *testing.T) {
 	// Arrange
-	mockGHClient := new(mockGitHubClient)
+	mockGHClient := mocks.NewMockGitHubClient()
 	mockWorktreeManager := new(MockWorktreeManager)
 
 	factory := &DefaultActionFactory{

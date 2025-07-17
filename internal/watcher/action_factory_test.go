@@ -8,6 +8,7 @@ import (
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/testutil/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -95,7 +96,7 @@ func TestActionFactory(t *testing.T) {
 
 	t.Run("CreatePlanActionの作成 - ghクライアント", func(t *testing.T) {
 		// Arrange
-		mockGhClient := &mockGitHubClient{}
+		mockGhClient := mocks.NewMockGitHubClient()
 		ml := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
@@ -140,7 +141,7 @@ func TestActionFactory(t *testing.T) {
 
 	t.Run("CreateImplementationActionの作成 - ghクライアント", func(t *testing.T) {
 		// Arrange
-		mockGhClient := &mockGitHubClient{}
+		mockGhClient := mocks.NewMockGitHubClient()
 		ml := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",
@@ -182,7 +183,7 @@ func TestActionFactory(t *testing.T) {
 
 	t.Run("CreateReviewActionの作成 - ghクライアント", func(t *testing.T) {
 		// Arrange
-		mockGhClient := &mockGitHubClient{}
+		mockGhClient := mocks.NewMockGitHubClient()
 		ml := NewMockLogger()
 		factory := &DefaultActionFactory{
 			sessionName:     "test-session",

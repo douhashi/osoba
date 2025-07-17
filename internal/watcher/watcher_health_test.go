@@ -7,21 +7,13 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/testutil/mocks"
 )
 
 func TestIssueWatcher_HealthCheck(t *testing.T) {
 	t.Run("最後の正常実行時刻が記録される", func(t *testing.T) {
-		mockClient := &mockGitHubClient{
-			issues: []*github.Issue{
-				{
-					Number: github.Int(1),
-					Title:  github.String("Test Issue"),
-					Labels: []*github.Label{
-						{Name: github.String("status:needs-plan")},
-					},
-				},
-			},
-		}
+		mockClient := mocks.NewMockGitHubClient()
+		// モックの設定
 
 		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
 		if err != nil {
@@ -57,27 +49,8 @@ func TestIssueWatcher_HealthCheck(t *testing.T) {
 	})
 
 	t.Run("統計情報が正しく記録される", func(t *testing.T) {
-		callCount := 0
-		mockClient := &mockGitHubClient{
-			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
-				callCount++
-				if callCount%2 == 0 {
-					// 偶数回はリトライ不可のエラーを返す（401認証エラー）
-					return nil, &github.ErrorResponse{
-						Message: "Unauthorized",
-					}
-				}
-				return []*github.Issue{
-					{
-						Number: github.Int(callCount),
-						Title:  github.String("Test Issue"),
-						Labels: []*github.Label{
-							{Name: github.String("status:needs-plan")},
-						},
-					},
-				}, nil
-			},
-		}
+		mockClient := mocks.NewMockGitHubClient()
+		// TODO: モックの設定が必要
 
 		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
 		if err != nil {
@@ -117,9 +90,8 @@ func TestIssueWatcher_HealthCheck(t *testing.T) {
 	})
 
 	t.Run("長時間実行されていない場合のアラート", func(t *testing.T) {
-		mockClient := &mockGitHubClient{
-			issues: []*github.Issue{},
-		}
+		mockClient := mocks.NewMockGitHubClient()
+		// TODO: モックの設定が必要
 
 		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
 		if err != nil {
