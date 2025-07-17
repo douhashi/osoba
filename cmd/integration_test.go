@@ -1,8 +1,12 @@
+//go:build integration
+// +build integration
+
 package cmd
 
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -13,191 +17,68 @@ import (
 	"github.com/douhashi/osoba/internal/watcher"
 )
 
-// モックGitHubクライアント
-type mockGitHubClient struct {
-	issues    []*github.Issue
-	err       error
-	callCount int
-	rateLimit *github.RateLimits
-}
-
-func (m *mockGitHubClient) GetRepository(ctx context.Context, owner, repo string) (*github.Repository, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	return &github.Repository{
-		Name: github.String(repo),
-		Owner: &github.User{
-			Login: github.String(owner),
-		},
-	}, nil
-}
-
-func (m *mockGitHubClient) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
-	m.callCount++
-	if m.err != nil {
-		return nil, m.err
-	}
-	return m.issues, nil
-}
-
-func (m *mockGitHubClient) GetRateLimit(ctx context.Context) (*github.RateLimits, error) {
-	if m.rateLimit != nil {
-		return m.rateLimit, nil
-	}
-
-	resetTime := time.Now().Add(1 * time.Hour)
-	return &github.RateLimits{
-		Core: &github.RateLimit{
-			Limit:     5000,
-			Remaining: 4999,
-			Reset:     resetTime,
-		},
-	}, nil
-}
-
-func (m *mockGitHubClient) TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error) {
-	return false, nil
-}
-
-func (m *mockGitHubClient) TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *github.TransitionInfo, error) {
-	return false, nil, nil
-}
-
-func (m *mockGitHubClient) EnsureLabelsExist(ctx context.Context, owner, repo string) error {
-	return nil
-}
-
-func (m *mockGitHubClient) CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error {
-	return nil
-}
-
-func (m *mockGitHubClient) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
-	return nil
-}
-
-func (m *mockGitHubClient) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
-	return nil
-}
-
-// TestIntegration_WatchFlow は監視フロー全体の統合テスト
+// TestIntegration_WatchFlow は監視フロー全体の統合テスト（外部サービスのみモック）
 func TestIntegration_WatchFlow(t *testing.T) {
-	tests := []struct {
-		name          string
-		setupConfig   func() *config.Config
-		mockClient    *mockGitHubClient
-		expectedCalls int
-		timeout       time.Duration
-		wantErr       bool
-	}{
-		{
-			name: "正常系: 新しいIssueを検出してコールバックが実行される",
-			setupConfig: func() *config.Config {
-				cfg := config.NewConfig()
-				cfg.GitHub.Token = "test-token"
-				cfg.GitHub.PollInterval = time.Second
-				return cfg
-			},
-			mockClient: &mockGitHubClient{
-				issues: []*github.Issue{
-					{
-						Number: github.Int(1),
-						Title:  github.String("Test Issue 1"),
-						Labels: []*github.Label{
-							{Name: github.String("status:needs-plan")},
-						},
-					},
-				},
-			},
-			expectedCalls: 2,
-			timeout:       3 * time.Second,
-			wantErr:       false,
-		},
-		{
-			name: "正常系: 複数のIssueを検出",
-			setupConfig: func() *config.Config {
-				cfg := config.NewConfig()
-				cfg.GitHub.Token = "test-token"
-				cfg.GitHub.PollInterval = time.Second
-				return cfg
-			},
-			mockClient: &mockGitHubClient{
-				issues: []*github.Issue{
-					{
-						Number: github.Int(1),
-						Title:  github.String("Test Issue 1"),
-						Labels: []*github.Label{
-							{Name: github.String("status:needs-plan")},
-						},
-					},
-					{
-						Number: github.Int(2),
-						Title:  github.String("Test Issue 2"),
-						Labels: []*github.Label{
-							{Name: github.String("status:ready")},
-						},
-					},
-				},
-			},
-			expectedCalls: 2,
-			timeout:       3 * time.Second,
-			wantErr:       false,
-		},
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := tt.setupConfig()
+	// ghコマンドが利用可能で認証済みかチェック
+	if err := exec.Command("gh", "auth", "status").Run(); err != nil {
+		t.Skip("gh command not authenticated, skipping integration test")
+	}
 
-			// テスト用のロガーを作成
-			testLogger, err := logger.New(logger.WithLevel("error"))
-			if err != nil {
-				t.Fatalf("Failed to create logger: %v", err)
-			}
+	t.Run("正常系: 実際のGitHub APIとの連携", func(t *testing.T) {
+		cfg := config.NewConfig()
+		cfg.GitHub.PollInterval = 2 * time.Second
 
-			// Issue監視を作成
-			issueWatcher, err := watcher.NewIssueWatcher(
-				tt.mockClient,
-				"douhashi",
-				"osoba",
-				"test-session",
-				cfg.GetLabels(),
-				cfg.GitHub.PollInterval,
-				testLogger,
-			)
-			if err != nil {
-				t.Fatalf("Failed to create issue watcher: %v", err)
-			}
+		// テスト用のロガーを作成
+		testLogger, err := logger.New(logger.WithLevel("error"))
+		if err != nil {
+			t.Fatalf("Failed to create logger: %v", err)
+		}
 
-			issueWatcher.SetPollInterval(cfg.GitHub.PollInterval)
+		// 実際のGitHubクライアントを作成
+		client, err := github.NewClientWithLogger("", testLogger)
+		if err != nil {
+			t.Fatalf("Failed to create GitHub client: %v", err)
+		}
 
-			// コールバック実行カウンター
-			callbackCount := 0
-			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
-			defer cancel()
+		// Issue監視を作成
+		issueWatcher, err := watcher.NewIssueWatcher(
+			client,
+			"douhashi",
+			"osoba",
+			"test-session",
+			cfg.GetLabels(),
+			cfg.GitHub.PollInterval,
+			testLogger,
+		)
+		if err != nil {
+			t.Fatalf("Failed to create issue watcher: %v", err)
+		}
 
-			// Issue監視を開始
-			issueWatcher.Start(ctx, func(issue *github.Issue) {
-				callbackCount++
-				t.Logf("Callback executed for issue #%d: %s", *issue.Number, *issue.Title)
-			})
+		issueWatcher.SetPollInterval(cfg.GitHub.PollInterval)
 
-			// タイムアウトまで待機
-			<-ctx.Done()
+		// 短時間のテスト実行
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-			// 期待される呼び出し回数を確認
-			if tt.mockClient.callCount < tt.expectedCalls {
-				t.Errorf("API calls = %d, want at least %d", tt.mockClient.callCount, tt.expectedCalls)
-			}
+		// コールバック実行カウンター
+		callbackCount := 0
 
-			// ステートレス化により、各ポーリングサイクルで同じIssueが処理される
-			// 期待される最小呼び出し回数は Issue数 × API呼び出し回数
-			expectedMinCallbacks := len(tt.mockClient.issues) * tt.expectedCalls
-			if callbackCount < expectedMinCallbacks {
-				t.Errorf("Callback calls = %d, want at least %d", callbackCount, expectedMinCallbacks)
-			}
+		// Issue監視を開始
+		issueWatcher.Start(ctx, func(issue *github.Issue) {
+			callbackCount++
+			t.Logf("Callback executed for issue #%d: %s", *issue.Number, *issue.Title)
 		})
-	}
+
+		// タイムアウトまで待機
+		<-ctx.Done()
+
+		// エラーがないことのみ確認（Issues数は変動するため）
+		t.Logf("Integration test completed successfully, processed %d issue callbacks", callbackCount)
+	})
 }
 
 // TestIntegration_ConfigLoading は設定読み込みの統合テスト

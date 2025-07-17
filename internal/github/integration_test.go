@@ -38,7 +38,7 @@ func TestIntegration_GitHubClientLogging(t *testing.T) {
 		assert.NotNil(t, repo)
 
 		// ログが出力されることを視覚的に確認
-		t.Logf("Repository: %s", repo.GetFullName())
+		t.Logf("Repository: %s", *repo.FullName)
 	})
 
 	t.Run("Issue一覧取得でログが出力される", func(t *testing.T) {
