@@ -3,6 +3,8 @@ package watcher
 import (
 	"testing"
 	"time"
+
+	"github.com/douhashi/osoba/internal/testutil/mocks"
 )
 
 func TestIssueWatcher_SetPollInterval(t *testing.T) {
@@ -54,7 +56,7 @@ func TestIssueWatcher_SetPollInterval(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &mockGitHubClient{}
+			mockClient := mocks.NewMockGitHubClient()
 			watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
 			if err != nil {
 				t.Fatalf("failed to create watcher: %v", err)
@@ -79,7 +81,7 @@ func TestIssueWatcher_SetPollInterval(t *testing.T) {
 
 func TestIssueWatcher_GetPollInterval(t *testing.T) {
 	t.Run("デフォルトのポーリング間隔が5秒であること", func(t *testing.T) {
-		mockClient := &mockGitHubClient{}
+		mockClient := mocks.NewMockGitHubClient()
 		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)
@@ -92,7 +94,7 @@ func TestIssueWatcher_GetPollInterval(t *testing.T) {
 	})
 
 	t.Run("設定した値が正しく取得できること", func(t *testing.T) {
-		mockClient := &mockGitHubClient{}
+		mockClient := mocks.NewMockGitHubClient()
 		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:needs-plan"}, 5*time.Second, NewMockLogger())
 		if err != nil {
 			t.Fatalf("failed to create watcher: %v", err)

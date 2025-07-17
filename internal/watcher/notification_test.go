@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/testutil/builders"
+	"github.com/douhashi/osoba/internal/testutil/mocks"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestEventNotifier(t *testing.T) {
@@ -151,20 +154,20 @@ func TestWatcherWithEventNotification(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// モックデータ
-		testIssues := []*github.Issue{
-			{
-				Number: github.Int(1),
-				Title:  github.String("Test Issue 1"),
-				Labels: []*github.Label{
-					{Name: github.String("status:ready")},
-				},
-			},
-		}
+		mockClient := mocks.NewMockGitHubClient()
 
-		mockClient := &mockGitHubClient{
-			issues: testIssues,
+		// モックの設定
+		testIssues := []*github.Issue{
+			builders.NewIssueBuilder().
+				WithNumber(1).
+				WithTitle("Test Issue 1").
+				WithLabels([]string{"status:ready"}).
+				Build(),
 		}
+		mockClient.On("ListIssuesByLabels", mock.Anything, "douhashi", "osoba", []string{"status:ready"}).
+			Return(testIssues, nil).Maybe()
+		mockClient.On("GetRateLimit", mock.Anything).
+			Return(builders.NewRateLimitsBuilder().Build(), nil).Maybe()
 
 		watcher, err := NewIssueWatcher(mockClient, "douhashi", "osoba", "test-session", []string{"status:ready"}, 5*time.Second, NewMockLogger())
 		if err != nil {
@@ -224,39 +227,33 @@ func TestLabelChangeEventNotification(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// 初期状態
+		mockClient := mocks.NewMockGitHubClient()
+
+		// 初期状態のIssue
 		initialIssues := []*github.Issue{
-			{
-				Number: github.Int(1),
-				Title:  github.String("Test Issue"),
-				Labels: []*github.Label{
-					{Name: github.String("bug")},
-				},
-			},
+			builders.NewIssueBuilder().
+				WithNumber(1).
+				WithTitle("Test Issue").
+				WithLabels([]string{"bug"}).
+				Build(),
 		}
 
-		// 変更後の状態
+		// 更新後の状態（ラベルが追加される）
 		updatedIssues := []*github.Issue{
-			{
-				Number: github.Int(1),
-				Title:  github.String("Test Issue"),
-				Labels: []*github.Label{
-					{Name: github.String("bug")},
-					{Name: github.String("status:ready")},
-				},
-			},
+			builders.NewIssueBuilder().
+				WithNumber(1).
+				WithTitle("Test Issue").
+				WithLabels([]string{"bug", "status:ready"}).
+				Build(),
 		}
 
-		callCount := 0
-		mockClient := &mockGitHubClient{
-			listIssuesFunc: func(ctx context.Context, owner, repo string, labels []string) ([]*github.Issue, error) {
-				callCount++
-				if callCount == 1 {
-					return initialIssues, nil
-				}
-				return updatedIssues, nil
-			},
-		}
+		// 最初は初期状態、その後は更新後の状態を返す
+		mockClient.On("ListIssuesByLabels", mock.Anything, "douhashi", "osoba", []string{"bug", "status:ready"}).
+			Return(initialIssues, nil).Once()
+		mockClient.On("ListIssuesByLabels", mock.Anything, "douhashi", "osoba", []string{"bug", "status:ready"}).
+			Return(updatedIssues, nil).Maybe()
+		mockClient.On("GetRateLimit", mock.Anything).
+			Return(builders.NewRateLimitsBuilder().Build(), nil).Maybe()
 
 		watcher, err := NewIssueWatcherWithLabelTracking(mockClient, "douhashi", "osoba", "test-session", []string{"bug", "status:ready"}, 5*time.Second, NewMockLogger())
 		if err != nil {
