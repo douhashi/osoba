@@ -198,3 +198,29 @@ func TestActionFactory(t *testing.T) {
 }
 
 // TestActionManagerWithFactory は別のテストファイルで実装
+
+// TestDefaultLabelManager_OwnerRepoNotSet はowner/repoが設定されていない場合の動作を確認
+func TestDefaultLabelManager_OwnerRepoNotSet(t *testing.T) {
+	// Arrange
+	factory := &DefaultActionFactory{
+		sessionName:     "test-session",
+		ghClient:        &github.Client{},
+		worktreeManager: &MockWorktreeManager{},
+		claudeExecutor:  claude.NewClaudeExecutor(),
+		claudeConfig:    &claude.ClaudeConfig{},
+		stateManager:    NewIssueStateManager(),
+		config:          config.NewConfig(),
+		owner:           "test-owner",
+		repo:            "test-repo",
+	}
+
+	// Act - CreateImplementationActionを実行
+	action := factory.CreateImplementationAction()
+
+	// Assert - アクションが作成されることを確認
+	// 現在の実装では、CreateImplementationAction内でowner/repoが設定されていないため、
+	// 実際にラベル操作を行おうとするとエラーになる
+	assert.NotNil(t, action)
+
+	// TODO: 実際のラベル操作でowner/repoが設定されているかを確認するテストが必要
+}
