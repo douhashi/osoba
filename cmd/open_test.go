@@ -108,7 +108,7 @@ func TestOpenCommand(t *testing.T) {
 					return false, nil
 				}
 			},
-			expectedError: "セッション 'osoba-test-repo' が見つかりません。先に 'osoba watch'を実行してください",
+			expectedError: "セッション 'osoba-test-repo' が見つかりません。先に 'osoba start'を実行してください",
 		},
 		{
 			name: "エラー: セッション確認でエラー",
@@ -295,7 +295,7 @@ func TestOpenCommandAutoRecovery(t *testing.T) {
 			setupPIDFile:  true,
 			pidFileExists: true,
 			daemonRunning: false,
-			expectedError: "osobaデーモンが動作していません。'osoba watch'を実行してください",
+			expectedError: "osobaデーモンが動作していません。'osoba start'を実行してください",
 		},
 		{
 			name: "セッション復旧失敗: PIDファイルが存在しない",
@@ -309,7 +309,7 @@ func TestOpenCommandAutoRecovery(t *testing.T) {
 			setupPIDFile:  false,
 			pidFileExists: false,
 			daemonRunning: false,
-			expectedError: "セッション 'osoba-test-repo' が見つかりません。先に 'osoba watch'を実行してください",
+			expectedError: "セッション 'osoba-test-repo' が見つかりません。先に 'osoba start'を実行してください",
 		},
 	}
 
