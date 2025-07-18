@@ -27,6 +27,32 @@ osobaは、tmux + git worktree + Claude を統合した自律的なソフトウ�
 - 🧠 **Claude AI統合**: フェーズごとに最適化されたプロンプト実行
 - 🔄 **継続的な監視**: Issueを監視し、自動的にアクションを実行
 
+## セキュリティ上の注意事項
+
+⚠️ **重要**: osobaは自律性を最大化するため、Claude実行時に`--dangerously-skip-permissions`オプションを使用します。セキュリティリスクがあることを理解した上で使用してください。
+
+devcontainerや隔離された環境で実行するなど、可能な限りのセキュリティ対策を行ったうえで使用してください。
+
+
+### 設計の背景
+
+この設計選択は、開発プロセスの完全自律化を実現するために行われました。一般的な権限制限では、ファイル作成・編集、テスト実行、Git操作などの開発に必要な操作が制限されるため、`--dangerously-skip-permissions`オプションを採用しています。
+
+### 代替案
+
+より安全な使用を希望する場合は、`$HOME/.config/osoba/osoba.yml` に以下の設定変更を検討してください：
+
+```yaml
+claude:
+  phases:
+    plan:
+      args: []  # remove --dangerously-skip-permissions
+    implement:
+      args: []
+    review:
+      args: []
+```
+
 ## 必要な環境
 
 - **対応OS**: Linux, macOS（Windows非対応）
@@ -108,20 +134,9 @@ osoba init
 # リポジトリでosobaを開始
 cd /path/to/your/repo
 osoba start
-
-# 別のターミナルを開き、セッションに接続
-osoba open
 ```
 
-### 3. ワークフロー例
-
-1. GitHub Issueを作成し、`status:needs-plan`ラベルを付与
-2. osobaが自動的にIssueを検知し、計画フェーズを実行
-3. 計画完了後、`status:ready`ラベルに更新
-4. 実装フェーズが自動的に開始
-5. `osoba open`でセッションに接続して進捗を確認
-
-### 4. リソースのクリーンアップ
+### 3. リソースのクリーンアップ
 
 ```bash
 # 特定のIssueに関連するリソースを削除
@@ -204,25 +219,6 @@ flowchart LR
   - 改善点の指摘とフィードバック
 - **アウトプット**: レビュー完了（手動でのマージが必要）
 
-### 内部動作の詳細
-
-#### tmuxセッション管理
-- **セッション作成**: `osoba-{repository-name}`形式
-- **ウィンドウ管理**: Issue番号ごとに独立したウィンドウ
-- **ウィンドウ命名**: `{issue-number}-{phase}`（例: `53-plan`, `53-implement`）
-- **ペイン分割**: Claude実行用、ログ監視用、コード編集用
-
-#### git worktree統合
-- **worktree作成**: `.git/osoba/worktrees/{issue-number}`
-- **ブランチ管理**: `osoba/#{issue-number}-{description}`形式
-- **同期処理**: mainブランチとの自動同期
-- **クリーンアップ**: フェーズ完了後の自動worktree削除
-
-#### Claude AI実行
-- **プロンプト管理**: フェーズごとに最適化されたプロンプト
-- **コンテキスト管理**: Issue情報、コードベース、プロジェクト情報を統合
-- **実行制御**: 非同期実行、進捗監視、エラーハンドリング
-- **結果反映**: Issue更新、コードコミット、ラベル更新
 
 ## 詳細な設定
 
@@ -259,55 +255,7 @@ claude:
 |----------|------|-------------|
 | `GITHUB_TOKEN` | GitHub Personal Access Token（gh auth tokenで自動取得可） | - |
 
-### GitHubアクセス方法
 
-#### ghコマンドを使用（デフォルト）
-
-デフォルトでは、osobaはGitHub CLI（gh）を使用してGitHubにアクセスします。これにより：
-- GitHub Personal Access Tokenの管理が不要
-- ghコマンドの認証情報を再利用
-- より安全なトークン管理
-
-前提条件：
-```bash
-# ghコマンドでログイン
-$ gh auth login
-```
-
-#### GitHub APIを直接使用する場合
-
-設定ファイルで`use_gh_command: false`を設定し、トークンを設定します。
-
-トークン取得の優先順位：
-1. **環境変数 `GITHUB_TOKEN`** - 最優先
-2. **GitHub CLI (`gh auth token`)** - ghでログイン済みの場合
-3. **設定ファイル** - osoba.yml内の設定
-
-## セキュリティ上の注意事項
-
-⚠️ **重要**: osobaは自律性を最大化するため、Claude実行時に`--dangerously-skip-permissions`オプションを使用します。セキュリティリスクがあることを理解した上で使用してください。
-
-devcontainerや隔離された環境で実行するなど、可能な限りのセキュリティ対策を行ったうえで使用してください。
-
-
-### 設計の背景
-
-この設計選択は、開発プロセスの完全自律化を実現するために行われました。一般的な権限制限では、ファイル作成・編集、テスト実行、Git操作などの開発に必要な操作が制限されるため、`--dangerously-skip-permissions`オプションを採用しています。
-
-### 代替案
-
-より安全な使用を希望する場合は、`$HOME/.config/osoba/osoba.yml` に以下の設定変更を検討してください：
-
-```yaml
-claude:
-  phases:
-    plan:
-      args: []  # remove --dangerously-skip-permissions
-    implement:
-      args: []
-    review:
-      args: []
-```
 
 ## セットアップ
 
