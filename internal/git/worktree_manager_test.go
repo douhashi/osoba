@@ -100,6 +100,10 @@ func TestWorktreeManager_CreateWorktree(t *testing.T) {
 	_, err = cmd.Run(context.Background(), "git", []string{"commit", "-m", "initial commit"}, tmpDir)
 	require.NoError(t, err)
 
+	// mainブランチを明示的に作成（初回commitはデフォルトでmasterブランチになるため）
+	_, err = cmd.Run(context.Background(), "git", []string{"branch", "-M", "main"}, tmpDir)
+	require.NoError(t, err)
+
 	// WorktreeManagerを作成
 	worktree := NewWorktree(logger)
 	branch := NewBranch(logger)
@@ -199,6 +203,10 @@ func TestWorktreeManager_RemoveWorktree(t *testing.T) {
 	_, err = cmd.Run(context.Background(), "git", []string{"add", "."}, tmpDir)
 	require.NoError(t, err)
 	_, err = cmd.Run(context.Background(), "git", []string{"commit", "-m", "initial commit"}, tmpDir)
+	require.NoError(t, err)
+
+	// mainブランチを明示的に作成（初回commitはデフォルトでmasterブランチになるため）
+	_, err = cmd.Run(context.Background(), "git", []string{"branch", "-M", "main"}, tmpDir)
 	require.NoError(t, err)
 
 	// WorktreeManagerを作成
