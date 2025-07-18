@@ -1,6 +1,7 @@
 package tmux
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 type MockManager struct {
 	SessionManager
 	WindowManager
+	PaneManager
 }
 
 // createTestMockManager はテスト用のモックマネージャーを作成
@@ -17,6 +19,7 @@ func createTestMockManager() Manager {
 	return &MockManager{
 		SessionManager: &testSessionManager{},
 		WindowManager:  &testWindowManager{},
+		PaneManager:    &testPaneManager{},
 	}
 }
 
@@ -101,6 +104,40 @@ func (m *testWindowManager) FindIssueWindow(windowName string) (int, bool) {
 		return 1, true
 	}
 	return 0, false
+}
+
+// testPaneManager はテスト用のPaneManager実装
+type testPaneManager struct{}
+
+func (m *testPaneManager) CreatePane(sessionName, windowName string, opts PaneOptions) (*PaneInfo, error) {
+	return &PaneInfo{
+		Index:  1,
+		Title:  opts.Title,
+		Active: true,
+		Width:  80,
+		Height: 40,
+	}, nil
+}
+
+func (m *testPaneManager) SelectPane(sessionName, windowName string, paneIndex int) error {
+	return nil
+}
+
+func (m *testPaneManager) SetPaneTitle(sessionName, windowName string, paneIndex int, title string) error {
+	return nil
+}
+
+func (m *testPaneManager) ListPanes(sessionName, windowName string) ([]*PaneInfo, error) {
+	return []*PaneInfo{
+		{Index: 0, Title: "Plan", Active: true, Width: 80, Height: 40},
+	}, nil
+}
+
+func (m *testPaneManager) GetPaneByTitle(sessionName, windowName string, title string) (*PaneInfo, error) {
+	if title == "Plan" {
+		return &PaneInfo{Index: 0, Title: "Plan", Active: true, Width: 80, Height: 40}, nil
+	}
+	return nil, fmt.Errorf("pane with title '%s' not found", title)
 }
 
 // init はパッケージ初期化時に実行される

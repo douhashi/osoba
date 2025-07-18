@@ -61,6 +61,7 @@ type WindowManager interface {
 type Manager interface {
 	SessionManager
 	WindowManager
+	PaneManager
 }
 
 // DefaultManager はManagerインターフェースのデフォルト実装

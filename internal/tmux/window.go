@@ -191,6 +191,11 @@ func GetWindowNameWithPhase(issueNumber int, phase string) (string, error) {
 
 // CreateWindowForIssue はIssue番号に基づいてウィンドウを作成する
 func CreateWindowForIssue(sessionName string, issueNumber int) error {
+	return CreateIssueWindowWithExecutor(sessionName, issueNumber, &DefaultCommandExecutor{})
+}
+
+// CreateIssueWindowWithExecutor はExecutorを使用してIssue番号に基づいてウィンドウを作成する
+func CreateIssueWindowWithExecutor(sessionName string, issueNumber int, executor CommandExecutor) error {
 	windowName := GetWindowName(issueNumber)
 
 	if logger := GetLogger(); logger != nil {
@@ -202,7 +207,7 @@ func CreateWindowForIssue(sessionName string, issueNumber int) error {
 	}
 
 	// ウィンドウが既に存在する場合はスキップ
-	exists, err := WindowExists(sessionName, windowName)
+	exists, err := WindowExistsWithExecutor(sessionName, windowName, executor)
 	if err != nil {
 		return fmt.Errorf("failed to check window existence: %w", err)
 	}
@@ -215,7 +220,7 @@ func CreateWindowForIssue(sessionName string, issueNumber int) error {
 		return nil
 	}
 
-	return CreateWindow(sessionName, windowName)
+	return CreateWindowWithExecutor(sessionName, windowName, executor)
 }
 
 // SwitchToIssueWindow はIssue番号に基づいてウィンドウに切り替える
@@ -699,4 +704,264 @@ func KillWindowsForIssueWithExecutor(sessionName string, issueNumber int, execut
 
 	// ウィンドウを削除
 	return KillWindowsWithExecutor(sessionName, windowNames, executor)
+}
+
+// Issue #147: pane管理メソッド
+
+// CreatePaneInWindow はウィンドウ内に新しいpaneを作成する
+func CreatePaneInWindow(sessionName, windowName, paneTitle string) error {
+	return CreatePaneInWindowWithExecutor(sessionName, windowName, paneTitle, &DefaultCommandExecutor{})
+}
+
+// CreatePaneInWindowWithExecutor はExecutorを使用してウィンドウ内に新しいpaneを作成する
+func CreatePaneInWindowWithExecutor(sessionName, windowName, paneTitle string, executor CommandExecutor) error {
+	if sessionName == "" {
+		return fmt.Errorf("session name cannot be empty")
+	}
+	if windowName == "" {
+		return fmt.Errorf("window name cannot be empty")
+	}
+	if paneTitle == "" {
+		return fmt.Errorf("pane title cannot be empty")
+	}
+
+	target := fmt.Sprintf("%s:%s", sessionName, windowName)
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("tmuxペイン作成開始",
+			"operation", "create_pane",
+			"session_name", sessionName,
+			"window_name", windowName,
+			"pane_title", paneTitle,
+			"target", target)
+	}
+
+	// paneを分割作成
+	_, err := executor.Execute("tmux", "split-window", "-t", target, "-v", "-p", "50")
+	if err != nil {
+		if logger := GetLogger(); logger != nil {
+			logger.Error("tmuxペイン作成失敗",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"pane_title", paneTitle,
+				"error", err)
+		}
+		return fmt.Errorf("failed to create pane in window '%s': %w", windowName, err)
+	}
+
+	// paneにタイトルを設定
+	_, err = executor.Execute("tmux", "select-pane", "-t", target, "-T", paneTitle)
+	if err != nil {
+		if logger := GetLogger(); logger != nil {
+			logger.Error("tmuxペイン選択失敗",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"pane_title", paneTitle,
+				"error", err)
+		}
+		return fmt.Errorf("failed to set pane title '%s': %w", paneTitle, err)
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("tmuxペイン作成完了",
+			"session_name", sessionName,
+			"window_name", windowName,
+			"pane_title", paneTitle)
+	}
+
+	return nil
+}
+
+// SelectPaneByTitle はタイトルを指定してpaneを選択する
+func SelectPaneByTitle(sessionName, windowName, paneTitle string) error {
+	return SelectPaneByTitleWithExecutor(sessionName, windowName, paneTitle, &DefaultCommandExecutor{})
+}
+
+// SelectPaneByTitleWithExecutor はExecutorを使用してタイトルを指定してpaneを選択する
+func SelectPaneByTitleWithExecutor(sessionName, windowName, paneTitle string, executor CommandExecutor) error {
+	if sessionName == "" {
+		return fmt.Errorf("session name cannot be empty")
+	}
+	if windowName == "" {
+		return fmt.Errorf("window name cannot be empty")
+	}
+	if paneTitle == "" {
+		return fmt.Errorf("pane title cannot be empty")
+	}
+
+	target := fmt.Sprintf("%s:%s", sessionName, windowName)
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("tmuxペイン選択開始",
+			"operation", "select_pane",
+			"session_name", sessionName,
+			"window_name", windowName,
+			"pane_title", paneTitle,
+			"target", target)
+	}
+
+	// pane一覧を取得
+	output, err := executor.Execute("tmux", "list-panes", "-t", target, "-F", "#{pane_index}:#{pane_title}")
+	if err != nil {
+		if logger := GetLogger(); logger != nil {
+			logger.Error("tmuxペイン一覧取得失敗",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"error", err)
+		}
+		return fmt.Errorf("failed to list panes in window '%s': %w", windowName, err)
+	}
+
+	// 指定されたタイトルのpaneを検索
+	panes := strings.Split(strings.TrimSpace(output), "\n")
+	for _, pane := range panes {
+		if pane == "" {
+			continue
+		}
+		parts := strings.Split(pane, ":")
+		if len(parts) >= 2 {
+			paneIndex := parts[0]
+			title := strings.Join(parts[1:], ":")
+			if title == paneTitle {
+				// paneを選択
+				paneTarget := fmt.Sprintf("%s.%s", target, paneIndex)
+				_, err := executor.Execute("tmux", "select-pane", "-t", paneTarget)
+				if err != nil {
+					if logger := GetLogger(); logger != nil {
+						logger.Error("tmuxペイン選択失敗",
+							"session_name", sessionName,
+							"window_name", windowName,
+							"pane_title", paneTitle,
+							"pane_index", paneIndex,
+							"error", err)
+					}
+					return fmt.Errorf("failed to select pane '%s' in window '%s': %w", paneTitle, windowName, err)
+				}
+
+				if logger := GetLogger(); logger != nil {
+					logger.Info("tmuxペイン選択完了",
+						"session_name", sessionName,
+						"window_name", windowName,
+						"pane_title", paneTitle,
+						"pane_index", paneIndex)
+				}
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf("pane with title '%s' not found in window '%s'", paneTitle, windowName)
+}
+
+// SelectOrCreatePaneForPhase はフェーズ用のpaneを選択または作成する
+func SelectOrCreatePaneForPhase(sessionName, windowName, paneTitle string) error {
+	return SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle, &DefaultCommandExecutor{})
+}
+
+// SelectOrCreatePaneForPhaseWithExecutor はExecutorを使用してフェーズ用のpaneを選択または作成する
+func SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle string, executor CommandExecutor) error {
+	if sessionName == "" {
+		return fmt.Errorf("session name cannot be empty")
+	}
+	if windowName == "" {
+		return fmt.Errorf("window name cannot be empty")
+	}
+	if paneTitle == "" {
+		return fmt.Errorf("pane title cannot be empty")
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("フェーズ用ペイン管理開始",
+			"operation", "select_or_create_pane",
+			"session_name", sessionName,
+			"window_name", windowName,
+			"pane_title", paneTitle)
+	}
+
+	// 既存のpaneを探す
+	target := fmt.Sprintf("%s:%s", sessionName, windowName)
+	output, err := executor.Execute("tmux", "list-panes", "-t", target, "-F", "#{pane_index}:#{pane_title}")
+	if err != nil {
+		if logger := GetLogger(); logger != nil {
+			logger.Error("tmuxペイン一覧取得失敗",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"error", err)
+		}
+		return fmt.Errorf("failed to list panes in window '%s': %w", windowName, err)
+	}
+
+	panes := strings.Split(strings.TrimSpace(output), "\n")
+	paneCount := len(panes)
+	if panes[0] == "" {
+		paneCount = 0
+	}
+
+	// 指定されたタイトルのpaneを検索
+	for _, pane := range panes {
+		if pane == "" {
+			continue
+		}
+		parts := strings.Split(pane, ":")
+		if len(parts) >= 2 {
+			paneIndex := parts[0]
+			title := strings.Join(parts[1:], ":")
+			if title == paneTitle {
+				// 既存のpaneを選択
+				paneTarget := fmt.Sprintf("%s.%s", target, paneIndex)
+				_, err := executor.Execute("tmux", "select-pane", "-t", paneTarget)
+				if err != nil {
+					return fmt.Errorf("failed to select existing pane '%s': %w", paneTitle, err)
+				}
+
+				if logger := GetLogger(); logger != nil {
+					logger.Info("既存のフェーズ用ペインを選択",
+						"session_name", sessionName,
+						"window_name", windowName,
+						"pane_title", paneTitle,
+						"pane_index", paneIndex)
+				}
+				return nil
+			}
+		}
+	}
+
+	// 既存のpaneが見つからない場合は新規作成
+	if logger := GetLogger(); logger != nil {
+		logger.Info("新しいフェーズ用ペインを作成",
+			"session_name", sessionName,
+			"window_name", windowName,
+			"pane_title", paneTitle,
+			"existing_pane_count", paneCount)
+	}
+
+	// paneの分割比率を計算
+	var splitPercentage string
+	if paneCount == 1 {
+		splitPercentage = "50"
+	} else {
+		splitPercentage = "33"
+	}
+
+	// 新しいpaneを作成
+	_, err = executor.Execute("tmux", "split-window", "-t", target, "-v", "-p", splitPercentage)
+	if err != nil {
+		return fmt.Errorf("failed to create new pane: %w", err)
+	}
+
+	// paneにタイトルを設定
+	_, err = executor.Execute("tmux", "select-pane", "-t", target, "-T", paneTitle)
+	if err != nil {
+		return fmt.Errorf("failed to set pane title '%s': %w", paneTitle, err)
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("フェーズ用ペイン管理完了",
+			"session_name", sessionName,
+			"window_name", windowName,
+			"pane_title", paneTitle,
+			"action", "created")
+	}
+
+	return nil
 }

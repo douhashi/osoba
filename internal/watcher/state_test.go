@@ -24,7 +24,7 @@ func TestGetState(t *testing.T) {
 		manager := NewIssueStateManager()
 
 		// Act
-		state, exists := manager.GetState(123)
+		state, exists := manager.GetIssueState(123)
 
 		// Assert
 		assert.False(t, exists)
@@ -37,7 +37,7 @@ func TestGetState(t *testing.T) {
 		manager.SetState(123, types.IssueStatePlan, types.IssueStatusPending)
 
 		// Act
-		state, exists := manager.GetState(123)
+		state, exists := manager.GetIssueState(123)
 
 		// Assert
 		assert.True(t, exists)
@@ -57,7 +57,7 @@ func TestSetState(t *testing.T) {
 		manager.SetState(123, types.IssueStatePlan, types.IssueStatusProcessing)
 
 		// Assert
-		state, exists := manager.GetState(123)
+		state, exists := manager.GetIssueState(123)
 		assert.True(t, exists)
 		assert.Equal(t, types.IssueStatePlan, state.Phase)
 		assert.Equal(t, types.IssueStatusProcessing, state.Status)
@@ -74,7 +74,7 @@ func TestSetState(t *testing.T) {
 		manager.SetState(123, types.IssueStateImplementation, types.IssueStatusProcessing)
 
 		// Assert
-		state, exists := manager.GetState(123)
+		state, exists := manager.GetIssueState(123)
 		assert.True(t, exists)
 		assert.Equal(t, types.IssueStateImplementation, state.Phase)
 		assert.Equal(t, types.IssueStatusProcessing, state.Status)
@@ -177,7 +177,7 @@ func TestMarkAsCompleted(t *testing.T) {
 		manager.MarkAsCompleted(123, types.IssueStatePlan)
 
 		// Assert
-		state, exists := manager.GetState(123)
+		state, exists := manager.GetIssueState(123)
 		assert.True(t, exists)
 		assert.Equal(t, types.IssueStatusCompleted, state.Status)
 	})
@@ -193,7 +193,7 @@ func TestMarkAsFailed(t *testing.T) {
 		manager.MarkAsFailed(123, types.IssueStatePlan)
 
 		// Assert
-		state, exists := manager.GetState(123)
+		state, exists := manager.GetIssueState(123)
 		assert.True(t, exists)
 		assert.Equal(t, types.IssueStatusFailed, state.Status)
 	})
@@ -215,7 +215,7 @@ func TestConcurrentAccess(t *testing.T) {
 
 		go func() {
 			for i := 0; i < 100; i++ {
-				manager.GetState(int64(i))
+				manager.GetIssueState(int64(i))
 			}
 			done <- true
 		}()

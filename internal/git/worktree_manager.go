@@ -34,6 +34,18 @@ type WorktreeManager interface {
 
 	// WorktreeExists は指定されたworktreeが存在するかを確認する
 	WorktreeExists(ctx context.Context, issueNumber int, phase Phase) (bool, error)
+
+	// GetWorktreePathForIssue は指定されたIssueのworktreeパスを返す（フェーズを含まない）
+	GetWorktreePathForIssue(issueNumber int) string
+
+	// WorktreeExistsForIssue は指定されたIssueのworktreeが存在するかを確認する
+	WorktreeExistsForIssue(ctx context.Context, issueNumber int) (bool, error)
+
+	// CreateWorktreeForIssue は指定されたIssueのworktreeを作成する
+	CreateWorktreeForIssue(ctx context.Context, issueNumber int) error
+
+	// RemoveWorktreeForIssue は指定されたIssueのworktreeを削除する
+	RemoveWorktreeForIssue(ctx context.Context, issueNumber int) error
 }
 
 // worktreeManager はWorktreeManagerの実装
