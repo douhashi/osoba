@@ -257,12 +257,13 @@ func TestBaseExecutor_ExecuteInWorkspace(t *testing.T) {
 			command: "echo 'Hello World'",
 			setupMocks: func(tmux *mocks.MockTmuxManager) {
 				expectedCmd := "cd /test/worktree/issue-123 && echo 'Hello World'"
-				tmux.On("SendKeys", "test-session", "issue-123", expectedCmd).Return(nil).Once()
+				// RunInWindowを使用することを期待
+				tmux.On("RunInWindow", "test-session", "issue-123", expectedCmd).Return(nil).Once()
 			},
 			wantErr: false,
 		},
 		{
-			name: "SendKeys失敗",
+			name: "RunInWindow失敗",
 			workspace: &WorkspaceInfo{
 				WindowName:   "issue-456",
 				WorktreePath: "/test/worktree/issue-456",
@@ -272,7 +273,8 @@ func TestBaseExecutor_ExecuteInWorkspace(t *testing.T) {
 			command: "npm test",
 			setupMocks: func(tmux *mocks.MockTmuxManager) {
 				expectedCmd := "cd /test/worktree/issue-456 && npm test"
-				tmux.On("SendKeys", "test-session", "issue-456", expectedCmd).
+				// RunInWindowを使用することを期待
+				tmux.On("RunInWindow", "test-session", "issue-456", expectedCmd).
 					Return(assert.AnError).Once()
 			},
 			wantErr:     true,

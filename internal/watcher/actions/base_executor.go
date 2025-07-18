@@ -175,7 +175,8 @@ func (e *BaseExecutor) ExecuteInWorkspace(workspace *WorkspaceInfo, command stri
 	// worktreeディレクトリに移動してコマンドを実行
 	cdCommand := fmt.Sprintf("cd %s && %s", workspace.WorktreePath, command)
 
-	if err := e.tmuxManager.SendKeys(e.sessionName, workspace.WindowName, cdCommand); err != nil {
+	// RunInWindowを使用してコマンドを実行（自動的にEnterキーが送信される）
+	if err := e.tmuxManager.RunInWindow(e.sessionName, workspace.WindowName, cdCommand); err != nil {
 		return fmt.Errorf("failed to execute command in workspace: %w", err)
 	}
 

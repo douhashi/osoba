@@ -55,7 +55,8 @@ func TestPlanActionV2_Execute(t *testing.T) {
 					mock.Anything,
 				).Return("claude plan command").Once()
 
-				tmux.On("SendKeys", "test-session", "issue-123", "cd /test/worktree/issue-123 && claude plan command").Return(nil).Once()
+				// RunInWindowを使用することを期待
+				tmux.On("RunInWindow", "test-session", "issue-123", "cd /test/worktree/issue-123 && claude plan command").Return(nil).Once()
 
 				// 完了処理
 				state.On("MarkAsCompleted", int64(123), types.IssueStatePlan).Once()
