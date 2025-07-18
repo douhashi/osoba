@@ -994,7 +994,7 @@ func TestPaneManagement(t *testing.T) {
 
 		mockExec := mocks.NewMockCommandExecutor()
 		// split-window コマンドでpaneを作成
-		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-v", "-p", "50"}).Return("", nil)
+		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-h", "-p", "50"}).Return("", nil)
 		// paneにタイトルを設定
 		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName, "-T", paneTitle}).Return("", nil)
 
@@ -1056,7 +1056,7 @@ func TestPaneManagement(t *testing.T) {
 		// pane一覧取得（target paneが存在しない）
 		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase\n1:implement-phase", nil)
 		// 新しいpaneを作成
-		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-v", "-p", "33"}).Return("", nil)
+		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-h", "-p", "33"}).Return("", nil)
 		// paneにタイトルを設定
 		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName, "-T", paneTitle}).Return("", nil)
 
@@ -1092,7 +1092,7 @@ func TestPhaseIntegration(t *testing.T) {
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return(windowName, nil).Once()
 		// 2. Implementation pane作成
 		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase", nil).Once()
-		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-v", "-p", "50"}).Return("", nil).Times(2)
+		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-h", "-p", "50"}).Return("", nil).Times(2)
 		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName, "-T", "implement-phase"}).Return("", nil).Once()
 
 		// Review フェーズ
@@ -1100,7 +1100,7 @@ func TestPhaseIntegration(t *testing.T) {
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return(windowName, nil).Once()
 		// 2. Review pane作成
 		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase\n1:implement-phase", nil).Once()
-		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-v", "-p", "33"}).Return("", nil).Once()
+		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-h", "-p", "33"}).Return("", nil).Once()
 		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName, "-T", "review-phase"}).Return("", nil).Once()
 
 		// Act & Assert
