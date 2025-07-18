@@ -15,6 +15,14 @@ import (
 )
 
 func TestStatusCmd(t *testing.T) {
+	// テスト用の一時ディレクトリを作成
+	tempDir := t.TempDir()
+
+	// HOME環境変数を設定（CI環境での失敗を防ぐ）
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
 	tests := []struct {
 		name               string
 		args               []string
