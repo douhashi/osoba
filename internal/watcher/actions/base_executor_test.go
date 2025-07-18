@@ -25,6 +25,47 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 		errContains string
 	}{
 		{
+			name: "セッション不在時の自動作成",
+			issue: builders.NewIssueBuilder().
+				WithNumber(111).
+				WithTitle("Test Session Auto Create").
+				Build(),
+			phase: "Plan",
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager) {
+				// セッション存在確認（なし）
+				tmux.On("SessionExists", "test-session").Return(false, nil).Once()
+				// セッション作成
+				tmux.On("EnsureSession", "test-session").Return(nil).Once()
+
+				// Window存在確認（なし）
+				tmux.On("WindowExists", "test-session", "issue-111").Return(false, nil).Once()
+				// Window作成（新規ウィンドウ判定付き）
+				tmux.On("CreateWindowForIssueWithNewWindowDetection", "test-session", 111).
+					Return("issue-111", true, nil).Once()
+
+				// Worktree存在確認（なし）
+				git.On("WorktreeExistsForIssue", mock.Anything, 111).Return(false, nil).Once()
+				// Worktree作成
+				git.On("CreateWorktreeForIssue", mock.Anything, 111).Return(nil).Once()
+
+				// Pane検索（なし）
+				tmux.On("GetPaneByTitle", "test-session", "issue-111", "Plan").
+					Return(nil, assert.AnError).Once()
+				// Pane 0のタイトル設定のみ
+				tmux.On("SetPaneTitle", "test-session", "issue-111", 0, "Plan").Return(nil).Once()
+
+				// Worktreeパス取得
+				git.On("GetWorktreePathForIssue", 111).Return("/test/worktree/issue-111").Once()
+			},
+			want: &WorkspaceInfo{
+				WindowName:   "issue-111",
+				WorktreePath: "/test/worktree/issue-111",
+				PaneIndex:    0,
+				PaneTitle:    "Plan",
+			},
+			wantErr: false,
+		},
+		{
 			name: "新規workspace作成（Window、Worktree、Pane全て新規）- pane分割なし",
 			issue: builders.NewIssueBuilder().
 				WithNumber(123).
@@ -32,6 +73,9 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 				Build(),
 			phase: "Plan",
 			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager) {
+				// セッション存在確認（あり）
+				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
+
 				// Window存在確認（なし）
 				tmux.On("WindowExists", "test-session", "issue-123").Return(false, nil).Once()
 				// Window作成（新規ウィンドウ判定付き）
@@ -69,6 +113,9 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 				Build(),
 			phase: "Implementation",
 			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager) {
+				// セッション存在確認（あり）
+				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
+
 				// Window存在確認（あり）
 				tmux.On("WindowExists", "test-session", "issue-456").Return(true, nil).Once()
 
@@ -100,6 +147,9 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 				Build(),
 			phase: "Implementation",
 			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager) {
+				// セッション存在確認（あり）
+				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
+
 				// Window存在確認（あり）
 				tmux.On("WindowExists", "test-session", "issue-789").Return(true, nil).Once()
 				// 既存ウィンドウなのでCreateWindowForIssueWithNewWindowDetectionは呼ばれない
@@ -137,6 +187,9 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 				Build(),
 			phase: "Implementation",
 			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager) {
+				// セッション存在確認（あり）
+				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
+
 				// Window存在確認（なし）
 				tmux.On("WindowExists", "test-session", "issue-888").Return(false, nil).Once()
 				// Window作成（新規ウィンドウ判定付き）
@@ -167,6 +220,38 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "セッション存在確認失敗",
+			issue: builders.NewIssueBuilder().
+				WithNumber(222).
+				WithTitle("Test Session Check Error").
+				Build(),
+			phase: "Plan",
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager) {
+				// セッション存在確認（エラー）
+				tmux.On("SessionExists", "test-session").Return(false, assert.AnError).Once()
+			},
+			want:        nil,
+			wantErr:     true,
+			errContains: "failed to check session existence",
+		},
+		{
+			name: "セッション作成失敗",
+			issue: builders.NewIssueBuilder().
+				WithNumber(333).
+				WithTitle("Test Session Create Error").
+				Build(),
+			phase: "Plan",
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager) {
+				// セッション存在確認（なし）
+				tmux.On("SessionExists", "test-session").Return(false, nil).Once()
+				// セッション作成（エラー）
+				tmux.On("EnsureSession", "test-session").Return(assert.AnError).Once()
+			},
+			want:        nil,
+			wantErr:     true,
+			errContains: "failed to ensure session",
+		},
+		{
 			name:  "nilのissue",
 			issue: nil,
 			phase: "Plan",
@@ -184,6 +269,9 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 				Build(),
 			phase: "Plan",
 			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager) {
+				// セッション存在確認（あり）
+				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
+
 				// Window存在確認（なし）
 				tmux.On("WindowExists", "test-session", "issue-999").Return(false, nil).Once()
 				// Window作成失敗
