@@ -206,3 +206,15 @@ func (w *Worktree) GetMainWorktreePath(ctx context.Context, repoPath string) (st
 
 	return mainPath, nil
 }
+
+// HasUncommittedChanges はworktreeに未コミットの変更があるかを確認する
+func (w *Worktree) HasUncommittedChanges(ctx context.Context, worktreePath string) (bool, error) {
+	// git status --porcelain を実行
+	output, err := w.command.Run(ctx, "git", []string{"status", "--porcelain"}, worktreePath)
+	if err != nil {
+		return false, fmt.Errorf("failed to check git status: %w", err)
+	}
+
+	// 出力が空でなければ未コミットの変更がある
+	return strings.TrimSpace(output) != "", nil
+}

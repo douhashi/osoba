@@ -2,33 +2,41 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/spf13/cobra"
 )
 
 func TestCleanCmd(t *testing.T) {
 	tests := []struct {
-		name             string
-		args             []string
-		allFlag          bool
-		checkTmuxErr     error
-		getRepoNameErr   error
-		repoName         string
-		sessionExists    bool
-		sessionExistsErr error
-		listWindowsErr   error
-		windowList       []*tmux.WindowInfo
-		killWindowsErr   error
-		confirmResponse  string
-		expectedOutput   string
-		expectedError    string
+		name                     string
+		args                     []string
+		allFlag                  bool
+		forceFlag                bool
+		checkTmuxErr             error
+		getRepoNameErr           error
+		repoName                 string
+		sessionExists            bool
+		sessionExistsErr         error
+		listWindowsErr           error
+		windowList               []*tmux.WindowInfo
+		killWindowsErr           error
+		confirmResponse          string
+		listWorktreesErr         error
+		worktreeList             []git.WorktreeInfo
+		hasUncommittedChangesErr error
+		uncommittedChangesMap    map[string]bool
+		removeWorktreeErr        error
+		expectedOutput           string
+		expectedError            string
 	}{
 		{
-			name:          "正常系: 特定のIssue番号のウィンドウを削除",
+			name:          "正常系: 特定のIssue番号のウィンドウとworktreeを削除",
 			args:          []string{"83"},
 			repoName:      "test-repo",
 			sessionExists: true,
@@ -37,15 +45,73 @@ func TestCleanCmd(t *testing.T) {
 				{Name: "83-implement"},
 				{Name: "83-review"},
 			},
-			expectedOutput: "Issue #83 のウィンドウを削除しました:\n  - 83-plan\n  - 83-implement\n  - 83-review\n",
+			worktreeList: []git.WorktreeInfo{
+				{Path: "/repo/.git/osoba/worktrees/issue-83", Branch: "osoba/#83", Commit: "abc123"},
+			},
+			uncommittedChangesMap: map[string]bool{
+				"/repo/.git/osoba/worktrees/issue-83": false,
+			},
+			expectedOutput: "Issue #83 のリソースを削除しました:\n  ウィンドウ:\n    - 83-plan\n    - 83-implement\n    - 83-review\n  worktree:\n    - /repo/.git/osoba/worktrees/issue-83\n",
 		},
 		{
-			name:           "正常系: 該当するウィンドウがない場合",
+			name:           "正常系: 該当するリソースがない場合",
 			args:           []string{"999"},
 			repoName:       "test-repo",
 			sessionExists:  true,
 			windowList:     []*tmux.WindowInfo{},
-			expectedOutput: "Issue #999 に関連するウィンドウが見つかりませんでした。\n",
+			worktreeList:   []git.WorktreeInfo{},
+			expectedOutput: "Issue #999 に関連するリソースが見つかりませんでした。\n",
+		},
+		{
+			name:          "正常系: 未コミット変更がある場合の確認",
+			args:          []string{"83"},
+			repoName:      "test-repo",
+			sessionExists: true,
+			windowList: []*tmux.WindowInfo{
+				{Name: "83-plan"},
+			},
+			worktreeList: []git.WorktreeInfo{
+				{Path: "/repo/.git/osoba/worktrees/issue-83", Branch: "osoba/#83", Commit: "abc123"},
+			},
+			uncommittedChangesMap: map[string]bool{
+				"/repo/.git/osoba/worktrees/issue-83": true,
+			},
+			confirmResponse: "yes\n",
+			expectedOutput:  "警告: 以下のworktreeに未コミットの変更があります:\n  - /repo/.git/osoba/worktrees/issue-83\nIssue #83 のリソースを削除しました:\n  ウィンドウ:\n    - 83-plan\n  worktree:\n    - /repo/.git/osoba/worktrees/issue-83\n",
+		},
+		{
+			name:          "正常系: 未コミット変更がある場合のキャンセル",
+			args:          []string{"83"},
+			repoName:      "test-repo",
+			sessionExists: true,
+			windowList: []*tmux.WindowInfo{
+				{Name: "83-plan"},
+			},
+			worktreeList: []git.WorktreeInfo{
+				{Path: "/repo/.git/osoba/worktrees/issue-83", Branch: "osoba/#83", Commit: "abc123"},
+			},
+			uncommittedChangesMap: map[string]bool{
+				"/repo/.git/osoba/worktrees/issue-83": true,
+			},
+			confirmResponse: "no\n",
+			expectedOutput:  "警告: 以下のworktreeに未コミットの変更があります:\n  - /repo/.git/osoba/worktrees/issue-83\n削除をキャンセルしました。\n",
+		},
+		{
+			name:          "正常系: --forceオプションで未コミット変更を無視",
+			args:          []string{"83"},
+			forceFlag:     true,
+			repoName:      "test-repo",
+			sessionExists: true,
+			windowList: []*tmux.WindowInfo{
+				{Name: "83-plan"},
+			},
+			worktreeList: []git.WorktreeInfo{
+				{Path: "/repo/.git/osoba/worktrees/issue-83", Branch: "osoba/#83", Commit: "abc123"},
+			},
+			uncommittedChangesMap: map[string]bool{
+				"/repo/.git/osoba/worktrees/issue-83": true,
+			},
+			expectedOutput: "警告: 以下のworktreeに未コミットの変更があります:\n  - /repo/.git/osoba/worktrees/issue-83\nIssue #83 のリソースを削除しました:\n  ウィンドウ:\n    - 83-plan\n  worktree:\n    - /repo/.git/osoba/worktrees/issue-83\n",
 		},
 		{
 			name:            "正常系: --allオプションで全ウィンドウを削除（確認でyes）",
@@ -58,7 +124,7 @@ func TestCleanCmd(t *testing.T) {
 				{Name: "83-implement"},
 				{Name: "84-review"},
 			},
-			expectedOutput: "以下のウィンドウを削除します:\n  - 83-plan\n  - 83-implement\n  - 84-review\n以下のウィンドウを削除しました:\n  - 83-plan\n  - 83-implement\n  - 84-review\n",
+			expectedOutput: "以下のリソースを削除します:\n  ウィンドウ:\n    - 83-plan\n    - 83-implement\n    - 84-review\n以下のリソースを削除しました:\n  ウィンドウ:\n    - 83-plan\n    - 83-implement\n    - 84-review\n",
 		},
 		{
 			name:            "正常系: --allオプションで削除をキャンセル（確認でno）",
@@ -69,7 +135,7 @@ func TestCleanCmd(t *testing.T) {
 			windowList: []*tmux.WindowInfo{
 				{Name: "83-plan"},
 			},
-			expectedOutput: "以下のウィンドウを削除します:\n  - 83-plan\n削除をキャンセルしました。\n",
+			expectedOutput: "以下のリソースを削除します:\n  ウィンドウ:\n    - 83-plan\n削除をキャンセルしました。\n",
 		},
 		{
 			name:          "異常系: tmuxがインストールされていない",
@@ -131,8 +197,9 @@ func TestCleanCmd(t *testing.T) {
 			windowList: []*tmux.WindowInfo{
 				{Name: "83-plan"},
 			},
+			worktreeList:   []git.WorktreeInfo{},
 			killWindowsErr: errors.New("kill windows error"),
-			expectedError:  "ウィンドウの削除に失敗しました: kill windows error",
+			expectedOutput: "Issue #83 のリソースを削除しました:\n  ウィンドウ:\n    - 83-plan\n\n以下のエラーが発生しました:\n  - ウィンドウの削除に失敗しました: kill windows error\n",
 		},
 	}
 
@@ -147,6 +214,10 @@ func TestCleanCmd(t *testing.T) {
 			origKillWindows := killWindowsForIssueFunc
 			origKillWindowsSlice := killWindowsFunc
 			origConfirmPrompt := confirmPromptFunc
+			origListWorktreesForIssue := listWorktreesForIssueFunc
+			origListAllWorktrees := listAllWorktreesFunc
+			origHasUncommittedChanges := hasUncommittedChangesFunc
+			origRemoveWorktree := removeWorktreeFunc
 
 			// テスト後に復元
 			defer func() {
@@ -158,6 +229,10 @@ func TestCleanCmd(t *testing.T) {
 				killWindowsForIssueFunc = origKillWindows
 				killWindowsFunc = origKillWindowsSlice
 				confirmPromptFunc = origConfirmPrompt
+				listWorktreesForIssueFunc = origListWorktreesForIssue
+				listAllWorktreesFunc = origListAllWorktrees
+				hasUncommittedChangesFunc = origHasUncommittedChanges
+				removeWorktreeFunc = origRemoveWorktree
 			}()
 
 			// モック設定
@@ -194,6 +269,30 @@ func TestCleanCmd(t *testing.T) {
 				}
 				return strings.TrimSpace(tt.confirmResponse) == "yes", nil
 			}
+			listWorktreesForIssueFunc = func(ctx context.Context, issueNumber int) ([]git.WorktreeInfo, error) {
+				if tt.listWorktreesErr != nil {
+					return nil, tt.listWorktreesErr
+				}
+				return tt.worktreeList, nil
+			}
+			listAllWorktreesFunc = func(ctx context.Context) ([]git.WorktreeInfo, error) {
+				if tt.listWorktreesErr != nil {
+					return nil, tt.listWorktreesErr
+				}
+				return tt.worktreeList, nil
+			}
+			hasUncommittedChangesFunc = func(ctx context.Context, worktreePath string) (bool, error) {
+				if tt.hasUncommittedChangesErr != nil {
+					return false, tt.hasUncommittedChangesErr
+				}
+				if tt.uncommittedChangesMap != nil {
+					return tt.uncommittedChangesMap[worktreePath], nil
+				}
+				return false, nil
+			}
+			removeWorktreeFunc = func(ctx context.Context, worktreePath string) error {
+				return tt.removeWorktreeErr
+			}
 
 			// コマンド実行
 			cmd := newCleanCmd()
@@ -204,6 +303,9 @@ func TestCleanCmd(t *testing.T) {
 
 			if tt.allFlag {
 				cmd.Flags().Set("all", "true")
+			}
+			if tt.forceFlag {
+				cmd.Flags().Set("force", "true")
 			}
 
 			err := cmd.Execute()
