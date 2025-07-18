@@ -134,13 +134,3 @@ func findGitDirectory(startPath string) string {
 	}
 	return ""
 }
-
-// GetOwnerAndRepoFromGitHubURL は GitHubURL から owner と repo を取得する簡易関数
-// 後方互換性のために提供
-func GetOwnerAndRepoFromGitHubURL(url string) (owner, repo string, err error) {
-	repoInfo, err := ParseGitHubURL(url)
-	if err != nil {
-		return "", "", err
-	}
-	return repoInfo.Owner, repoInfo.Repo, nil
-}

@@ -5,102 +5,12 @@ import (
 	"fmt"
 
 	"github.com/douhashi/osoba/internal/github"
-	"github.com/douhashi/osoba/internal/types"
 )
 
 // ActionExecutor はIssueに対するアクションを実行するインターフェース
 type ActionExecutor interface {
 	Execute(ctx context.Context, issue *github.Issue) error
 	CanExecute(issue *github.Issue) bool
-}
-
-// PlanAction は計画フェーズのアクション実装
-type PlanAction struct {
-	types.BaseAction
-}
-
-// NewPlanAction は新しいPlanActionを作成する
-func NewPlanAction() *PlanAction {
-	return &PlanAction{
-		BaseAction: types.BaseAction{Type: types.ActionTypePlan},
-	}
-}
-
-// Execute は計画フェーズのアクションを実行する
-func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
-	// TODO: 実際の実装は後で行う
-	return nil
-}
-
-// CanExecute は計画フェーズのアクションが実行可能かを判定する
-func (a *PlanAction) CanExecute(issue *github.Issue) bool {
-	return hasLabel(issue, "status:needs-plan")
-}
-
-// ImplementationAction は実装フェーズのアクション実装
-type ImplementationAction struct {
-	types.BaseAction
-}
-
-// NewImplementationAction は新しいImplementationActionを作成する
-func NewImplementationAction() *ImplementationAction {
-	return &ImplementationAction{
-		BaseAction: types.BaseAction{Type: types.ActionTypeImplementation},
-	}
-}
-
-// Execute は実装フェーズのアクションを実行する
-func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue) error {
-	// TODO: 実際の実装は後で行う
-	return nil
-}
-
-// CanExecute は実装フェーズのアクションが実行可能かを判定する
-func (a *ImplementationAction) CanExecute(issue *github.Issue) bool {
-	return hasLabel(issue, "status:ready")
-}
-
-// ReviewAction はレビューフェーズのアクション実装
-type ReviewAction struct {
-	types.BaseAction
-}
-
-// NewReviewAction は新しいReviewActionを作成する
-func NewReviewAction() *ReviewAction {
-	return &ReviewAction{
-		BaseAction: types.BaseAction{Type: types.ActionTypeReview},
-	}
-}
-
-// Execute はレビューフェーズのアクションを実行する
-func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
-	// TODO: 実際の実装は後で行う
-	return nil
-}
-
-// CanExecute はレビューフェーズのアクションが実行可能かを判定する
-func (a *ReviewAction) CanExecute(issue *github.Issue) bool {
-	return hasLabel(issue, "status:review-requested")
-}
-
-// GetActionForIssue はIssueのラベルに基づいて適切なアクションを返す
-func GetActionForIssue(issue *github.Issue) ActionExecutor {
-	if issue == nil {
-		return nil
-	}
-
-	// ラベルを確認して適切なアクションを返す
-	if hasLabel(issue, "status:needs-plan") {
-		return NewPlanAction()
-	}
-	if hasLabel(issue, "status:ready") {
-		return NewImplementationAction()
-	}
-	if hasLabel(issue, "status:review-requested") {
-		return NewReviewAction()
-	}
-
-	return nil
 }
 
 // hasLabel はIssueが指定されたラベルを持っているかを確認する
@@ -158,8 +68,7 @@ func (m *ActionManager) ExecuteAction(ctx context.Context, issue *github.Issue) 
 // GetActionForIssue はIssueのラベルに基づいて適切なアクションを返す
 func (m *ActionManager) GetActionForIssue(issue *github.Issue) ActionExecutor {
 	if m.actionFactory == nil {
-		// 後方互換性のため、factoryがない場合は簡易実装を使用
-		return GetActionForIssue(issue)
+		return nil
 	}
 
 	// ラベルを確認して適切なアクションを返す

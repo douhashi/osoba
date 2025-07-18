@@ -144,10 +144,3 @@ func (m *MockSystemCommandExecutor) LookPath(file string) (string, error) {
 	args := m.Called(file)
 	return args.String(0), args.Error(1)
 }
-
-// Deprecated aliases for backward compatibility
-type MockCommandExecutor = MockTmuxCommandExecutor
-
-func NewMockCommandExecutor() *MockCommandExecutor {
-	return NewMockTmuxCommandExecutor()
-}

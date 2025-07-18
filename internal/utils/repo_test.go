@@ -66,7 +66,12 @@ func TestGetOwnerAndRepoFromGitHubURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			owner, repo, err := GetOwnerAndRepoFromGitHubURL(tt.url)
+			result, err := ParseGitHubURL(tt.url)
+			var owner, repo string
+			if err == nil {
+				owner = result.Owner
+				repo = result.Repo
+			}
 
 			if tt.wantErr {
 				if err == nil {

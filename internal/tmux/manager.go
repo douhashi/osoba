@@ -1,5 +1,9 @@
 package tmux
 
+import (
+	"github.com/douhashi/osoba/internal/logger"
+)
+
 // SessionManager はtmuxセッション操作のインターフェース
 type SessionManager interface {
 	// CheckTmuxInstalled tmuxがインストールされているか確認
@@ -84,4 +88,9 @@ func NewDefaultManagerWithExecutor(executor CommandExecutor) *DefaultManager {
 	return &DefaultManager{
 		executor: executor,
 	}
+}
+
+// NewManager はロガーを使用してManagerを作成（V2互換性のため）
+func NewManager(logger logger.Logger) Manager {
+	return NewDefaultManager()
 }

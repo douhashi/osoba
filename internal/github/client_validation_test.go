@@ -9,7 +9,7 @@ func TestClient_ValidationOnly(t *testing.T) {
 	ctx := context.Background()
 
 	// バリデーションのみのテスト用クライアント
-	client := &Client{}
+	client := &GHClient{}
 
 	t.Run("GetRepository - ownerが空でエラー", func(t *testing.T) {
 		_, err := client.GetRepository(ctx, "", "repo")

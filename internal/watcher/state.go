@@ -109,15 +109,29 @@ func (m *IssueStateManager) GetAllIssueStates() map[int64]*types.IssueState {
 	return statesCopy
 }
 
-// Clear は指定されたIssueのすべての状態をクリアする
+// Clear は指定されたIssueの状態をクリアする
 func (m *IssueStateManager) Clear(issueNumber int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	delete(m.states, issueNumber)
 }
 
-// GetState はStateManagerV2インターフェース互換のメソッド
+// GetAllStates はすべてのIssueの状態をフェーズごとに取得する
+func (m *IssueStateManager) GetAllStates() map[int64]map[types.IssuePhase]types.IssueStatus {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make(map[int64]map[types.IssuePhase]types.IssueStatus)
+	for issueNumber, state := range m.states {
+		if _, exists := result[issueNumber]; !exists {
+			result[issueNumber] = make(map[types.IssuePhase]types.IssueStatus)
+		}
+		result[issueNumber][state.Phase] = state.Status
+	}
+	return result
+}
+
+// GetState は指定されたIssueの特定フェーズの状態を取得する
 func (m *IssueStateManager) GetState(issueNumber int64, phase types.IssuePhase) types.IssueStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -133,23 +147,6 @@ func (m *IssueStateManager) GetState(issueNumber int64, phase types.IssuePhase) 
 	}
 
 	return types.IssueStatusPending
-}
-
-// GetAllStates はStateManagerV2インターフェース互換のメソッド
-func (m *IssueStateManager) GetAllStates() map[int64]map[types.IssuePhase]types.IssueStatus {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	// フェーズごとの状態を返す
-	statesCopy := make(map[int64]map[types.IssuePhase]types.IssueStatus)
-	for issueNumber, state := range m.states {
-		if _, exists := statesCopy[issueNumber]; !exists {
-			statesCopy[issueNumber] = make(map[types.IssuePhase]types.IssueStatus)
-		}
-		statesCopy[issueNumber][state.Phase] = state.Status
-	}
-
-	return statesCopy
 }
 
 // CleanupOldStates は古い状態を削除する

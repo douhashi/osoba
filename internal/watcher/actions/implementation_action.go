@@ -3,130 +3,53 @@ package actions
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
+	tmuxpkg "github.com/douhashi/osoba/internal/tmux"
 	"github.com/douhashi/osoba/internal/types"
 )
 
-// ImplementationAction は実装フェーズのアクション実装
+// ImplementationAction はpane管理方式を使用する実装フェーズのアクション実装
 type ImplementationAction struct {
 	types.BaseAction
-	sessionName       string
-	tmuxClient        TmuxClient
-	stateManager      StateManager
-	labelManager      LabelManager
-	phaseTransitioner PhaseTransitioner
-	worktreeManager   git.WorktreeManager
-	claudeExecutor    claude.ClaudeExecutor
-	claudeConfig      *claude.ClaudeConfig
-	logger            logger.Logger
+	baseExecutor *BaseExecutor
+	sessionName  string
+	stateManager StateManagerV2
+	labelManager ActionsLabelManager
+	claudeConfig *claude.ClaudeConfig
+	logger       logger.Logger
 }
 
 // NewImplementationAction は新しいImplementationActionを作成する
 func NewImplementationAction(
 	sessionName string,
-	tmuxClient TmuxClient,
-	stateManager StateManager,
-	labelManager LabelManager,
+	tmuxManager tmuxpkg.Manager,
+	stateManager StateManagerV2,
+	labelManager ActionsLabelManager,
 	worktreeManager git.WorktreeManager,
-	claudeExecutor claude.ClaudeExecutor,
-	claudeConfig *claude.ClaudeConfig,
-) *ImplementationAction {
-	return &ImplementationAction{
-		BaseAction:      types.BaseAction{Type: types.ActionTypeImplementation},
-		sessionName:     sessionName,
-		tmuxClient:      tmuxClient,
-		stateManager:    stateManager,
-		labelManager:    labelManager,
-		worktreeManager: worktreeManager,
-		claudeExecutor:  claudeExecutor,
-		claudeConfig:    claudeConfig,
-	}
-}
-
-// NewImplementationActionWithPhaseTransitioner は新しいImplementationActionをPhaseTransitionerと共に作成する
-func NewImplementationActionWithPhaseTransitioner(
-	sessionName string,
-	tmuxClient TmuxClient,
-	stateManager StateManager,
-	labelManager LabelManager,
-	phaseTransitioner PhaseTransitioner,
-	worktreeManager git.WorktreeManager,
-	claudeExecutor claude.ClaudeExecutor,
-	claudeConfig *claude.ClaudeConfig,
-) *ImplementationAction {
-	return &ImplementationAction{
-		BaseAction:        types.BaseAction{Type: types.ActionTypeImplementation},
-		sessionName:       sessionName,
-		tmuxClient:        tmuxClient,
-		stateManager:      stateManager,
-		labelManager:      labelManager,
-		phaseTransitioner: phaseTransitioner,
-		worktreeManager:   worktreeManager,
-		claudeExecutor:    claudeExecutor,
-		claudeConfig:      claudeConfig,
-	}
-}
-
-// NewImplementationActionWithLogger はloggerを注入したImplementationActionを作成する
-func NewImplementationActionWithLogger(
-	sessionName string,
-	tmuxClient TmuxClient,
-	stateManager StateManager,
-	labelManager LabelManager,
-	worktreeManager git.WorktreeManager,
-	claudeExecutor claude.ClaudeExecutor,
+	claudeExecutor ClaudeCommandBuilder,
 	claudeConfig *claude.ClaudeConfig,
 	logger logger.Logger,
 ) *ImplementationAction {
+	baseExecutor := NewBaseExecutor(
+		sessionName,
+		tmuxManager,
+		worktreeManager,
+		claudeExecutor,
+		logger,
+	)
+
 	return &ImplementationAction{
-		BaseAction:      types.BaseAction{Type: types.ActionTypeImplementation},
-		sessionName:     sessionName,
-		tmuxClient:      tmuxClient,
-		stateManager:    stateManager,
-		labelManager:    labelManager,
-		worktreeManager: worktreeManager,
-		claudeExecutor:  claudeExecutor,
-		claudeConfig:    claudeConfig,
-		logger:          logger,
-	}
-}
-
-// logInfo はloggerが設定されている場合は構造化ログを、設定されていない場合は標準ログを出力する
-func (a *ImplementationAction) logInfo(msg string, keysAndValues ...interface{}) {
-	if a.logger != nil {
-		a.logger.Info(msg, keysAndValues...)
-	} else {
-		// 後方互換性のため、標準ログ出力を維持
-		if len(keysAndValues) >= 2 {
-			// 特別なケースの処理
-			var issueNumber interface{}
-			var path interface{}
-			for i := 0; i < len(keysAndValues); i += 2 {
-				if keysAndValues[i] == "issue_number" {
-					issueNumber = keysAndValues[i+1]
-				} else if keysAndValues[i] == "path" {
-					path = keysAndValues[i+1]
-				}
-			}
-
-			// pathとissue_numberがある場合
-			if path != nil && msg == "Worktree created" {
-				log.Printf("%s at: %v", msg, path)
-				return
-			}
-
-			// issue_numberがある場合は既存のフォーマットを使用
-			if issueNumber != nil {
-				log.Printf("%s for issue #%v", msg, issueNumber)
-				return
-			}
-		}
-		log.Print(msg)
+		BaseAction:   types.BaseAction{Type: types.ActionTypeImplementation},
+		baseExecutor: baseExecutor,
+		sessionName:  sessionName,
+		stateManager: stateManager,
+		labelManager: labelManager,
+		claudeConfig: claudeConfig,
+		logger:       logger,
 	}
 }
 
@@ -137,11 +60,11 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	}
 
 	issueNumber := int64(*issue.Number)
-	a.logInfo("Executing implementation action", "issue_number", issueNumber)
+	a.logger.Info("Executing implementation action", "issue_number", issueNumber)
 
 	// 既に処理済みかチェック
 	if a.stateManager.HasBeenProcessed(issueNumber, types.IssueStateImplementation) {
-		a.logInfo("Issue has already been processed for implementation phase", "issue_number", issueNumber)
+		a.logger.Info("Issue has already been processed for implementation phase", "issue_number", issueNumber)
 		return nil
 	}
 
@@ -153,34 +76,19 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	// 処理開始
 	a.stateManager.SetState(issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
 
-	// tmuxウィンドウ作成
-	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber)); err != nil {
+	// ワークスペースの準備
+	workspace, err := a.baseExecutor.PrepareWorkspace(ctx, issue, "Implementation")
+	if err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-		return fmt.Errorf("failed to create tmux window: %w", err)
+		return fmt.Errorf("failed to prepare workspace: %w", err)
 	}
 
-	// implement用のpaneを作成/選択
-	windowName := fmt.Sprintf("issue-%d", issueNumber)
-	if err := a.tmuxClient.SelectOrCreatePaneForPhase(a.sessionName, windowName, "implement-phase"); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-		return fmt.Errorf("failed to create/select implement pane: %w", err)
-	}
-
-	// mainブランチを最新化
-	a.logInfo("Updating main branch", "issue_number", issueNumber)
-	if err := a.worktreeManager.UpdateMainBranch(ctx); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-		return fmt.Errorf("failed to update main branch: %w", err)
-	}
-
-	// worktreeを作成（Issue単位のworktree）
-	a.logInfo("Creating worktree", "issue_number", issueNumber)
-	if err := a.worktreeManager.CreateWorktreeForIssue(ctx, int(issueNumber)); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-		return fmt.Errorf("failed to create worktree: %w", err)
-	}
-	worktreePath := a.worktreeManager.GetWorktreePathForIssue(int(issueNumber))
-	a.logInfo("Worktree created", "issue_number", issueNumber, "path", worktreePath)
+	a.logger.Info("Workspace prepared",
+		"issue_number", issueNumber,
+		"window_name", workspace.WindowName,
+		"worktree_path", workspace.WorktreePath,
+		"pane_index", workspace.PaneIndex,
+	)
 
 	// Claude実行用の変数を準備
 	templateVars := &claude.TemplateVariables{
@@ -190,23 +98,57 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	}
 
 	// Claude設定を取得
-	phaseConfig, exists := a.claudeConfig.GetPhase("implement")
+	phaseConfig, exists := a.claudeConfig.GetPhase("implementation")
 	if !exists {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-		return fmt.Errorf("implement phase config not found")
+		return fmt.Errorf("implementation phase config not found")
 	}
 
-	// tmuxウィンドウ内でClaude実行
-	claudeWindowName := fmt.Sprintf("issue-%d", issueNumber)
-	a.logInfo("Executing Claude in tmux window", "issue_number", issueNumber, "window_name", claudeWindowName, "phase", "implementation")
-	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, claudeWindowName, worktreePath); err != nil {
+	// Claudeコマンドの実行
+	promptPath := phaseConfig.Prompt
+
+	claudeCmd := a.baseExecutor.claudeExecutor.BuildCommand(
+		promptPath,
+		"", // 実装フェーズでは出力ファイルは使用しない
+		workspace.WorktreePath,
+		templateVars,
+	)
+
+	a.logger.Info("Executing Claude command",
+		"issue_number", issueNumber,
+		"command", claudeCmd,
+	)
+
+	// ワークスペースでClaudeコマンドを実行
+	if err := a.baseExecutor.ExecuteInWorkspace(workspace, claudeCmd); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-		return fmt.Errorf("failed to execute claude: %w", err)
+		return fmt.Errorf("failed to execute Claude command: %w", err)
 	}
 
-	// 処理完了
+	// ラベル更新: status:ready -> status:implementing
+	if a.labelManager != nil {
+		a.logger.Info("Updating issue labels", "issue_number", issueNumber)
+		if err := a.labelManager.RemoveLabel(ctx, int(issueNumber), "status:ready"); err != nil {
+			a.logger.Error("Failed to remove label",
+				"issue_number", issueNumber,
+				"label", "status:ready",
+				"error", err,
+			)
+		}
+		if err := a.labelManager.AddLabel(ctx, int(issueNumber), "status:implementing"); err != nil {
+			a.logger.Error("Failed to add label",
+				"issue_number", issueNumber,
+				"label", "status:implementing",
+				"error", err,
+			)
+		}
+	}
+
+	// 完了処理
 	a.stateManager.MarkAsCompleted(issueNumber, types.IssueStateImplementation)
-	a.logInfo("Successfully completed implementation action", "issue_number", issueNumber)
+	a.logger.Info("Implementation action completed successfully", "issue_number", issueNumber)
+
+	// V2ではフェーズ遷移は行わない（別のコンポーネントが管理）
 
 	return nil
 }
