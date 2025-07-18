@@ -29,6 +29,7 @@ osobaは、tmux + git worktree + Claude を統合した自律的なソフトウ�
 
 ## 必要な環境
 
+- **対応OS**: Linux, macOS（Windows非対応）
 - tmux 3.0以上
 - git 2.x以上
 - GitHub CLI（gh）
