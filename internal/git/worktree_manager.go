@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 )
 
 // Phase はworktreeのフェーズを表す型
@@ -46,6 +47,15 @@ type WorktreeManager interface {
 
 	// RemoveWorktreeForIssue は指定されたIssueのworktreeを削除する
 	RemoveWorktreeForIssue(ctx context.Context, issueNumber int) error
+
+	// ListWorktreesForIssue は指定されたIssueに関連するworktreeを全て検索する
+	ListWorktreesForIssue(ctx context.Context, issueNumber int) ([]WorktreeInfo, error)
+
+	// ListAllWorktrees は全てのworktreeを検索する
+	ListAllWorktrees(ctx context.Context) ([]WorktreeInfo, error)
+
+	// HasUncommittedChanges はworktreeに未コミットの変更があるかを確認する
+	HasUncommittedChanges(ctx context.Context, worktreePath string) (bool, error)
 }
 
 // worktreeManager はWorktreeManagerの実装
@@ -199,4 +209,46 @@ func (m *worktreeManager) WorktreeExists(ctx context.Context, issueNumber int, p
 func (m *worktreeManager) generateBranchName(issueNumber int, phase Phase) string {
 	// osoba/#{issue番号}-{フェーズ}
 	return fmt.Sprintf("osoba/#%d-%s", issueNumber, phase)
+}
+
+// ListWorktreesForIssue は指定されたIssueに関連するworktreeを全て検索する
+func (m *worktreeManager) ListWorktreesForIssue(ctx context.Context, issueNumber int) ([]WorktreeInfo, error) {
+	// 全てのworktreeを取得
+	allWorktrees, err := m.worktree.List(ctx, m.basePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list worktrees: %w", err)
+	}
+
+	var issueWorktrees []WorktreeInfo
+	issueStr := fmt.Sprintf("%d", issueNumber)
+
+	for _, wt := range allWorktrees {
+		// 古い形式のworktreeパスをチェック (.git/worktree/{phase}/{issue-number})
+		if strings.Contains(wt.Path, fmt.Sprintf(".git/worktree/")) {
+			// パスの最後の部分がissue番号と一致するかチェック
+			if strings.HasSuffix(wt.Path, issueStr) {
+				issueWorktrees = append(issueWorktrees, wt)
+			}
+		}
+		// 新しい形式のworktreeパスをチェック (.git/osoba/worktrees/issue-{issue番号})
+		if strings.Contains(wt.Path, fmt.Sprintf(".git/osoba/worktrees/issue-%s", issueStr)) {
+			issueWorktrees = append(issueWorktrees, wt)
+		}
+		// 新しい形式でのフェーズ付きワークツリーもチェック (.git/osoba/worktrees/{issue番号}-{フェーズ})
+		if strings.Contains(wt.Path, fmt.Sprintf(".git/osoba/worktrees/%s-", issueStr)) {
+			issueWorktrees = append(issueWorktrees, wt)
+		}
+	}
+
+	return issueWorktrees, nil
+}
+
+// ListAllWorktrees は全てのworktreeを検索する
+func (m *worktreeManager) ListAllWorktrees(ctx context.Context) ([]WorktreeInfo, error) {
+	return m.worktree.List(ctx, m.basePath)
+}
+
+// HasUncommittedChanges はworktreeに未コミットの変更があるかを確認する
+func (m *worktreeManager) HasUncommittedChanges(ctx context.Context, worktreePath string) (bool, error) {
+	return m.worktree.HasUncommittedChanges(ctx, worktreePath)
 }

@@ -2,31 +2,40 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
+	"github.com/douhashi/osoba/internal/git"
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/spf13/cobra"
 )
 
-var allFlag bool
+var (
+	allFlag   bool
+	forceFlag bool
+)
 
 func newCleanCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clean [issue-number]",
-		Short: "tmuxウィンドウをクリーンアップ",
-		Long: `Issue番号に関連するtmuxウィンドウを削除します。
+		Short: "tmuxウィンドウとgit worktreeをクリーンアップ",
+		Long: `Issue番号に関連するtmuxウィンドウとgit worktreeを削除します。
 
 使用例:
-  osoba clean 83        # Issue #83に関連するウィンドウを削除
-  osoba clean --all     # すべてのIssue関連ウィンドウを削除（確認あり）`,
+  osoba clean 83        # Issue #83に関連するウィンドウとworktreeを削除
+  osoba clean --all     # すべてのIssue関連リソースを削除（確認あり）
+  osoba clean --force   # 確認なしで削除
+  osoba clean --all --force  # すべてのリソースを確認なしで削除`,
 		Args: validateCleanArgs,
 		RunE: runClean,
 	}
 
-	cmd.Flags().BoolVar(&allFlag, "all", false, "すべてのIssue関連ウィンドウを削除")
+	cmd.Flags().BoolVar(&allFlag, "all", false, "すべてのIssue関連リソースを削除")
+	cmd.Flags().BoolVar(&forceFlag, "force", false, "確認プロンプトを表示せずに削除")
 
 	return cmd
 }
@@ -107,65 +116,218 @@ func cleanIssueWindows(cmd *cobra.Command, sessionName string, issueNumber int) 
 		return fmt.Errorf("ウィンドウ一覧の取得に失敗しました: %w", err)
 	}
 
-	if len(windows) == 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "Issue #%d に関連するウィンドウが見つかりませんでした。\n", issueNumber)
+	// Issue番号に関連するworktreeを取得
+	worktrees, err := listWorktreesForIssueFunc(context.Background(), issueNumber)
+	if err != nil {
+		return fmt.Errorf("worktree一覧の取得に失敗しました: %w", err)
+	}
+
+	if len(windows) == 0 && len(worktrees) == 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "Issue #%d に関連するリソースが見つかりませんでした。\n", issueNumber)
 		return nil
 	}
 
-	// ウィンドウを削除
-	if err := killWindowsForIssueFunc(sessionName, issueNumber); err != nil {
-		return fmt.Errorf("ウィンドウの削除に失敗しました: %w", err)
+	// 未コミット変更のチェック
+	hasUncommittedChanges := false
+	var uncommittedWorktrees []git.WorktreeInfo
+	for _, wt := range worktrees {
+		hasChanges, err := hasUncommittedChangesFunc(context.Background(), wt.Path)
+		if err != nil {
+			fmt.Fprintf(cmd.OutOrStdout(), "警告: %s の未コミット変更チェックに失敗しました: %v\n", wt.Path, err)
+			continue
+		}
+		if hasChanges {
+			hasUncommittedChanges = true
+			uncommittedWorktrees = append(uncommittedWorktrees, wt)
+		}
 	}
 
-	// 削除したウィンドウを表示
-	fmt.Fprintf(cmd.OutOrStdout(), "Issue #%d のウィンドウを削除しました:\n", issueNumber)
-	for _, window := range windows {
-		fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", window.Name)
+	// 未コミット変更がある場合は警告を表示
+	if hasUncommittedChanges {
+		fmt.Fprintf(cmd.OutOrStdout(), "警告: 以下のworktreeに未コミットの変更があります:\n")
+		for _, wt := range uncommittedWorktrees {
+			fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", wt.Path)
+		}
+
+		if !forceFlag {
+			confirmed, err := confirmPromptFunc("本当に削除しますか？ (yes/no): ")
+			if err != nil {
+				return fmt.Errorf("確認の読み取りに失敗しました: %w", err)
+			}
+			if !confirmed {
+				fmt.Fprintln(cmd.OutOrStdout(), "削除をキャンセルしました。")
+				return nil
+			}
+		}
+	}
+
+	// ウィンドウを削除
+	windowErrors := []error{}
+	if len(windows) > 0 {
+		if err := killWindowsForIssueFunc(sessionName, issueNumber); err != nil {
+			windowErrors = append(windowErrors, fmt.Errorf("ウィンドウの削除に失敗しました: %w", err))
+		}
+	}
+
+	// worktreeを削除
+	worktreeErrors := []error{}
+	for _, wt := range worktrees {
+		if err := removeWorktreeFunc(context.Background(), wt.Path); err != nil {
+			worktreeErrors = append(worktreeErrors, fmt.Errorf("worktree %s の削除に失敗しました: %w", wt.Path, err))
+		}
+	}
+
+	// 結果を表示
+	if len(windows) > 0 || len(worktrees) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "Issue #%d のリソースを削除しました:\n", issueNumber)
+		if len(windows) > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "  ウィンドウ:\n")
+			for _, window := range windows {
+				fmt.Fprintf(cmd.OutOrStdout(), "    - %s\n", window.Name)
+			}
+		}
+		if len(worktrees) > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "  worktree:\n")
+			for _, wt := range worktrees {
+				fmt.Fprintf(cmd.OutOrStdout(), "    - %s\n", wt.Path)
+			}
+		}
+	}
+
+	// エラーがあれば報告
+	if len(windowErrors) > 0 || len(worktreeErrors) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "\n以下のエラーが発生しました:\n")
+		for _, err := range windowErrors {
+			fmt.Fprintf(cmd.OutOrStdout(), "  - %v\n", err)
+		}
+		for _, err := range worktreeErrors {
+			fmt.Fprintf(cmd.OutOrStdout(), "  - %v\n", err)
+		}
 	}
 
 	return nil
 }
 
 func cleanAllWindows(cmd *cobra.Command, sessionName string) error {
-	// Issue関連のウィンドウをすべて取得（パターン: 数字-フェーズ）
-	windows, err := listWindowsByPatternFunc(sessionName, `^\d+-\w+$`)
+	// Issue関連のウィンドウをすべて取得
+	windows, err := listWindowsByPatternFunc(sessionName, `^\d+-\w+$|^issue-\d+$`)
 	if err != nil {
 		return fmt.Errorf("ウィンドウ一覧の取得に失敗しました: %w", err)
 	}
 
-	if len(windows) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "削除対象のウィンドウが見つかりませんでした。")
+	// 全てのworktreeを取得
+	allWorktrees, err := listAllWorktreesFunc(context.Background())
+	if err != nil {
+		return fmt.Errorf("worktree一覧の取得に失敗しました: %w", err)
+	}
+
+	// osoba関連のworktreeをフィルタリング
+	var worktrees []git.WorktreeInfo
+	for _, wt := range allWorktrees {
+		if strings.Contains(wt.Path, ".git/worktree/") || strings.Contains(wt.Path, ".git/osoba/") {
+			worktrees = append(worktrees, wt)
+		}
+	}
+
+	if len(windows) == 0 && len(worktrees) == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "削除対象のリソースが見つかりませんでした。")
 		return nil
 	}
 
-	// ウィンドウ一覧を表示して確認
-	fmt.Fprintln(cmd.OutOrStdout(), "以下のウィンドウを削除します:")
-	for _, window := range windows {
-		fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", window.Name)
+	// リソース一覧を表示
+	fmt.Fprintln(cmd.OutOrStdout(), "以下のリソースを削除します:")
+	if len(windows) > 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "  ウィンドウ:")
+		for _, window := range windows {
+			fmt.Fprintf(cmd.OutOrStdout(), "    - %s\n", window.Name)
+		}
+	}
+	if len(worktrees) > 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "  worktree:")
+		for _, wt := range worktrees {
+			fmt.Fprintf(cmd.OutOrStdout(), "    - %s\n", wt.Path)
+		}
+	}
+
+	// 未コミット変更のチェック
+	hasUncommittedChanges := false
+	var uncommittedWorktrees []git.WorktreeInfo
+	for _, wt := range worktrees {
+		hasChanges, err := hasUncommittedChangesFunc(context.Background(), wt.Path)
+		if err != nil {
+			fmt.Fprintf(cmd.OutOrStdout(), "警告: %s の未コミット変更チェックに失敗しました: %v\n", wt.Path, err)
+			continue
+		}
+		if hasChanges {
+			hasUncommittedChanges = true
+			uncommittedWorktrees = append(uncommittedWorktrees, wt)
+		}
+	}
+
+	// 未コミット変更がある場合は警告を表示
+	if hasUncommittedChanges {
+		fmt.Fprintf(cmd.OutOrStdout(), "\n警告: 以下のworktreeに未コミットの変更があります:\n")
+		for _, wt := range uncommittedWorktrees {
+			fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", wt.Path)
+		}
 	}
 
 	// 確認プロンプト
-	confirmed, err := confirmPromptFunc("本当に削除しますか？ (yes/no): ")
-	if err != nil {
-		return fmt.Errorf("確認の読み取りに失敗しました: %w", err)
-	}
+	if !forceFlag {
+		confirmed, err := confirmPromptFunc("本当に削除しますか？ (yes/no): ")
+		if err != nil {
+			return fmt.Errorf("確認の読み取りに失敗しました: %w", err)
+		}
 
-	if !confirmed {
-		fmt.Fprintln(cmd.OutOrStdout(), "削除をキャンセルしました。")
-		return nil
+		if !confirmed {
+			fmt.Fprintln(cmd.OutOrStdout(), "削除をキャンセルしました。")
+			return nil
+		}
 	}
-
-	// ウィンドウ名のリストを作成
-	windowNames := getWindowNames(windows)
 
 	// ウィンドウを削除
-	if err := killWindowsFunc(sessionName, windowNames); err != nil {
-		return fmt.Errorf("ウィンドウの削除に失敗しました: %w", err)
+	windowErrors := []error{}
+	if len(windows) > 0 {
+		windowNames := getWindowNames(windows)
+		if err := killWindowsFunc(sessionName, windowNames); err != nil {
+			windowErrors = append(windowErrors, fmt.Errorf("ウィンドウの削除に失敗しました: %w", err))
+		}
 	}
 
-	fmt.Fprintln(cmd.OutOrStdout(), "以下のウィンドウを削除しました:")
-	for _, window := range windows {
-		fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", window.Name)
+	// worktreeを削除
+	worktreeErrors := []error{}
+	for _, wt := range worktrees {
+		if err := removeWorktreeFunc(context.Background(), wt.Path); err != nil {
+			worktreeErrors = append(worktreeErrors, fmt.Errorf("worktree %s の削除に失敗しました: %w", wt.Path, err))
+		}
+	}
+
+	// 結果を表示
+	if len(windows) > 0 || len(worktrees) > 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "以下のリソースを削除しました:")
+		if len(windows) > 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), "  ウィンドウ:")
+			for _, window := range windows {
+				fmt.Fprintf(cmd.OutOrStdout(), "    - %s\n", window.Name)
+			}
+		}
+		if len(worktrees) > 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), "  worktree:")
+			for _, wt := range worktrees {
+				fmt.Fprintf(cmd.OutOrStdout(), "    - %s\n", wt.Path)
+			}
+		}
+	}
+
+	// エラーがあれば報告
+	if len(windowErrors) > 0 || len(worktreeErrors) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "\n以下のエラーが発生しました:\n")
+		for _, err := range windowErrors {
+			fmt.Fprintf(cmd.OutOrStdout(), "  - %v\n", err)
+		}
+		for _, err := range worktreeErrors {
+			fmt.Fprintf(cmd.OutOrStdout(), "  - %v\n", err)
+		}
 	}
 
 	return nil
@@ -195,11 +357,98 @@ func confirmPrompt(prompt string) (bool, error) {
 	return response == "yes" || response == "y", nil
 }
 
+// nullLogger は何もしないloggerの実装
+type nullLogger struct{}
+
+func (n *nullLogger) Debug(msg string, keysAndValues ...interface{}) {}
+func (n *nullLogger) Info(msg string, keysAndValues ...interface{})  {}
+func (n *nullLogger) Warn(msg string, keysAndValues ...interface{})  {}
+func (n *nullLogger) Error(msg string, keysAndValues ...interface{}) {}
+func (n *nullLogger) WithFields(keysAndValues ...interface{}) logger.Logger {
+	return n
+}
+
 // テスト時にモック可能な関数変数
 var (
-	listWindowsForIssueFunc  = tmux.ListWindowsForIssue
-	listWindowsByPatternFunc = tmux.ListWindowsByPattern
-	killWindowsForIssueFunc  = tmux.KillWindowsForIssue
-	killWindowsFunc          = tmux.KillWindows
-	confirmPromptFunc        = confirmPrompt
+	listWindowsForIssueFunc   = tmux.ListWindowsForIssue
+	listWindowsByPatternFunc  = tmux.ListWindowsByPattern
+	killWindowsForIssueFunc   = tmux.KillWindowsForIssue
+	killWindowsFunc           = tmux.KillWindows
+	confirmPromptFunc         = confirmPrompt
+	listWorktreesForIssueFunc = createListWorktreesForIssueFunc()
+	listAllWorktreesFunc      = createListAllWorktreesFunc()
+	hasUncommittedChangesFunc = createHasUncommittedChangesFunc()
+	removeWorktreeFunc        = createRemoveWorktreeFunc()
 )
+
+// WorktreeManagerのインスタンスを作成する関数
+func createListWorktreesForIssueFunc() func(context.Context, int) ([]git.WorktreeInfo, error) {
+	return func(ctx context.Context, issueNumber int) ([]git.WorktreeInfo, error) {
+		// 実際の実装では、WorktreeManagerを使用
+		nullLogger := &nullLogger{}
+		repo := git.NewRepository(nullLogger)
+		worktree := git.NewWorktree(nullLogger)
+		branch := git.NewBranch(nullLogger)
+		sync := git.NewSync(nullLogger)
+
+		manager, err := git.NewWorktreeManager(repo, worktree, branch, sync)
+		if err != nil {
+			return nil, err
+		}
+
+		return manager.ListWorktreesForIssue(ctx, issueNumber)
+	}
+}
+
+func createListAllWorktreesFunc() func(context.Context) ([]git.WorktreeInfo, error) {
+	return func(ctx context.Context) ([]git.WorktreeInfo, error) {
+		// 実際の実装では、WorktreeManagerを使用
+		nullLogger := &nullLogger{}
+		repo := git.NewRepository(nullLogger)
+		worktree := git.NewWorktree(nullLogger)
+		branch := git.NewBranch(nullLogger)
+		sync := git.NewSync(nullLogger)
+
+		manager, err := git.NewWorktreeManager(repo, worktree, branch, sync)
+		if err != nil {
+			return nil, err
+		}
+
+		return manager.ListAllWorktrees(ctx)
+	}
+}
+
+func createHasUncommittedChangesFunc() func(context.Context, string) (bool, error) {
+	return func(ctx context.Context, worktreePath string) (bool, error) {
+		// 実際の実装では、WorktreeManagerを使用
+		nullLogger := &nullLogger{}
+		repo := git.NewRepository(nullLogger)
+		worktree := git.NewWorktree(nullLogger)
+		branch := git.NewBranch(nullLogger)
+		sync := git.NewSync(nullLogger)
+
+		manager, err := git.NewWorktreeManager(repo, worktree, branch, sync)
+		if err != nil {
+			return false, err
+		}
+
+		return manager.HasUncommittedChanges(ctx, worktreePath)
+	}
+}
+
+func createRemoveWorktreeFunc() func(context.Context, string) error {
+	return func(ctx context.Context, worktreePath string) error {
+		// 実際の実装では、Worktreeを使用
+		nullLogger := &nullLogger{}
+		worktree := git.NewWorktree(nullLogger)
+
+		// リポジトリのルートパスを取得
+		repo := git.NewRepository(nullLogger)
+		basePath, err := repo.GetRootPath(ctx)
+		if err != nil {
+			return err
+		}
+
+		return worktree.Remove(ctx, basePath, worktreePath)
+	}
+}

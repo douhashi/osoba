@@ -71,5 +71,23 @@ func (m *MockGitWorktreeManager) RemoveWorktreeForIssue(ctx context.Context, iss
 	return args.Error(0)
 }
 
+// ListWorktreesForIssue mocks the ListWorktreesForIssue method
+func (m *MockGitWorktreeManager) ListWorktreesForIssue(ctx context.Context, issueNumber int) ([]git.WorktreeInfo, error) {
+	args := m.Called(ctx, issueNumber)
+	return args.Get(0).([]git.WorktreeInfo), args.Error(1)
+}
+
+// ListAllWorktrees mocks the ListAllWorktrees method
+func (m *MockGitWorktreeManager) ListAllWorktrees(ctx context.Context) ([]git.WorktreeInfo, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]git.WorktreeInfo), args.Error(1)
+}
+
+// HasUncommittedChanges mocks the HasUncommittedChanges method
+func (m *MockGitWorktreeManager) HasUncommittedChanges(ctx context.Context, worktreePath string) (bool, error) {
+	args := m.Called(ctx, worktreePath)
+	return args.Bool(0), args.Error(1)
+}
+
 // Ensure MockGitWorktreeManager implements git.WorktreeManager interface
 var _ git.WorktreeManager = (*MockGitWorktreeManager)(nil)
