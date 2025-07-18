@@ -61,6 +61,11 @@ func (m *worktreeManager) CreateWorktreeForIssue(ctx context.Context, issueNumbe
 	branchExists := m.branch.Exists(ctx, m.basePath, branchName)
 
 	if !branchExists {
+		// mainブランチを最新化
+		if err := m.UpdateMainBranch(ctx); err != nil {
+			return fmt.Errorf("failed to update main branch: %w", err)
+		}
+
 		// mainブランチから新しいブランチを作成
 		if err := m.branch.Create(ctx, m.basePath, branchName, "main"); err != nil {
 			return fmt.Errorf("failed to create branch: %w", err)
