@@ -608,8 +608,11 @@ func ListWindowsForIssueWithExecutor(sessionName string, issueNumber int, execut
 		return nil, fmt.Errorf("issue number must be positive")
 	}
 
-	// Issue番号に関連するウィンドウのパターン（例: "83-plan", "83-implement", "83-review"）
-	pattern := fmt.Sprintf("^%d-", issueNumber)
+	// Issue番号に関連するウィンドウのパターン
+	// 以下のパターンに一致するウィンドウを検索:
+	// - "issue-144" (GetWindowNameで生成されるパターン)
+	// - "144-plan", "144-implement", "144-review" (GetWindowNameWithPhaseで生成されるパターン)
+	pattern := fmt.Sprintf("^(issue-%d|%d-.+)$", issueNumber, issueNumber)
 	return ListWindowsByPatternWithExecutor(sessionName, pattern, executor)
 }
 

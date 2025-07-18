@@ -139,7 +139,7 @@ func TestListWindowsForIssue(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name:        "正常系: Issue番号83のウィンドウを取得",
+			name:        "正常系: Issue番号83のウィンドウを取得（フェーズ形式）",
 			sessionName: "test-session",
 			issueNumber: 83,
 			windowList: `0:main:0:1
@@ -148,6 +148,29 @@ func TestListWindowsForIssue(t *testing.T) {
 3:83-review:0:1
 4:84-plan:0:1`,
 			expectedNames: []string{"83-plan", "83-implement", "83-review"},
+			expectedError: false,
+		},
+		{
+			name:        "正常系: Issue番号144のウィンドウを取得（issue-形式）",
+			sessionName: "test-session",
+			issueNumber: 144,
+			windowList: `0:main:0:1
+1:issue-144:0:1
+2:145-plan:0:1
+3:issue-146:0:1`,
+			expectedNames: []string{"issue-144"},
+			expectedError: false,
+		},
+		{
+			name:        "正常系: Issue番号83のウィンドウを取得（混在形式）",
+			sessionName: "test-session",
+			issueNumber: 83,
+			windowList: `0:main:0:1
+1:issue-83:0:1
+2:83-plan:0:1
+3:83-implement:1:1
+4:84-plan:0:1`,
+			expectedNames: []string{"issue-83", "83-plan", "83-implement"},
 			expectedError: false,
 		},
 		{
