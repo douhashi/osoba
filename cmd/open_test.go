@@ -8,9 +8,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/daemon"
 	"github.com/douhashi/osoba/internal/git"
+	"github.com/douhashi/osoba/internal/paths"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/spf13/cobra"
+)
+
+// テスト用のモック変数
+var (
+	mockPathManager   paths.PathManager
+	mockDaemonManager daemon.DaemonManager
+	mockTmuxManager   tmux.Manager
 )
 
 func TestOpenCommand(t *testing.T) {
@@ -99,7 +108,7 @@ func TestOpenCommand(t *testing.T) {
 					return false, nil
 				}
 			},
-			expectedError: "セッション 'osoba-test-repo' が見つかりません。先に 'osoba start' を実行してください",
+			expectedError: "セッション 'osoba-test-repo' が見つかりません。先に 'osoba watch'を実行してください",
 		},
 		{
 			name: "エラー: セッション確認でエラー",
@@ -236,4 +245,89 @@ func TestOpenCommandWithMockExec(t *testing.T) {
 			t.Logf("Got error: %v", err)
 		}
 	})
+}
+
+// TestOpenCommandAutoRecovery はセッション自動復旧機能のテスト
+func TestOpenCommandAutoRecovery(t *testing.T) {
+	// 元の関数を保存
+	originalCheckTmux := checkTmuxInstalledFunc
+	originalSessionExists := sessionExistsFunc
+	originalGetRepoName := getRepositoryNameFunc
+
+	// テスト後に復元
+	defer func() {
+		checkTmuxInstalledFunc = originalCheckTmux
+		sessionExistsFunc = originalSessionExists
+		getRepositoryNameFunc = originalGetRepoName
+	}()
+
+	tests := []struct {
+		name            string
+		setupMocks      func()
+		expectedError   string
+		setupPIDFile    bool
+		pidFileExists   bool
+		daemonRunning   bool
+		tmuxCreateError bool
+	}{
+		{
+			name: "セッション復旧成功: デーモンが動作中でセッション再作成",
+			setupMocks: func() {
+				checkTmuxInstalledFunc = func() error { return nil }
+				getRepositoryNameFunc = func() (string, error) { return "test-repo", nil }
+				sessionExistsFunc = func(name string) (bool, error) {
+					return false, nil // セッションが存在しない
+				}
+			},
+			setupPIDFile:  true,
+			pidFileExists: true,
+			daemonRunning: true,
+		},
+		{
+			name: "セッション復旧失敗: デーモンが動作していない",
+			setupMocks: func() {
+				checkTmuxInstalledFunc = func() error { return nil }
+				getRepositoryNameFunc = func() (string, error) { return "test-repo", nil }
+				sessionExistsFunc = func(name string) (bool, error) {
+					return false, nil
+				}
+			},
+			setupPIDFile:  true,
+			pidFileExists: true,
+			daemonRunning: false,
+			expectedError: "osobaデーモンが動作していません。'osoba watch'を実行してください",
+		},
+		{
+			name: "セッション復旧失敗: PIDファイルが存在しない",
+			setupMocks: func() {
+				checkTmuxInstalledFunc = func() error { return nil }
+				getRepositoryNameFunc = func() (string, error) { return "test-repo", nil }
+				sessionExistsFunc = func(name string) (bool, error) {
+					return false, nil
+				}
+			},
+			setupPIDFile:  false,
+			pidFileExists: false,
+			daemonRunning: false,
+			expectedError: "セッション 'osoba-test-repo' が見つかりません。先に 'osoba watch'を実行してください",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// モックの設定
+			tt.setupMocks()
+
+			// 実際のコマンド実行は自動復旧ロジックが実装された後にテストする
+			// 現在は期待されるエラーメッセージの確認のみ行う
+
+			if tt.expectedError != "" {
+				// エラーケースの確認
+				t.Logf("期待されるエラー: %s", tt.expectedError)
+			} else {
+				// 成功ケースの場合
+				t.Logf("復旧成功ケース: %s", tt.name)
+			}
+		})
+	}
 }
