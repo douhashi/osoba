@@ -132,15 +132,10 @@ func attemptSessionRecovery(sessionName, repoName string) error {
 	// 1. PathManagerを初期化
 	pathManager := paths.NewPathManager("")
 
-	// 2. リポジトリ識別子を生成
-	workingDir, err := os.Getwd()
+	// 2. start.goと同じ方式でリポジトリ識別子を生成
+	repoIdentifier, err := getRepoIdentifierFunc()
 	if err != nil {
-		return fmt.Errorf("作業ディレクトリの取得に失敗しました: %w", err)
-	}
-
-	repoIdentifier := repoName
-	if workingDir != "" {
-		repoIdentifier = fmt.Sprintf("%s_%s", repoName, strings.ReplaceAll(workingDir, "/", "_"))
+		return fmt.Errorf("リポジトリ識別子の取得に失敗しました: %w", err)
 	}
 
 	// 3. PIDファイルのパスを取得
@@ -151,7 +146,7 @@ func attemptSessionRecovery(sessionName, repoName string) error {
 	isRunning := daemonManager.IsRunning(pidFile)
 
 	if !isRunning {
-		return fmt.Errorf("セッション '%s' が見つかりません。先に 'osoba watch'を実行してください", sessionName)
+		return fmt.Errorf("セッション '%s' が見つかりません。先に 'osoba start'を実行してください", sessionName)
 	}
 
 	// 5. tmuxセッションを再作成
