@@ -31,6 +31,11 @@ func TestStopCmd(t *testing.T) {
 					return "test-owner-repo", nil
 				})
 
+				// リポジトリ名の取得をモック
+				mocker.MockFunc(&getRepositoryNameFunc, func() (string, error) {
+					return "test-repo", nil
+				})
+
 				// プロセス停止の成功をモック
 				mocker.MockFunc(&stopProcessFunc, func(pidFile string) error {
 					return nil
@@ -44,7 +49,7 @@ func TestStopCmd(t *testing.T) {
 			},
 		},
 		{
-			name: "正常系: プロセスが実行されていない",
+			name: "異常系: プロセスが実行されていないが処理は継続",
 			args: []string{},
 			setupMock: func(t *testing.T) func() {
 				mocker := helpers.NewFunctionMocker()
@@ -54,16 +59,33 @@ func TestStopCmd(t *testing.T) {
 					return "test-owner-repo", nil
 				})
 
+				// リポジトリ名の取得をモック
+				mocker.MockFunc(&getRepositoryNameFunc, func() (string, error) {
+					return "test-repo", nil
+				})
+
 				// プロセスが実行されていないことをモック
 				mocker.MockFunc(&stopProcessFunc, func(pidFile string) error {
 					return fmt.Errorf("プロセスが実行されていません")
 				})
 
+				// クリーンアップ処理をモック
+				mocker.MockFunc(&performCleanupFunc, func(repoName string) error {
+					return nil
+				})
+
+				// tmuxセッション削除をモック
+				mocker.MockFunc(&killTmuxSessionFunc, func(sessionName string) error {
+					return nil
+				})
+
 				return mocker.Restore
 			},
-			wantErr: true,
+			wantErr: false, // 新しい実装では部分的失敗でもエラーを返さない
 			wantContains: []string{
-				"プロセスが実行されていません",
+				"プロセス停止に失敗しましたが、クリーンアップを継続します",
+				"クリーンアップが完了しました",
+				"tmuxセッションを削除しました",
 			},
 		},
 		{
@@ -83,6 +105,175 @@ func TestStopCmd(t *testing.T) {
 			wantContains: []string{
 				"リポジトリ名の取得に失敗",
 			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// モックのセットアップ
+			if tt.setupMock != nil {
+				cleanup := tt.setupMock(t)
+				defer cleanup()
+			}
+
+			// コマンドを実行
+			output := &strings.Builder{}
+			cmd := newStopCmd()
+			cmd.SetArgs(tt.args)
+			cmd.SetOut(output)
+			cmd.SetErr(output)
+
+			err := cmd.Execute()
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Execute() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			for _, want := range tt.wantContains {
+				if !strings.Contains(output.String(), want) {
+					t.Errorf("Execute() output = %v, want to contain %v", output.String(), want)
+				}
+			}
+		})
+	}
+}
+
+func TestStopCmd_WithCleanupAndTmuxKill(t *testing.T) {
+	tests := []struct {
+		name              string
+		args              []string
+		setupMock         func(t *testing.T) func()
+		wantErr           bool
+		wantContains      []string
+		cleanupCalled     bool
+		tmuxSessionKilled bool
+	}{
+		{
+			name: "正常系: プロセス停止 + クリーンアップ + tmuxセッション削除に成功",
+			args: []string{},
+			setupMock: func(t *testing.T) func() {
+				mocker := helpers.NewFunctionMocker()
+
+				// リポジトリ識別子の取得をモック
+				mocker.MockFunc(&getRepoIdentifierFunc, func() (string, error) {
+					return "test-owner-repo", nil
+				})
+
+				// リポジトリ名の取得をモック
+				mocker.MockFunc(&getRepositoryNameFunc, func() (string, error) {
+					return "test-repo", nil
+				})
+
+				// プロセス停止の成功をモック
+				mocker.MockFunc(&stopProcessFunc, func(pidFile string) error {
+					return nil
+				})
+
+				// クリーンアップ処理をモック
+				mocker.MockFunc(&performCleanupFunc, func(repoName string) error {
+					return nil
+				})
+
+				// tmuxセッション削除をモック
+				mocker.MockFunc(&killTmuxSessionFunc, func(sessionName string) error {
+					return nil
+				})
+
+				return mocker.Restore
+			},
+			wantErr: false,
+			wantContains: []string{
+				"停止しました",
+				"クリーンアップが完了しました",
+				"tmuxセッションを削除しました",
+			},
+			cleanupCalled:     false,
+			tmuxSessionKilled: false,
+		},
+		{
+			name: "異常系: プロセス停止に失敗するが、クリーンアップとtmux削除は継続",
+			args: []string{},
+			setupMock: func(t *testing.T) func() {
+				mocker := helpers.NewFunctionMocker()
+
+				// リポジトリ識別子の取得をモック
+				mocker.MockFunc(&getRepoIdentifierFunc, func() (string, error) {
+					return "test-owner-repo", nil
+				})
+
+				// リポジトリ名の取得をモック
+				mocker.MockFunc(&getRepositoryNameFunc, func() (string, error) {
+					return "test-repo", nil
+				})
+
+				// プロセス停止の失敗をモック
+				mocker.MockFunc(&stopProcessFunc, func(pidFile string) error {
+					return fmt.Errorf("プロセス停止に失敗")
+				})
+
+				// クリーンアップ処理をモック
+				mocker.MockFunc(&performCleanupFunc, func(repoName string) error {
+					return nil
+				})
+
+				// tmuxセッション削除をモック
+				mocker.MockFunc(&killTmuxSessionFunc, func(sessionName string) error {
+					return nil
+				})
+
+				return mocker.Restore
+			},
+			wantErr: false, // 部分的失敗時でも処理を継続
+			wantContains: []string{
+				"プロセス停止に失敗",
+				"クリーンアップが完了しました",
+				"tmuxセッションを削除しました",
+			},
+			cleanupCalled:     false,
+			tmuxSessionKilled: false,
+		},
+		{
+			name: "異常系: クリーンアップに失敗するが、tmux削除は継続",
+			args: []string{},
+			setupMock: func(t *testing.T) func() {
+				mocker := helpers.NewFunctionMocker()
+
+				// リポジトリ識別子の取得をモック
+				mocker.MockFunc(&getRepoIdentifierFunc, func() (string, error) {
+					return "test-owner-repo", nil
+				})
+
+				// リポジトリ名の取得をモック
+				mocker.MockFunc(&getRepositoryNameFunc, func() (string, error) {
+					return "test-repo", nil
+				})
+
+				// プロセス停止の成功をモック
+				mocker.MockFunc(&stopProcessFunc, func(pidFile string) error {
+					return nil
+				})
+
+				// クリーンアップ処理の失敗をモック
+				mocker.MockFunc(&performCleanupFunc, func(repoName string) error {
+					return fmt.Errorf("クリーンアップに失敗")
+				})
+
+				// tmuxセッション削除をモック
+				mocker.MockFunc(&killTmuxSessionFunc, func(sessionName string) error {
+					return nil
+				})
+
+				return mocker.Restore
+			},
+			wantErr: false, // 部分的失敗時でも処理を継続
+			wantContains: []string{
+				"停止しました",
+				"クリーンアップに失敗",
+				"tmuxセッションを削除しました",
+			},
+			cleanupCalled:     false,
+			tmuxSessionKilled: false,
 		},
 	}
 
