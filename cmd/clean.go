@@ -370,6 +370,9 @@ func (n *nullLogger) WithFields(keysAndValues ...interface{}) logger.Logger {
 
 // テスト時にモック可能な関数変数
 var (
+	checkTmuxInstalledFunc    = tmux.CheckTmuxInstalled
+	getRepositoryNameFunc     = git.GetRepositoryName
+	sessionExistsFunc         = tmux.SessionExists
 	listWindowsForIssueFunc   = tmux.ListWindowsForIssue
 	listWindowsByPatternFunc  = tmux.ListWindowsByPattern
 	killWindowsForIssueFunc   = tmux.KillWindowsForIssue

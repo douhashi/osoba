@@ -9,7 +9,6 @@ import (
 
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
-	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -122,9 +121,4 @@ func attachToSession(sessionName string) error {
 	return nil
 }
 
-// テスト時にモック可能な関数変数
-var (
-	checkTmuxInstalledFunc = tmux.CheckTmuxInstalled
-	sessionExistsFunc      = tmux.SessionExists
-	getRepositoryNameFunc  = git.GetRepositoryName
-)
+// テスト時にモック可能な関数変数は clean.go で定義されています
