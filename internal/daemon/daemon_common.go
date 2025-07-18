@@ -46,6 +46,11 @@ func WritePIDFile(pidFile string, info *ProcessInfo) error {
 	return nil
 }
 
+// ReadPIDFile は外部から呼び出し可能なPIDファイル読み込み関数
+func ReadPIDFile(pidFile string) (*ProcessInfo, error) {
+	return readPIDFile(pidFile)
+}
+
 // readPIDFile はPIDファイルを読み込みます
 func readPIDFile(pidFile string) (*ProcessInfo, error) {
 	content, err := os.ReadFile(pidFile)

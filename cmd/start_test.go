@@ -266,6 +266,106 @@ func TestStartCmdExecution(t *testing.T) {
 			wantErr:         true,
 			wantErrContains: "リポジトリ名の取得に失敗",
 		},
+		{
+			name: "正常系: バックグラウンド実行時のフィードバック表示",
+			setupMock: func(t *testing.T) {
+				mocker := helpers.NewFunctionMocker()
+				t.Cleanup(mocker.Restore)
+
+				// バックグラウンド実行時の動作をモック
+				mocker.MockFunc(&startInBackgroundFunc, func(cmd *cobra.Command, args []string) error {
+					// 期待されるフィードバックメッセージを出力
+					fmt.Fprintln(cmd.OutOrStdout(), "Issue監視を開始しています...")
+					fmt.Fprintln(cmd.OutOrStdout(), "リポジトリ: douhashi/test-repo")
+					fmt.Fprintln(cmd.OutOrStdout(), "ポーリング間隔: 5s")
+					fmt.Fprintln(cmd.OutOrStdout(), "バックグラウンドで起動しました")
+					fmt.Fprintln(cmd.OutOrStdout(), "PID: 12345")
+					return nil
+				})
+			},
+			setupGitRepo: func(t *testing.T) (string, func()) {
+				tmpDir := t.TempDir()
+
+				cmd := exec.Command("git", "init")
+				cmd.Dir = tmpDir
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("git init failed: %v", err)
+				}
+
+				cmd = exec.Command("git", "remote", "add", "origin", "https://github.com/douhashi/test-repo.git")
+				cmd.Dir = tmpDir
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("git remote add failed: %v", err)
+				}
+
+				cleanup := func() {
+					os.RemoveAll(tmpDir)
+				}
+
+				return tmpDir, cleanup
+			},
+			setupEnv: func() func() {
+				os.Setenv("GITHUB_TOKEN", "test-token")
+				return func() {
+					os.Unsetenv("GITHUB_TOKEN")
+				}
+			},
+			wantErr: false,
+			wantContains: []string{
+				"Issue監視を開始しています...",
+				"リポジトリ: douhashi/test-repo",
+				"ポーリング間隔: 5s",
+				"バックグラウンドで起動しました",
+				"PID: 12345",
+			},
+		},
+		{
+			name: "正常系: 既に実行中の場合の詳細メッセージ",
+			setupMock: func(t *testing.T) {
+				mocker := helpers.NewFunctionMocker()
+				t.Cleanup(mocker.Restore)
+
+				// 既に実行中の場合をモック
+				mocker.MockFunc(&startInBackgroundFunc, func(cmd *cobra.Command, args []string) error {
+					fmt.Fprintln(cmd.OutOrStdout(), "Issue監視を開始しています...")
+					fmt.Fprintln(cmd.OutOrStdout(), "リポジトリ: douhashi/test-repo")
+					return fmt.Errorf("既に実行中です (PID: 9999)")
+				})
+			},
+			setupGitRepo: func(t *testing.T) (string, func()) {
+				tmpDir := t.TempDir()
+
+				cmd := exec.Command("git", "init")
+				cmd.Dir = tmpDir
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("git init failed: %v", err)
+				}
+
+				cmd = exec.Command("git", "remote", "add", "origin", "https://github.com/douhashi/test-repo.git")
+				cmd.Dir = tmpDir
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("git remote add failed: %v", err)
+				}
+
+				cleanup := func() {
+					os.RemoveAll(tmpDir)
+				}
+
+				return tmpDir, cleanup
+			},
+			setupEnv: func() func() {
+				os.Setenv("GITHUB_TOKEN", "test-token")
+				return func() {
+					os.Unsetenv("GITHUB_TOKEN")
+				}
+			},
+			wantErr: true,
+			wantContains: []string{
+				"Issue監視を開始しています...",
+				"リポジトリ: douhashi/test-repo",
+			},
+			wantErrContains: "既に実行中です (PID: 9999)",
+		},
 	}
 
 	for _, tt := range tests {
@@ -306,8 +406,16 @@ func TestStartCmdExecution(t *testing.T) {
 			cmd.SetOut(buf)
 			cmd.SetErr(errBuf)
 
-			// デフォルトでフォアグラウンド実行にする（既存のテストを維持）
-			args := []string{"--foreground"}
+			// テストケースに応じてコマンド引数を決定
+			var args []string
+
+			// バックグラウンド実行テストケースかチェック
+			isBackgroundTest := strings.Contains(tt.name, "バックグラウンド実行") || strings.Contains(tt.name, "既に実行中")
+
+			if !isBackgroundTest {
+				// 従来のテストはフォアグラウンド実行
+				args = []string{"--foreground"}
+			}
 
 			// -cフラグが必要なテストケースの判定
 			if tt.name == "正常系: -cフラグで指定された設定ファイルが優先される" {
