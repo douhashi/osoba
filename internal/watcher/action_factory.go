@@ -87,7 +87,7 @@ func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
 		return actions.NewPlanActionWithLogger(
 			f.sessionName,
 			&actions.DefaultTmuxClient{},
-			f.stateManager,
+			NewStateManagerAdapter(f.stateManager),
 			f.worktreeManager,
 			f.claudeExecutor,
 			f.claudeConfig,
@@ -98,7 +98,7 @@ func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
 	return actions.NewPlanAction(
 		f.sessionName,
 		&actions.DefaultTmuxClient{},
-		f.stateManager,
+		NewStateManagerAdapter(f.stateManager),
 		f.worktreeManager,
 		f.claudeExecutor,
 		f.claudeConfig,
@@ -118,7 +118,7 @@ func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 		return actions.NewImplementationActionWithLogger(
 			f.sessionName,
 			&actions.DefaultTmuxClient{},
-			f.stateManager,
+			NewStateManagerAdapter(f.stateManager),
 			labelManager,
 			f.worktreeManager,
 			f.claudeExecutor,
@@ -130,7 +130,7 @@ func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 	return actions.NewImplementationAction(
 		f.sessionName,
 		&actions.DefaultTmuxClient{},
-		f.stateManager,
+		NewStateManagerAdapter(f.stateManager),
 		labelManager,
 		f.worktreeManager,
 		f.claudeExecutor,
@@ -151,7 +151,7 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 		return actions.NewReviewActionWithLogger(
 			f.sessionName,
 			&actions.DefaultTmuxClient{},
-			f.stateManager,
+			NewStateManagerAdapter(f.stateManager),
 			labelManager,
 			f.worktreeManager,
 			f.claudeExecutor,
@@ -163,7 +163,7 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 	return actions.NewReviewAction(
 		f.sessionName,
 		&actions.DefaultTmuxClient{},
-		f.stateManager,
+		NewStateManagerAdapter(f.stateManager),
 		labelManager,
 		f.worktreeManager,
 		f.claudeExecutor,

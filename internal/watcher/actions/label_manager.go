@@ -7,6 +7,13 @@ import (
 	"github.com/douhashi/osoba/internal/github"
 )
 
+// ActionsLabelManager はラベル管理のインターフェース
+type ActionsLabelManager interface {
+	TransitionLabel(ctx context.Context, issueNumber int, from, to string) error
+	AddLabel(ctx context.Context, issueNumber int, label string) error
+	RemoveLabel(ctx context.Context, issueNumber int, label string) error
+}
+
 // DefaultLabelManager はデフォルトのラベル管理実装
 type DefaultLabelManager struct {
 	Owner        string

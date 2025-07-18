@@ -157,5 +157,46 @@ func (m *MockTmuxManager) FindIssueWindow(windowName string) (int, bool) {
 	return args.Int(0), args.Bool(1)
 }
 
+// PaneManager methods
+
+// CreatePane mocks the CreatePane method
+func (m *MockTmuxManager) CreatePane(sessionName, windowName string, opts tmux.PaneOptions) (*tmux.PaneInfo, error) {
+	args := m.Called(sessionName, windowName, opts)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*tmux.PaneInfo), args.Error(1)
+}
+
+// SelectPane mocks the SelectPane method
+func (m *MockTmuxManager) SelectPane(sessionName, windowName string, paneIndex int) error {
+	args := m.Called(sessionName, windowName, paneIndex)
+	return args.Error(0)
+}
+
+// SetPaneTitle mocks the SetPaneTitle method
+func (m *MockTmuxManager) SetPaneTitle(sessionName, windowName string, paneIndex int, title string) error {
+	args := m.Called(sessionName, windowName, paneIndex, title)
+	return args.Error(0)
+}
+
+// ListPanes mocks the ListPanes method
+func (m *MockTmuxManager) ListPanes(sessionName, windowName string) ([]*tmux.PaneInfo, error) {
+	args := m.Called(sessionName, windowName)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*tmux.PaneInfo), args.Error(1)
+}
+
+// GetPaneByTitle mocks the GetPaneByTitle method
+func (m *MockTmuxManager) GetPaneByTitle(sessionName, windowName string, title string) (*tmux.PaneInfo, error) {
+	args := m.Called(sessionName, windowName, title)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*tmux.PaneInfo), args.Error(1)
+}
+
 // Ensure MockTmuxManager implements tmux.Manager interface
 var _ tmux.Manager = (*MockTmuxManager)(nil)
