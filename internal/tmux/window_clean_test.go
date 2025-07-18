@@ -86,7 +86,7 @@ func TestListWindowsByPattern(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			executor := mocks.NewMockCommandExecutor()
+			executor := mocks.NewMockTmuxCommandExecutor()
 			executor.On("Execute", "tmux", []string{"list-windows", "-t", tt.sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 				Return(tt.windowList, tt.executorError)
 
@@ -186,7 +186,7 @@ func TestListWindowsForIssue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			executor := mocks.NewMockCommandExecutor()
+			executor := mocks.NewMockTmuxCommandExecutor()
 			executor.On("Execute", "tmux", []string{"list-windows", "-t", tt.sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 				Return(tt.windowList, tt.executorError)
 
@@ -273,7 +273,7 @@ func TestKillWindows(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			executor := mocks.NewMockCommandExecutor()
+			executor := mocks.NewMockTmuxCommandExecutor()
 
 			// 各ウィンドウに対するkill-windowのモック設定
 			killIdx := 0
@@ -368,7 +368,7 @@ func TestKillWindowsForIssue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			executor := mocks.NewMockCommandExecutor()
+			executor := mocks.NewMockTmuxCommandExecutor()
 
 			// list-windowsのモック設定
 			if tt.sessionName != "" && tt.issueNumber > 0 {

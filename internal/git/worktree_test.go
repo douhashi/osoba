@@ -101,6 +101,14 @@ func TestWorktree_Create(t *testing.T) {
 				command: NewCommand(testLogger),
 			}
 
+			// ブランチが存在しない場合は作成（-bフラグを削除したため）
+			if !tt.expectError || tt.name != "異常系: 既存のブランチ名でworktreeを作成" {
+				// ブランチを作成
+				_, err := cmd.Run(context.Background(), "git", []string{"branch", tt.branch}, tmpDir)
+				// エラーは無視（既存のブランチの場合もあるため）
+				_ = err
+			}
+
 			// worktree作成を実行
 			err := wt.Create(context.Background(), tmpDir, tt.path, tt.branch)
 

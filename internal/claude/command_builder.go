@@ -15,36 +15,19 @@ func NewCommandBuilder() *DefaultCommandBuilder {
 
 // BuildCommand はClaudeコマンドを構築する
 func (b *DefaultCommandBuilder) BuildCommand(promptPath string, outputPath string, workdir string, vars interface{}) string {
-	parts := []string{"claude"}
-
-	// worddirが指定されている場合はオプションを追加
-	if workdir != "" {
-		parts = append(parts, fmt.Sprintf("--workdir=%s", workdir))
-	}
-
-	// outputPathが指定されている場合はオプションを追加
-	if outputPath != "" {
-		parts = append(parts, fmt.Sprintf("--output=%s", outputPath))
-	}
-
-	// promptPathを追加
-	parts = append(parts, promptPath)
+	// プロンプトテンプレートを構築
+	promptTemplate := promptPath
 
 	// varsがTemplateVariablesの場合は変数を展開
 	if templateVars, ok := vars.(*TemplateVariables); ok {
-		// IssueNumberを追加
+		// {{issue-number}}を置換
 		if templateVars.IssueNumber > 0 {
-			parts = append(parts, fmt.Sprintf("--issue-number=%d", templateVars.IssueNumber))
-		}
-		// IssueTitleを追加
-		if templateVars.IssueTitle != "" {
-			parts = append(parts, fmt.Sprintf("--issue-title=%q", templateVars.IssueTitle))
-		}
-		// RepoNameを追加
-		if templateVars.RepoName != "" {
-			parts = append(parts, fmt.Sprintf("--repo-name=%s", templateVars.RepoName))
+			promptTemplate = strings.Replace(promptTemplate, "{{issue-number}}", fmt.Sprintf("%d", templateVars.IssueNumber), -1)
 		}
 	}
 
-	return strings.Join(parts, " ")
+	// Claudeコマンドを構築（プロンプトはダブルクォートで囲む）
+	command := fmt.Sprintf("claude \"%s\"", promptTemplate)
+
+	return command
 }

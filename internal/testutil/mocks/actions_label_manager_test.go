@@ -134,7 +134,7 @@ func TestMockLabelManager(t *testing.T) {
 
 	t.Run("interface compliance", func(t *testing.T) {
 		// インターフェースの実装を静的にチェック
-		var _ actions.LabelManager = (*mocks.MockLabelManager)(nil)
+		var _ actions.ActionsLabelManager = (*mocks.MockLabelManager)(nil)
 	})
 
 	t.Run("chaining support", func(t *testing.T) {

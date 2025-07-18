@@ -54,7 +54,7 @@ func TestCreateWindow(t *testing.T) {
 		sessionName := "osoba-test"
 		windowName := "issue-13"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"new-window", "-t", sessionName, "-n", windowName}).Return("", nil)
 
 		// Act
@@ -71,7 +71,7 @@ func TestCreateWindow(t *testing.T) {
 		windowName := "issue-13"
 		expectedErr := errors.New("session not found")
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"new-window", "-t", sessionName, "-n", windowName}).Return("", expectedErr)
 
 		// Act
@@ -87,7 +87,7 @@ func TestCreateWindow(t *testing.T) {
 		// Arrange
 		sessionName := ""
 		windowName := "issue-13"
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 
 		// Act
 		err := tmux.CreateWindowWithExecutor(sessionName, windowName, mockExec)
@@ -101,7 +101,7 @@ func TestCreateWindow(t *testing.T) {
 		// Arrange
 		sessionName := "osoba-test"
 		windowName := ""
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 
 		// Act
 		err := tmux.CreateWindowWithExecutor(sessionName, windowName, mockExec)
@@ -118,7 +118,7 @@ func TestSwitchToWindow(t *testing.T) {
 		sessionName := "osoba-test"
 		windowName := "issue-13"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"select-window", "-t", sessionName + ":" + windowName}).Return("", nil)
 
 		// Act
@@ -135,7 +135,7 @@ func TestSwitchToWindow(t *testing.T) {
 		windowName := "issue-13"
 		expectedErr := errors.New("window not found")
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"select-window", "-t", sessionName + ":" + windowName}).Return("", expectedErr)
 
 		// Act
@@ -154,7 +154,7 @@ func TestWindowExists(t *testing.T) {
 		sessionName := "osoba-test"
 		windowName := "issue-13"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("issue-12\nissue-13\nissue-14", nil)
 
 		// Act
@@ -171,7 +171,7 @@ func TestWindowExists(t *testing.T) {
 		sessionName := "osoba-test"
 		windowName := "issue-99"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("issue-12\nissue-13\nissue-14", nil)
 
 		// Act
@@ -189,7 +189,7 @@ func TestWindowExists(t *testing.T) {
 		windowName := "issue-13"
 		expectedErr := errors.New("session not found")
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("", expectedErr)
 
 		// Act
@@ -302,7 +302,7 @@ func TestKillWindow(t *testing.T) {
 		sessionName := "osoba-test"
 		windowName := "44-plan"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"kill-window", "-t", sessionName + ":" + windowName}).Return("", nil)
 
 		// Act
@@ -319,7 +319,7 @@ func TestKillWindow(t *testing.T) {
 		windowName := "44-plan"
 		expectedErr := errors.New("window not found")
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"kill-window", "-t", sessionName + ":" + windowName}).Return("", expectedErr)
 
 		// Act
@@ -335,7 +335,7 @@ func TestKillWindow(t *testing.T) {
 		// Arrange
 		sessionName := ""
 		windowName := "44-plan"
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 
 		// Act
 		err := tmux.KillWindowWithExecutor(sessionName, windowName, mockExec)
@@ -349,7 +349,7 @@ func TestKillWindow(t *testing.T) {
 		// Arrange
 		sessionName := "osoba-test"
 		windowName := ""
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 
 		// Act
 		err := tmux.KillWindowWithExecutor(sessionName, windowName, mockExec)
@@ -395,7 +395,7 @@ func TestCreateWindow_WithLogging(t *testing.T) {
 			defer tmux.SetLogger(nil)
 
 			// モックExecutorのセットアップ
-			mockExec := mocks.NewMockCommandExecutor()
+			mockExec := mocks.NewMockTmuxCommandExecutor()
 			if tt.success {
 				mockExec.On("Execute", "tmux", []string{"new-window", "-t", tt.sessionName, "-n", tt.windowName}).Return("", nil)
 			} else {
@@ -455,7 +455,7 @@ func TestSwitchToWindow_WithLogging(t *testing.T) {
 			defer tmux.SetLogger(nil)
 
 			// モックExecutorのセットアップ
-			mockExec := mocks.NewMockCommandExecutor()
+			mockExec := mocks.NewMockTmuxCommandExecutor()
 			target := tt.sessionName + ":" + tt.windowName
 			if tt.success {
 				mockExec.On("Execute", "tmux", []string{"select-window", "-t", target}).Return("", nil)
@@ -513,7 +513,7 @@ func TestWindowExists_WithLogging(t *testing.T) {
 			defer tmux.SetLogger(nil)
 
 			// モックExecutorのセットアップ
-			mockExec := mocks.NewMockCommandExecutor()
+			mockExec := mocks.NewMockTmuxCommandExecutor()
 			if tt.exists {
 				mockExec.On("Execute", "tmux", []string{"list-windows", "-t", tt.sessionName, "-F", "#{window_name}"}).Return(tt.windowName, nil)
 			} else {
@@ -556,7 +556,7 @@ func TestCreateOrReplaceWindow(t *testing.T) {
 		sessionName := "osoba-test"
 		windowName := "44-plan"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		// WindowExists: ウィンドウが存在しない
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("other-window", nil)
 		// CreateWindow
@@ -575,7 +575,7 @@ func TestCreateOrReplaceWindow(t *testing.T) {
 		sessionName := "osoba-test"
 		windowName := "44-plan"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		// WindowExists: ウィンドウが存在する
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("44-plan\nother-window", nil)
 		// KillWindow
@@ -596,7 +596,7 @@ func TestCreateOrReplaceWindow(t *testing.T) {
 		sessionName := "osoba-test"
 		windowName := "44-plan"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		// WindowExists: ウィンドウが存在する
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("44-plan\nother-window", nil)
 		// KillWindow: 失敗
@@ -616,7 +616,7 @@ func TestListWindows(t *testing.T) {
 	t.Run("正常系: ウィンドウ一覧が正常に取得される", func(t *testing.T) {
 		// Arrange
 		sessionName := "osoba-test"
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 			Return("0:37-plan:1:1\n1:40-implement:0:2\n2:42-review:0:1", nil)
 
@@ -651,7 +651,7 @@ func TestListWindows(t *testing.T) {
 	t.Run("正常系: ウィンドウが存在しない場合", func(t *testing.T) {
 		// Arrange
 		sessionName := "osoba-test"
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 			Return("", nil)
 
@@ -668,7 +668,7 @@ func TestListWindows(t *testing.T) {
 		// Arrange
 		sessionName := "non-existent-session"
 		expectedErr := errors.New("session not found")
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 			Return("", expectedErr)
 
@@ -685,7 +685,7 @@ func TestListWindows(t *testing.T) {
 	t.Run("異常系: 空のセッション名", func(t *testing.T) {
 		// Arrange
 		sessionName := ""
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 
 		// Act
 		windows, err := tmux.ListWindowsWithExecutor(sessionName, mockExec)
@@ -699,7 +699,7 @@ func TestListWindows(t *testing.T) {
 	t.Run("正常系: フォーマットが不正な行は無視される", func(t *testing.T) {
 		// Arrange
 		sessionName := "osoba-test"
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 			Return("0:37-plan:1:1\ninvalid-line\n1:40-implement:0:2", nil)
 
@@ -802,7 +802,7 @@ func TestGetWindowDetails(t *testing.T) {
 	t.Run("正常系: ウィンドウ詳細情報が正常に取得される", func(t *testing.T) {
 		// Arrange
 		sessionName := "osoba-test"
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 			Return("0:37-plan:1:1\n1:40-implement:0:2\n2:unknown-window:0:1", nil)
 
@@ -841,7 +841,7 @@ func TestGetWindowDetails(t *testing.T) {
 		// Arrange
 		sessionName := "non-existent-session"
 		expectedErr := errors.New("session not found")
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 			Return("", expectedErr)
 
@@ -905,7 +905,7 @@ func TestGetSortedWindowDetails(t *testing.T) {
 	t.Run("正常系: ソート済みのウィンドウ詳細情報が取得される", func(t *testing.T) {
 		// Arrange
 		sessionName := "osoba-test"
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		// ソートされていない順序で返す
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_index}:#{window_name}:#{window_active}:#{window_panes}"}).
 			Return("0:42-review:0:1\n1:37-plan:1:1\n2:40-implement:0:2", nil)
@@ -934,7 +934,7 @@ func TestIssueWindowManagement(t *testing.T) {
 		issueNumber := 147
 		expectedWindowName := "issue-147"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		// WindowExists: ウィンドウが存在しない
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("other-window", nil)
 		// CreateWindow: Issue単位のウィンドウを作成
@@ -954,7 +954,7 @@ func TestIssueWindowManagement(t *testing.T) {
 		issueNumber := 147
 		expectedWindowName := "issue-147"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		// WindowExists: ウィンドウが既に存在する
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return(expectedWindowName, nil)
 		// CreateWindow は呼ばれない
@@ -972,7 +972,7 @@ func TestIssueWindowManagement(t *testing.T) {
 		sessionName := "osoba-test"
 		expectedWindowName := "issue-147"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		mockExec.On("Execute", "tmux", []string{"select-window", "-t", sessionName + ":" + expectedWindowName}).Return("", nil)
 
 		// Act
@@ -992,7 +992,7 @@ func TestPaneManagement(t *testing.T) {
 		windowName := "issue-147"
 		paneTitle := "plan-phase"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		// split-window コマンドでpaneを作成
 		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-h", "-p", "50"}).Return("", nil)
 		// paneにタイトルを設定
@@ -1012,7 +1012,7 @@ func TestPaneManagement(t *testing.T) {
 		windowName := "issue-147"
 		paneTitle := "implement-phase"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		// pane一覧取得
 		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase\n1:implement-phase\n2:review-phase", nil)
 		// 特定のpaneを選択
@@ -1032,7 +1032,7 @@ func TestPaneManagement(t *testing.T) {
 		windowName := "issue-147"
 		paneTitle := "plan-phase"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		// pane一覧取得（既存のpaneが存在）
 		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase\n1:implement-phase", nil)
 		// 既存のpaneを選択
@@ -1052,7 +1052,7 @@ func TestPaneManagement(t *testing.T) {
 		windowName := "issue-147"
 		paneTitle := "review-phase"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		// pane一覧取得（target paneが存在しない）
 		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase\n1:implement-phase", nil)
 		// 新しいpaneを作成
@@ -1077,7 +1077,7 @@ func TestPhaseIntegration(t *testing.T) {
 		issueNumber := 147
 		windowName := "issue-147"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 
 		// Plan フェーズ
 		// 1. Issueウィンドウ作成
@@ -1131,7 +1131,7 @@ func TestPhaseIntegration(t *testing.T) {
 		windowName := "issue-147"
 		paneTitle := "plan-phase"
 
-		mockExec := mocks.NewMockCommandExecutor()
+		mockExec := mocks.NewMockTmuxCommandExecutor()
 		// 既存のpaneが存在する場合
 		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase\n1:implement-phase\n2:review-phase", nil)
 		// 既存のpaneを選択

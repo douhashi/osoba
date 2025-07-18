@@ -13,11 +13,11 @@ build:
 
 # Run tests
 test:
-	go test -v ./...
+	go test -v -race -timeout=3m ./...
 
 # Run tests with coverage
 test-coverage:
-	go test -v -cover ./...
+	go test -v -race -timeout=3m -cover ./...
 
 # Run linter (removed - using standard Go tools instead)
 lint:

@@ -13,9 +13,6 @@ import (
 	"github.com/douhashi/osoba/internal/logger"
 )
 
-// Client はGitHub APIクライアントのエイリアス（後方互換性のため）
-type Client = GHClient
-
 // GHClient はghコマンドを使用するGitHub APIクライアント
 type GHClient struct {
 	logger       logger.Logger

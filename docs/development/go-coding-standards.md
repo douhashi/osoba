@@ -424,10 +424,10 @@ func TestUserRepository(t *testing.T) {
 
 ```bash
 # 全テストが通ることを確認
-go test ./...
+make test
 
-# race conditionの検出
-go test -race ./...
+# または直接goコマンドを使用する場合
+# go test -v -race -timeout=3m ./...
 ```
 
 #### 2. 段階的なテスト実行
@@ -436,15 +436,15 @@ go test -race ./...
 
 ```bash
 # 1. 修正対象のパッケージのみ
-go test ./internal/watcher
+go test -v -race ./internal/watcher
 
 # 2. 関連するパッケージ
-go test ./internal/github ./internal/watcher
+go test -v -race ./internal/github ./internal/watcher
 
 # 3. 全体テスト（最終確認）
-go test ./...
+make test
 
-# 4. CI環境と同様の条件でのテスト
+# 4. CI環境と同様の条件でのテスト（CIはより長いタイムアウトを使用）
 go test -v -race -timeout=10m ./...
 ```
 
@@ -468,17 +468,14 @@ go test -v -race -timeout=10m ./...
 
 ```bash
 # 必須: 全テストの実行
-go test ./...
-
-# 推奨: race conditionのチェック
-go test -race ./...
+make test
 
 # 推奨: コードフォーマットとLint
 go fmt ./...
 go vet ./...
 
 # 新機能の場合: 十分なテストカバレッジの確認
-go test -cover ./...
+make test-coverage
 ```
 
 #### 6. CI失敗時の対応
@@ -640,7 +637,7 @@ go vet ./...
 goimports -w .
 
 # テスト実行
-go test -v ./...
+make test
 ```
 
 ## まとめ

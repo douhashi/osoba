@@ -211,10 +211,14 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	}
 	claudeExecutor := claude.NewClaudeExecutorWithLogger(appLogger)
 
+	// TmuxManagerを作成
+	tmuxManager := tmux.NewManager(appLogger)
+
 	// ActionFactoryを作成
-	actionFactory := watcher.NewDefaultActionFactoryWithLogger(
+	actionFactory := watcher.NewDefaultActionFactory(
 		sessionName,
 		githubClient,
+		tmuxManager,
 		worktreeManager,
 		claudeExecutor,
 		claudeConfig,

@@ -12,19 +12,19 @@ import (
 func TestDefaultManager_CheckTmuxInstalled(t *testing.T) {
 	tests := []struct {
 		name    string
-		setup   func(*mocks.MockCommandExecutor)
+		setup   func(*mocks.MockTmuxCommandExecutor)
 		wantErr bool
 	}{
 		{
 			name: "tmuxがインストールされている場合",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				m.On("Execute", "which", []string{"tmux"}).Return("/usr/bin/tmux", nil)
 			},
 			wantErr: false,
 		},
 		{
 			name: "tmuxがインストールされていない場合",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				m.On("Execute", "which", []string{"tmux"}).Return("", errors.New("command not found"))
 			},
 			wantErr: true,
@@ -34,7 +34,7 @@ func TestDefaultManager_CheckTmuxInstalled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockExecutor := mocks.NewMockCommandExecutor()
+			mockExecutor := mocks.NewMockTmuxCommandExecutor()
 			tt.setup(mockExecutor)
 			manager := tmux.NewDefaultManagerWithExecutor(mockExecutor)
 
@@ -57,14 +57,14 @@ func TestDefaultManager_SessionExists(t *testing.T) {
 	tests := []struct {
 		name        string
 		sessionName string
-		setup       func(*mocks.MockCommandExecutor)
+		setup       func(*mocks.MockTmuxCommandExecutor)
 		want        bool
 		wantErr     bool
 	}{
 		{
 			name:        "セッションが存在する場合",
 			sessionName: "test-session",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				m.On("Execute", "tmux", []string{"has-session", "-t", "test-session"}).Return("", nil)
 			},
 			want:    true,
@@ -73,7 +73,7 @@ func TestDefaultManager_SessionExists(t *testing.T) {
 		{
 			name:        "セッションが存在しない場合",
 			sessionName: "non-existent",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				exitErr := &tmux.MockExitError{ExitCode: 1}
 				m.On("Execute", "tmux", []string{"has-session", "-t", "non-existent"}).Return("", exitErr)
 			},
@@ -83,7 +83,7 @@ func TestDefaultManager_SessionExists(t *testing.T) {
 		{
 			name:        "その他のエラーが発生する場合",
 			sessionName: "error-session",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				m.On("Execute", "tmux", []string{"has-session", "-t", "error-session"}).Return("", errors.New("tmux error"))
 			},
 			want:    false,
@@ -94,7 +94,7 @@ func TestDefaultManager_SessionExists(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockExecutor := mocks.NewMockCommandExecutor()
+			mockExecutor := mocks.NewMockTmuxCommandExecutor()
 			tt.setup(mockExecutor)
 			manager := tmux.NewDefaultManagerWithExecutor(mockExecutor)
 
@@ -117,13 +117,13 @@ func TestDefaultManager_CreateSession(t *testing.T) {
 	tests := []struct {
 		name        string
 		sessionName string
-		setup       func(*mocks.MockCommandExecutor)
+		setup       func(*mocks.MockTmuxCommandExecutor)
 		wantErr     bool
 	}{
 		{
 			name:        "セッションを正常に作成",
 			sessionName: "new-session",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				m.On("Execute", "tmux", []string{"new-session", "-d", "-s", "new-session"}).Return("", nil)
 			},
 			wantErr: false,
@@ -131,7 +131,7 @@ func TestDefaultManager_CreateSession(t *testing.T) {
 		{
 			name:        "セッション作成に失敗",
 			sessionName: "fail-session",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				m.On("Execute", "tmux", []string{"new-session", "-d", "-s", "fail-session"}).Return("", errors.New("creation failed"))
 			},
 			wantErr: true,
@@ -141,7 +141,7 @@ func TestDefaultManager_CreateSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockExecutor := mocks.NewMockCommandExecutor()
+			mockExecutor := mocks.NewMockTmuxCommandExecutor()
 			tt.setup(mockExecutor)
 			manager := tmux.NewDefaultManagerWithExecutor(mockExecutor)
 
@@ -164,7 +164,7 @@ func TestDefaultManager_CreateWindow(t *testing.T) {
 		name        string
 		sessionName string
 		windowName  string
-		setup       func(*mocks.MockCommandExecutor)
+		setup       func(*mocks.MockTmuxCommandExecutor)
 		wantErr     bool
 		errMsg      string
 	}{
@@ -172,7 +172,7 @@ func TestDefaultManager_CreateWindow(t *testing.T) {
 			name:        "ウィンドウを正常に作成",
 			sessionName: "test-session",
 			windowName:  "test-window",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				m.On("Execute", "tmux", []string{"new-window", "-t", "test-session", "-n", "test-window"}).Return("", nil)
 			},
 			wantErr: false,
@@ -181,7 +181,7 @@ func TestDefaultManager_CreateWindow(t *testing.T) {
 			name:        "セッション名が空の場合",
 			sessionName: "",
 			windowName:  "test-window",
-			setup:       func(m *mocks.MockCommandExecutor) {},
+			setup:       func(m *mocks.MockTmuxCommandExecutor) {},
 			wantErr:     true,
 			errMsg:      "session name cannot be empty",
 		},
@@ -189,7 +189,7 @@ func TestDefaultManager_CreateWindow(t *testing.T) {
 			name:        "ウィンドウ名が空の場合",
 			sessionName: "test-session",
 			windowName:  "",
-			setup:       func(m *mocks.MockCommandExecutor) {},
+			setup:       func(m *mocks.MockTmuxCommandExecutor) {},
 			wantErr:     true,
 			errMsg:      "window name cannot be empty",
 		},
@@ -197,7 +197,7 @@ func TestDefaultManager_CreateWindow(t *testing.T) {
 			name:        "ウィンドウ作成に失敗",
 			sessionName: "test-session",
 			windowName:  "fail-window",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				m.On("Execute", "tmux", []string{"new-window", "-t", "test-session", "-n", "fail-window"}).Return("", errors.New("creation failed"))
 			},
 			wantErr: true,
@@ -207,7 +207,7 @@ func TestDefaultManager_CreateWindow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockExecutor := mocks.NewMockCommandExecutor()
+			mockExecutor := mocks.NewMockTmuxCommandExecutor()
 			tt.setup(mockExecutor)
 			manager := tmux.NewDefaultManagerWithExecutor(mockExecutor)
 
@@ -233,7 +233,7 @@ func TestDefaultManager_WindowExists(t *testing.T) {
 		name        string
 		sessionName string
 		windowName  string
-		setup       func(*mocks.MockCommandExecutor)
+		setup       func(*mocks.MockTmuxCommandExecutor)
 		want        bool
 		wantErr     bool
 	}{
@@ -241,7 +241,7 @@ func TestDefaultManager_WindowExists(t *testing.T) {
 			name:        "ウィンドウが存在する場合",
 			sessionName: "test-session",
 			windowName:  "test-window",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				m.On("Execute", "tmux", []string{"list-windows", "-t", "test-session", "-F", "#{window_name}"}).Return("test-window\nother-window", nil)
 			},
 			want:    true,
@@ -251,7 +251,7 @@ func TestDefaultManager_WindowExists(t *testing.T) {
 			name:        "ウィンドウが存在しない場合",
 			sessionName: "test-session",
 			windowName:  "non-existent",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				m.On("Execute", "tmux", []string{"list-windows", "-t", "test-session", "-F", "#{window_name}"}).Return("test-window\nother-window", nil)
 			},
 			want:    false,
@@ -261,7 +261,7 @@ func TestDefaultManager_WindowExists(t *testing.T) {
 			name:        "エラーが発生する場合",
 			sessionName: "error-session",
 			windowName:  "test-window",
-			setup: func(m *mocks.MockCommandExecutor) {
+			setup: func(m *mocks.MockTmuxCommandExecutor) {
 				m.On("Execute", "tmux", []string{"list-windows", "-t", "error-session", "-F", "#{window_name}"}).Return("", errors.New("list failed"))
 			},
 			want:    false,
@@ -272,7 +272,7 @@ func TestDefaultManager_WindowExists(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockExecutor := mocks.NewMockCommandExecutor()
+			mockExecutor := mocks.NewMockTmuxCommandExecutor()
 			tt.setup(mockExecutor)
 			manager := tmux.NewDefaultManagerWithExecutor(mockExecutor)
 

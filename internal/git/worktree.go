@@ -41,8 +41,8 @@ func (w *Worktree) Create(ctx context.Context, repoPath, worktreePath, branch st
 
 	w.logger.Info("Creating git worktree", logFields...)
 
-	// worktreeを作成
-	args := []string{"worktree", "add", worktreePath, "-b", branch}
+	// worktreeを作成（ブランチは既に存在するので-bフラグは使わない）
+	args := []string{"worktree", "add", worktreePath, branch}
 	output, err := w.command.Run(ctx, "git", args, repoPath)
 	if err != nil {
 		errorFields := append(logFields, "error", err.Error())

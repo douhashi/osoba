@@ -145,7 +145,7 @@ go test ./internal/watcher/... -v
 go test ./internal/tmux/... -v
 
 # 全体のテスト
-go test ./... -v
+make test
 ```
 
 ## 3. 統合動作確認

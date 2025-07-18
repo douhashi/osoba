@@ -191,9 +191,9 @@ package cmd
 
 ```bash
 # ユニットテストのみ（高速）
-go test ./...
+make test
 
-# 統合テストを含む
+# 統合テストを含む（将来的に実装予定）
 go test -tags=integration ./...
 
 # 全テスト（CI環境）

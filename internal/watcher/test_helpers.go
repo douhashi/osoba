@@ -14,9 +14,9 @@ type MockLogEntry struct {
 	Fields  []interface{}
 }
 
-// mockLogger はテスト用のモックロガー（互換性のため残す）
+// mockLogger はテスト用のモックロガー
 type mockLogger struct {
-	*mocks.MockLegacyLogger
+	*mocks.MockLogger
 	mu   sync.Mutex
 	logs []MockLogEntry
 }
@@ -39,7 +39,7 @@ func (m *mockLogger) Debug(msg string, keysAndValues ...interface{}) {
 		Message: msg,
 		Fields:  keysAndValues,
 	})
-	m.MockLegacyLogger.Debug(msg, keysAndValues...)
+	m.MockLogger.Debug(msg)
 }
 
 // Info records info log
@@ -51,7 +51,7 @@ func (m *mockLogger) Info(msg string, keysAndValues ...interface{}) {
 		Message: msg,
 		Fields:  keysAndValues,
 	})
-	m.MockLegacyLogger.Info(msg, keysAndValues...)
+	m.MockLogger.Info(msg)
 }
 
 // Warn records warn log
@@ -63,7 +63,7 @@ func (m *mockLogger) Warn(msg string, keysAndValues ...interface{}) {
 		Message: msg,
 		Fields:  keysAndValues,
 	})
-	m.MockLegacyLogger.Warn(msg, keysAndValues...)
+	m.MockLogger.Warn(msg)
 }
 
 // Error records error log
@@ -75,7 +75,7 @@ func (m *mockLogger) Error(msg string, keysAndValues ...interface{}) {
 		Message: msg,
 		Fields:  keysAndValues,
 	})
-	m.MockLegacyLogger.Error(msg, keysAndValues...)
+	m.MockLogger.Error(msg)
 }
 
 // WithFields mocks the WithFields method
@@ -86,7 +86,7 @@ func (m *mockLogger) WithFields(keysAndValues ...interface{}) logger.Logger {
 // NewMockLogger はテスト用のモックロガーを作成
 func NewMockLogger() logger.Logger {
 	return &mockLogger{
-		MockLegacyLogger: mocks.NewMockLegacyLogger().WithDefaultBehavior(),
-		logs:             make([]MockLogEntry, 0),
+		MockLogger: mocks.NewMockLogger().WithDefaultBehavior(),
+		logs:       make([]MockLogEntry, 0),
 	}
 }

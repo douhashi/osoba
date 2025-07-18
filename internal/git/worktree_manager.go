@@ -137,6 +137,11 @@ func (m *worktreeManager) CreateWorktree(ctx context.Context, issueNumber int, p
 		}
 	}
 
+	// ブランチを作成（既存の場合は削除したので再作成）
+	if err := m.branch.Create(ctx, m.basePath, branchName, "main"); err != nil {
+		return fmt.Errorf("failed to create branch: %w", err)
+	}
+
 	// 新しいworktreeを作成
 	if err := m.worktree.Create(ctx, m.basePath, worktreePath, branchName); err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)

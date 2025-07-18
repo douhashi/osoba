@@ -213,7 +213,7 @@ func getLogger() logger.Logger {
 	return log
 }
 
-func displayGitHubIssues(cmd *cobra.Command, ctx context.Context, client *githubClient.Client, repoInfo *utils.GitHubRepoInfo, cfg *config.Config) error {
+func displayGitHubIssues(cmd *cobra.Command, ctx context.Context, client *githubClient.GHClient, repoInfo *utils.GitHubRepoInfo, cfg *config.Config) error {
 	statusLabels := []string{
 		"status:planning",
 		"status:implementing",
@@ -275,19 +275,6 @@ func getEmojiForLabel(label string) string {
 	default:
 		return "📌"
 	}
-}
-
-// getGitHubRepoInfo は廃止予定です。utils.GetGitHubRepoInfo を使用してください。
-// この関数は後方互換性のためにのみ残されています。
-func getGitHubRepoInfo() (*utils.GitHubRepoInfo, error) {
-	return utils.GetGitHubRepoInfo(context.Background())
-}
-
-// findGitDirectory は廃止予定です。utils.GetGitHubRepoInfo を使用してください。
-// この関数は後方互換性のためにのみ残されています。
-func findGitDirectory(startPath string) string {
-	// utils パッケージの実装を参照してください
-	return ""
 }
 
 // maskSensitiveValue は機密情報をマスクして表示用に変換する
