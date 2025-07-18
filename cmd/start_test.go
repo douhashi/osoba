@@ -86,6 +86,12 @@ func TestStartCmdExecution(t *testing.T) {
 				mocker := helpers.NewFunctionMocker()
 				t.Cleanup(mocker.Restore)
 
+				// テスト環境であることを設定
+				os.Setenv("GO_TEST", "1")
+				t.Cleanup(func() { os.Unsetenv("GO_TEST") })
+
+				// デフォルトではバックグラウンド実行になるため、
+				// フォアグラウンドで実行するようにモック
 				mocker.MockFunc(&runWatchWithFlagsFunc, func(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
 					// Issue監視モードが呼ばれたことを出力で確認
 					cmd.OutOrStdout().Write([]byte("Issue監視モードを開始します\n"))
@@ -300,10 +306,15 @@ func TestStartCmdExecution(t *testing.T) {
 			cmd.SetOut(buf)
 			cmd.SetErr(errBuf)
 
+			// デフォルトでフォアグラウンド実行にする（既存のテストを維持）
+			args := []string{"--foreground"}
+
 			// -cフラグが必要なテストケースの判定
 			if tt.name == "正常系: -cフラグで指定された設定ファイルが優先される" {
-				cmd.SetArgs([]string{"-c", "custom.yml"})
+				args = append(args, "-c", "custom.yml")
 			}
+
+			cmd.SetArgs(args)
 
 			err = cmd.Execute()
 

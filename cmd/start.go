@@ -5,15 +5,18 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/config"
+	"github.com/douhashi/osoba/internal/daemon"
 	"github.com/douhashi/osoba/internal/gh"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
+	"github.com/douhashi/osoba/internal/paths"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/douhashi/osoba/internal/watcher"
 	"github.com/spf13/cobra"
@@ -21,29 +24,61 @@ import (
 
 func newStartCmd() *cobra.Command {
 	var (
-		intervalFlag string
-		configFlag   string
+		intervalFlag   string
+		configFlag     string
+		foregroundFlag bool
+		logFileFlag    string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Issue監視を開始",
 		Long: `現在のGitリポジトリでGitHub Issueの監視を開始します。
-tmuxセッションが存在しない場合は自動的に作成されます。`,
+tmuxセッションが存在しない場合は自動的に作成されます。
+デフォルトではバックグラウンドで実行されます。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Issue監視を開始
-			return runWatchWithFlagsFunc(cmd, args, intervalFlag, configFlag)
+			// フォアグラウンドフラグが指定されている場合は従来の動作
+			if foregroundFlag {
+				return runWatchWithFlagsFunc(cmd, args, intervalFlag, configFlag)
+			}
+
+			// デーモンモードで起動されている場合
+			if isDaemonModeFunc() {
+				// PIDファイルのパスを取得
+				repoIdentifier, err := getRepoIdentifierFunc()
+				if err != nil {
+					return err
+				}
+				pm := paths.NewPathManager("")
+				pidFile := pm.PIDFile(repoIdentifier)
+
+				// デーモンモードで実行
+				return runInDaemonModeFunc(cmd, pidFile, intervalFlag, configFlag)
+			}
+
+			// バックグラウンドで起動
+			return startInBackgroundFunc(cmd, args)
 		},
 	}
 
 	cmd.Flags().StringVarP(&intervalFlag, "interval", "i", "5s", "ポーリング間隔")
 	cmd.Flags().StringVarP(&configFlag, "config", "c", "", "設定ファイルのパス")
+	cmd.Flags().BoolVar(&foregroundFlag, "foreground", false, "フォアグラウンドで実行（デフォルト: false）")
+	cmd.Flags().StringVar(&logFileFlag, "log-file", "", "ログファイルパス（デフォルト: 自動生成）")
 
 	return cmd
 }
 
 // テスト用にモック可能な関数変数
-var runWatchWithFlagsFunc = runWatchWithFlags
+var (
+	runWatchWithFlagsFunc    = runWatchWithFlags
+	isDaemonModeFunc         = isDaemonMode
+	getRepoIdentifierFunc    = getRepoIdentifier
+	startInBackgroundFunc    = startInBackground
+	runInDaemonModeFunc      = runInDaemonMode
+	checkExistingProcessFunc = checkExistingProcess
+	createPIDFileFunc        = createPIDFile
+)
 
 func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
 	fmt.Fprintln(cmd.OutOrStdout(), "Issue監視モードを開始します")
@@ -214,4 +249,111 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	// Issue監視を開始（StartWithActionsを使用）
 	issueWatcher.StartWithActions(ctx)
 	return nil
+}
+
+// isDaemonMode はデーモンモードで起動されているかを確認します
+func isDaemonMode() bool {
+	return os.Getenv("OSOBA_DAEMON_MODE") == "1"
+}
+
+// startInBackground はプロセスをバックグラウンドで起動します
+func startInBackground(cmd *cobra.Command, args []string) error {
+	// リポジトリ識別子を取得
+	repoIdentifier, err := getRepoIdentifierFunc()
+	if err != nil {
+		return err
+	}
+
+	// パスマネージャを作成
+	pm := paths.NewPathManager("")
+	if err := pm.EnsureDirectories(); err != nil {
+		return fmt.Errorf("ディレクトリの作成に失敗: %w", err)
+	}
+
+	pidFile := pm.PIDFile(repoIdentifier)
+
+	// 既存のプロセスをチェック
+	isRunning, err := checkExistingProcessFunc(pidFile)
+	if err != nil {
+		return err
+	}
+	if isRunning {
+		return fmt.Errorf("すでに実行中です")
+	}
+
+	// DaemonManagerを使用してバックグラウンドで起動
+	dm := daemon.NewDaemonManager()
+
+	// 現在のコマンドライン引数を取得
+	cmdArgs := os.Args[1:]
+
+	// デーモンモードで起動
+	if err := dm.Start(context.Background(), cmdArgs); err != nil {
+		return fmt.Errorf("バックグラウンド起動に失敗: %w", err)
+	}
+
+	// この行は親プロセスでは実行されない（os.Exitされるため）
+	// テスト時のみここに到達する
+	fmt.Fprintf(cmd.OutOrStdout(), "バックグラウンドで起動しました。\n")
+	return nil
+}
+
+// runInDaemonMode はデーモンモードでの実行を処理します
+func runInDaemonMode(cmd *cobra.Command, pidFile string, intervalFlag, configFlag string) error {
+	// PIDファイルを作成
+	if err := createPIDFileFunc(pidFile); err != nil {
+		return fmt.Errorf("PIDファイルの作成に失敗: %w", err)
+	}
+
+	// クリーンアップを設定
+	defer os.Remove(pidFile)
+
+	// ログファイルの設定
+	repoIdentifier, _ := getRepoIdentifierFunc()
+	pm := paths.NewPathManager("")
+	logDir := pm.LogDir(repoIdentifier)
+
+	// ログディレクトリを作成
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("ログディレクトリの作成に失敗: %w", err)
+	}
+
+	// ログファイルパスを生成（日付ベース）
+	logFile := filepath.Join(logDir, time.Now().Format("2006-01-02")+".log")
+
+	// ログファイルを開く
+	f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("ログファイルのオープンに失敗: %w", err)
+	}
+	defer f.Close()
+
+	// 標準出力とエラー出力をリダイレクト
+	cmd.SetOut(f)
+	cmd.SetErr(f)
+
+	// 通常の監視処理を実行
+	return runWatchWithFlagsFunc(cmd, []string{}, intervalFlag, configFlag)
+}
+
+// checkExistingProcess は既存のプロセスが実行中かチェックします
+func checkExistingProcess(pidFile string) (bool, error) {
+	dm := daemon.NewDaemonManager()
+	return dm.IsRunning(pidFile), nil
+}
+
+// createPIDFile はPIDファイルを作成します
+func createPIDFile(pidFile string) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	info := &daemon.ProcessInfo{
+		PID:       os.Getpid(),
+		StartTime: time.Now(),
+		RepoPath:  cwd,
+	}
+
+	return daemon.WritePIDFile(pidFile, info)
 }
