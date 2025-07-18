@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/douhashi/osoba/internal/config"
+	"github.com/douhashi/osoba/internal/daemon"
 	githubClient "github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
+	"github.com/douhashi/osoba/internal/paths"
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/douhashi/osoba/internal/utils"
 )
@@ -66,6 +69,11 @@ func runStatusCmd(cmd *cobra.Command) error {
 	} else {
 		displayTmuxSessions(cmd, sessions)
 	}
+
+	fmt.Fprintln(cmd.OutOrStdout())
+
+	// バックグラウンドプロセスの状態を表示
+	displayBackgroundProcess(cmd)
 
 	fmt.Fprintln(cmd.OutOrStdout())
 
@@ -370,4 +378,61 @@ func displayConfiguration(cmd *cobra.Command, cfg *config.Config) error {
 	}
 
 	return nil
+}
+
+// displayBackgroundProcess はバックグラウンドプロセスの状態を表示します
+func displayBackgroundProcess(cmd *cobra.Command) {
+	fmt.Fprintln(cmd.OutOrStdout(), "🔄 バックグラウンドプロセス:")
+
+	// リポジトリ識別子を取得
+	repoIdentifier, err := getRepoIdentifier()
+	if err != nil {
+		fmt.Fprintln(cmd.OutOrStdout(), "   ⚠️  リポジトリ情報の取得に失敗しました")
+		return
+	}
+
+	// パスマネージャを作成
+	pm := paths.NewPathManager("")
+	pidFile := pm.PIDFile(repoIdentifier)
+
+	// プロセスの状態を確認
+	dm := daemon.NewDaemonManager()
+	status, err := dm.Status(pidFile)
+	if err != nil {
+		fmt.Fprintln(cmd.OutOrStdout(), "   実行中のプロセスはありません")
+		return
+	}
+
+	if !status.Running {
+		fmt.Fprintln(cmd.OutOrStdout(), "   実行中のプロセスはありません")
+		return
+	}
+
+	// 実行時間を計算
+	uptime := time.Since(status.StartTime)
+	uptimeStr := formatDuration(uptime)
+
+	fmt.Fprintf(cmd.OutOrStdout(), "   PID: %d (実行時間: %s)\n", status.PID, uptimeStr)
+	fmt.Fprintf(cmd.OutOrStdout(), "   リポジトリ: %s\n", status.RepoPath)
+
+	// ログファイルのパスを表示
+	logDir := pm.LogDir(repoIdentifier)
+	logFile := fmt.Sprintf("%s/%s.log", logDir, time.Now().Format("2006-01-02"))
+	fmt.Fprintf(cmd.OutOrStdout(), "   ログファイル: %s\n", logFile)
+}
+
+// formatDuration は期間を人間が読みやすい形式にフォーマットします
+func formatDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%d秒", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%d分", int(d.Minutes()))
+	}
+	hours := int(d.Hours())
+	minutes := int(d.Minutes()) % 60
+	if minutes == 0 {
+		return fmt.Sprintf("%d時間", hours)
+	}
+	return fmt.Sprintf("%d時間%d分", hours, minutes)
 }
