@@ -86,7 +86,7 @@ func (m *mockLogger) WithFields(keysAndValues ...interface{}) logger.Logger {
 // NewMockLogger はテスト用のモックロガーを作成
 func NewMockLogger() logger.Logger {
 	return &mockLogger{
-		MockLogger: mocks.NewMockLogger(),
+		MockLogger: mocks.NewMockLogger().WithDefaultBehavior(),
 		logs:       make([]MockLogEntry, 0),
 	}
 }
