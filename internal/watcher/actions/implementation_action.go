@@ -154,9 +154,16 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	a.stateManager.SetState(issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
 
 	// tmuxウィンドウ作成
-	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber), "implement"); err != nil {
+	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber)); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
 		return fmt.Errorf("failed to create tmux window: %w", err)
+	}
+
+	// implement用のpaneを作成/選択
+	windowName := fmt.Sprintf("issue-%d", issueNumber)
+	if err := a.tmuxClient.SelectOrCreatePaneForPhase(a.sessionName, windowName, "implement-phase"); err != nil {
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
+		return fmt.Errorf("failed to create/select implement pane: %w", err)
 	}
 
 	// mainブランチを最新化
@@ -166,14 +173,14 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 		return fmt.Errorf("failed to update main branch: %w", err)
 	}
 
-	// worktreeを作成（Implementationフェーズ用の独立したworktree）
-	a.logInfo("Creating worktree", "issue_number", issueNumber, "phase", "implementation")
-	if err := a.worktreeManager.CreateWorktree(ctx, int(issueNumber), git.PhaseImplementation); err != nil {
+	// worktreeを作成（Issue単位のworktree）
+	a.logInfo("Creating worktree", "issue_number", issueNumber)
+	if err := a.worktreeManager.CreateWorktreeForIssue(ctx, int(issueNumber)); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
-	worktreePath := a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhaseImplementation)
-	a.logInfo("Worktree created", "issue_number", issueNumber, "path", worktreePath, "phase", "implementation")
+	worktreePath := a.worktreeManager.GetWorktreePathForIssue(int(issueNumber))
+	a.logInfo("Worktree created", "issue_number", issueNumber, "path", worktreePath)
 
 	// Claude実行用の変数を準備
 	templateVars := &claude.TemplateVariables{
@@ -190,9 +197,9 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	}
 
 	// tmuxウィンドウ内でClaude実行
-	windowName := fmt.Sprintf("%d-implement", issueNumber)
-	a.logInfo("Executing Claude in tmux window", "issue_number", issueNumber, "window_name", windowName, "phase", "implementation")
-	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
+	claudeWindowName := fmt.Sprintf("issue-%d", issueNumber)
+	a.logInfo("Executing Claude in tmux window", "issue_number", issueNumber, "window_name", claudeWindowName, "phase", "implementation")
+	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, claudeWindowName, worktreePath); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
 		return fmt.Errorf("failed to execute claude: %w", err)
 	}

@@ -2,10 +2,10 @@ package actions
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/douhashi/osoba/internal/claude"
-	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/types"
 	"github.com/stretchr/testify/assert"
@@ -64,15 +64,16 @@ func TestPlanAction_Execute(t *testing.T) {
 		mockState.On("SetState", issueNumber, types.IssueStatePlan, types.IssueStatusProcessing)
 
 		// tmuxウィンドウ作成
-		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "plan").Return(nil)
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber)).Return(nil)
+		mockTmux.On("SelectOrCreatePaneForPhase", sessionName, fmt.Sprintf("issue-%d", issueNumber), "plan-phase").Return(nil)
 
 		// mainブランチ更新とworktree作成
 		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
-		mockWorktree.On("CreateWorktree", ctx, int(issueNumber), git.PhasePlan).Return(nil)
-		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhasePlan).Return("/tmp/worktree/13-plan")
+		mockWorktree.On("CreateWorktreeForIssue", ctx, int(issueNumber)).Return(nil)
+		mockWorktree.On("GetWorktreePathForIssue", int(issueNumber)).Return("/tmp/worktree/13-plan")
 
 		// Claude実行
-		mockClaude.On("ExecuteInTmux", ctx, config.Phases["plan"], mock.AnythingOfType("*claude.TemplateVariables"), sessionName, "13-plan", "/tmp/worktree/13-plan").Return(nil)
+		mockClaude.On("ExecuteInTmux", ctx, config.Phases["plan"], mock.AnythingOfType("*claude.TemplateVariables"), sessionName, "issue-13", "/tmp/worktree/13-plan").Return(nil)
 
 		// 処理完了
 		mockState.On("MarkAsCompleted", issueNumber, types.IssueStatePlan)

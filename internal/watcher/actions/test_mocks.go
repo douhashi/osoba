@@ -15,13 +15,18 @@ type MockTmuxClient struct {
 	mock.Mock
 }
 
-func (m *MockTmuxClient) CreateWindowForIssue(sessionName string, issueNumber int, phase string) error {
-	args := m.Called(sessionName, issueNumber, phase)
+func (m *MockTmuxClient) CreateWindowForIssue(sessionName string, issueNumber int) error {
+	args := m.Called(sessionName, issueNumber)
 	return args.Error(0)
 }
 
-func (m *MockTmuxClient) SwitchToIssueWindow(sessionName string, issueNumber int, phase string) error {
-	args := m.Called(sessionName, issueNumber, phase)
+func (m *MockTmuxClient) SwitchToIssueWindow(sessionName string, issueNumber int) error {
+	args := m.Called(sessionName, issueNumber)
+	return args.Error(0)
+}
+
+func (m *MockTmuxClient) SelectOrCreatePaneForPhase(sessionName, windowName, paneTitle string) error {
+	args := m.Called(sessionName, windowName, paneTitle)
 	return args.Error(0)
 }
 

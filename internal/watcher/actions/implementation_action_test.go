@@ -2,10 +2,10 @@ package actions
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/douhashi/osoba/internal/claude"
-	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/types"
 	"github.com/stretchr/testify/assert"
@@ -40,17 +40,18 @@ func TestImplementationAction_Execute(t *testing.T) {
 		mockState.On("SetState", issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
 
 		// tmuxウィンドウへの切り替え
-		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "implement").Return(nil)
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber)).Return(nil)
+		mockTmux.On("SelectOrCreatePaneForPhase", sessionName, fmt.Sprintf("issue-%d", issueNumber), "implement-phase").Return(nil)
 
 		// mainブランチの更新
 		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
 
 		// worktreeの新規作成
-		mockWorktree.On("CreateWorktree", ctx, int(issueNumber), git.PhaseImplementation).Return(nil)
+		mockWorktree.On("CreateWorktreeForIssue", ctx, int(issueNumber)).Return(nil)
 
 		// worktreeパスの取得
 		workdir := "/tmp/osoba/worktree/28-implementation"
-		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseImplementation).Return(workdir)
+		mockWorktree.On("GetWorktreePathForIssue", int(issueNumber)).Return(workdir)
 
 		// Claude実行
 		phaseConfig := &claude.PhaseConfig{
@@ -62,7 +63,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 			IssueTitle:  "Test Issue",
 			RepoName:    "douhashi/osoba",
 		}
-		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "28-implement", workdir).Return(nil)
+		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "issue-28", workdir).Return(nil)
 
 		// 処理完了
 		mockState.On("MarkAsCompleted", issueNumber, types.IssueStateImplementation)
@@ -146,7 +147,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 		mockState.On("SetState", issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
 
 		// tmuxウィンドウ作成失敗
-		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "implement").Return(assert.AnError)
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber)).Return(assert.AnError)
 
 		// 処理失敗
 		mockState.On("MarkAsFailed", issueNumber, types.IssueStateImplementation)
@@ -193,17 +194,18 @@ func TestImplementationAction_Execute(t *testing.T) {
 		mockState.On("SetState", issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
 
 		// tmuxウィンドウへの切り替え
-		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "implement").Return(nil)
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber)).Return(nil)
+		mockTmux.On("SelectOrCreatePaneForPhase", sessionName, fmt.Sprintf("issue-%d", issueNumber), "implement-phase").Return(nil)
 
 		// mainブランチの更新
 		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
 
 		// worktreeの新規作成（独立したImplementationフェーズのworktree）
-		mockWorktree.On("CreateWorktree", ctx, int(issueNumber), git.PhaseImplementation).Return(nil)
+		mockWorktree.On("CreateWorktreeForIssue", ctx, int(issueNumber)).Return(nil)
 
 		// worktreeパスの取得（Implementationフェーズ用）
 		workdir := "/tmp/osoba/worktree/28-implementation"
-		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseImplementation).Return(workdir)
+		mockWorktree.On("GetWorktreePathForIssue", int(issueNumber)).Return(workdir)
 
 		// Claude実行
 		phaseConfig := &claude.PhaseConfig{
@@ -215,7 +217,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 			IssueTitle:  "Test Issue",
 			RepoName:    "douhashi/osoba",
 		}
-		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "28-implement", workdir).Return(nil)
+		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "issue-28", workdir).Return(nil)
 
 		// 処理完了
 		mockState.On("MarkAsCompleted", issueNumber, types.IssueStateImplementation)
@@ -262,17 +264,18 @@ func TestImplementationAction_Execute(t *testing.T) {
 		mockState.On("SetState", issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
 
 		// tmuxウィンドウへの切り替え
-		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber), "implement").Return(nil)
+		mockTmux.On("CreateWindowForIssue", sessionName, int(issueNumber)).Return(nil)
+		mockTmux.On("SelectOrCreatePaneForPhase", sessionName, fmt.Sprintf("issue-%d", issueNumber), "implement-phase").Return(nil)
 
 		// mainブランチの更新
 		mockWorktree.On("UpdateMainBranch", ctx).Return(nil)
 
 		// worktreeの新規作成
-		mockWorktree.On("CreateWorktree", ctx, int(issueNumber), git.PhaseImplementation).Return(nil)
+		mockWorktree.On("CreateWorktreeForIssue", ctx, int(issueNumber)).Return(nil)
 
 		// worktreeパスの取得
 		workdir := "/tmp/osoba/worktree/28-implementation"
-		mockWorktree.On("GetWorktreePath", int(issueNumber), git.PhaseImplementation).Return(workdir)
+		mockWorktree.On("GetWorktreePathForIssue", int(issueNumber)).Return(workdir)
 
 		// Claude実行失敗
 		phaseConfig := &claude.PhaseConfig{
@@ -284,7 +287,7 @@ func TestImplementationAction_Execute(t *testing.T) {
 			IssueTitle:  "Test Issue",
 			RepoName:    "douhashi/osoba",
 		}
-		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "28-implement", workdir).Return(assert.AnError)
+		mockClaude.On("ExecuteInTmux", ctx, phaseConfig, templateVars, sessionName, "issue-28", workdir).Return(assert.AnError)
 
 		// 処理失敗
 		mockState.On("MarkAsFailed", issueNumber, types.IssueStateImplementation)

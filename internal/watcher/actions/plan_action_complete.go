@@ -90,9 +90,16 @@ func (a *PlanActionComplete) Execute(ctx context.Context, issue *github.Issue) e
 	}
 
 	// tmuxウィンドウ作成
-	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber), "plan"); err != nil {
+	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber)); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to create tmux window: %w", err)
+	}
+
+	// plan用のpaneを作成/選択
+	windowName := fmt.Sprintf("issue-%d", issueNumber)
+	if err := a.tmuxClient.SelectOrCreatePaneForPhase(a.sessionName, windowName, "plan-phase"); err != nil {
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
+		return fmt.Errorf("failed to create/select plan pane: %w", err)
 	}
 
 	// git worktree作成
