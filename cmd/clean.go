@@ -208,6 +208,54 @@ func cleanIssueWindows(cmd *cobra.Command, sessionName string, issueNumber int) 
 	return nil
 }
 
+// performCleanupAllForce は clean --all --force 相当の処理を実行します
+func performCleanupAllForce(sessionName string) error {
+	// Issue関連のウィンドウをすべて取得
+	windows, err := listWindowsByPatternFunc(sessionName, `^\d+-\w+$|^issue-\d+$`)
+	if err != nil {
+		return fmt.Errorf("ウィンドウ一覧の取得に失敗しました: %w", err)
+	}
+
+	// 全てのworktreeを取得
+	allWorktrees, err := listAllWorktreesFunc(context.Background())
+	if err != nil {
+		return fmt.Errorf("worktree一覧の取得に失敗しました: %w", err)
+	}
+
+	// osoba関連のworktreeをフィルタリング
+	var worktrees []git.WorktreeInfo
+	for _, wt := range allWorktrees {
+		if strings.Contains(wt.Path, ".git/worktree/") || strings.Contains(wt.Path, ".git/osoba/") {
+			worktrees = append(worktrees, wt)
+		}
+	}
+
+	// エラーを収集
+	var errors []error
+
+	// ウィンドウを削除
+	if len(windows) > 0 {
+		windowNames := getWindowNames(windows)
+		if err := killWindowsFunc(sessionName, windowNames); err != nil {
+			errors = append(errors, fmt.Errorf("ウィンドウの削除に失敗しました: %w", err))
+		}
+	}
+
+	// worktreeを削除
+	for _, wt := range worktrees {
+		if err := removeWorktreeFunc(context.Background(), wt.Path); err != nil {
+			errors = append(errors, fmt.Errorf("worktree %s の削除に失敗しました: %w", wt.Path, err))
+		}
+	}
+
+	// エラーがあれば最初のエラーを返す（部分的失敗も可）
+	if len(errors) > 0 {
+		return errors[0]
+	}
+
+	return nil
+}
+
 func cleanAllWindows(cmd *cobra.Command, sessionName string) error {
 	// Issue関連のウィンドウをすべて取得
 	windows, err := listWindowsByPatternFunc(sessionName, `^\d+-\w+$|^issue-\d+$`)
