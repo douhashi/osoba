@@ -737,7 +737,7 @@ func CreatePaneInWindowWithExecutor(sessionName, windowName, paneTitle string, e
 	}
 
 	// paneを分割作成
-	_, err := executor.Execute("tmux", "split-window", "-t", target, "-v", "-p", "50")
+	_, err := executor.Execute("tmux", "split-window", "-t", target, "-h", "-p", "50")
 	if err != nil {
 		if logger := GetLogger(); logger != nil {
 			logger.Error("tmuxペイン作成失敗",
@@ -944,7 +944,7 @@ func SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle s
 	}
 
 	// 新しいpaneを作成
-	_, err = executor.Execute("tmux", "split-window", "-t", target, "-v", "-p", splitPercentage)
+	_, err = executor.Execute("tmux", "split-window", "-t", target, "-h", "-p", splitPercentage)
 	if err != nil {
 		return fmt.Errorf("failed to create new pane: %w", err)
 	}

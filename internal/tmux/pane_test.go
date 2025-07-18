@@ -31,18 +31,18 @@ func TestDefaultManager_CreatePane(t *testing.T) {
 		errMessage  string
 	}{
 		{
-			name:        "create vertical pane successfully",
+			name:        "create horizontal pane successfully",
 			sessionName: "osoba-test",
 			windowName:  "issue-123",
 			opts: PaneOptions{
-				Split:      "-v",
+				Split:      "-h",
 				Percentage: 50,
 				Title:      "Implementation",
 			},
 			setupMock: func(m *MockCommandExecutor) {
 				// split-window command
 				m.On("Execute", "tmux", []string{
-					"split-window", "-v", "-p", "50", "-t", "osoba-test:issue-123",
+					"split-window", "-h", "-p", "50", "-t", "osoba-test:issue-123",
 				}).Return("", nil).Once()
 
 				// list-panes to get new pane info
@@ -105,12 +105,12 @@ func TestDefaultManager_CreatePane(t *testing.T) {
 			sessionName: "osoba-test",
 			windowName:  "non-existent",
 			opts: PaneOptions{
-				Split: "-v",
+				Split: "-h",
 				Title: "Test",
 			},
 			setupMock: func(m *MockCommandExecutor) {
 				m.On("Execute", "tmux", []string{
-					"split-window", "-v", "-p", "50", "-t", "osoba-test:non-existent",
+					"split-window", "-h", "-p", "50", "-t", "osoba-test:non-existent",
 				}).Return("", fmt.Errorf("can't find window: non-existent")).Once()
 			},
 			want:       nil,

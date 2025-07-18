@@ -125,7 +125,7 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string) (*tmuxpkg.Pan
 
 	// フェーズに応じたpane作成オプション
 	opts := tmuxpkg.PaneOptions{
-		Split:      "-v", // 垂直分割
+		Split:      "-h", // 水平分割（縦分割）
 		Percentage: 50,   // 50%で分割
 		Title:      phase,
 	}
