@@ -18,6 +18,7 @@ import (
 	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/paths"
 	"github.com/douhashi/osoba/internal/tmux"
+	"github.com/douhashi/osoba/internal/utils"
 	"github.com/douhashi/osoba/internal/watcher"
 	"github.com/spf13/cobra"
 )
@@ -262,10 +263,47 @@ func isDaemonMode() bool {
 
 // startInBackground はプロセスをバックグラウンドで起動します
 func startInBackground(cmd *cobra.Command, args []string) error {
+	fmt.Fprintln(cmd.OutOrStdout(), "Issue監視を開始しています...")
+
+	// 設定を読み込む
+	cfg := config.NewConfig()
+	flagConfig, _ := cmd.Flags().GetString("config")
+	actualConfigPath := cfg.LoadOrDefault(flagConfig)
+
+	// ポーリング間隔を設定に反映
+	intervalFlag, _ := cmd.Flags().GetString("interval")
+	if intervalFlag != "" && intervalFlag != "5s" {
+		interval, err := time.ParseDuration(intervalFlag)
+		if err != nil {
+			return fmt.Errorf("不正なポーリング間隔: %w", err)
+		}
+		cfg.GitHub.PollInterval = interval
+	}
+
 	// リポジトリ識別子を取得
 	repoIdentifier, err := getRepoIdentifierFunc()
 	if err != nil {
 		return err
+	}
+
+	// リポジトリ情報を表示用に取得
+	repoInfo, err := utils.GetGitHubRepoInfo(context.Background())
+	if err != nil {
+		return fmt.Errorf("リポジトリ情報の取得に失敗: %w", err)
+	}
+
+	// 基本情報を表示
+	fmt.Fprintf(cmd.OutOrStdout(), "リポジトリ: %s/%s\n", repoInfo.Owner, repoInfo.Repo)
+	fmt.Fprintf(cmd.OutOrStdout(), "ポーリング間隔: %s\n", cfg.GitHub.PollInterval)
+
+	if actualConfigPath != "" {
+		if flagConfig != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "設定ファイル: %s (指定されたファイル)\n", actualConfigPath)
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "設定ファイル: %s (デフォルト)\n", actualConfigPath)
+		}
+	} else {
+		fmt.Fprintln(cmd.OutOrStdout(), "設定ファイル: なし (デフォルト値を使用)")
 	}
 
 	// パスマネージャを作成
@@ -282,7 +320,12 @@ func startInBackground(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if isRunning {
-		return fmt.Errorf("すでに実行中です")
+		// PIDファイルから既存プロセス情報を読み取り
+		processInfo, readErr := daemon.ReadPIDFile(pidFile)
+		if readErr == nil {
+			return fmt.Errorf("既に実行中です (PID: %d)", processInfo.PID)
+		}
+		return fmt.Errorf("既に実行中です")
 	}
 
 	// DaemonManagerを使用してバックグラウンドで起動
@@ -298,7 +341,8 @@ func startInBackground(cmd *cobra.Command, args []string) error {
 
 	// この行は親プロセスでは実行されない（os.Exitされるため）
 	// テスト時のみここに到達する
-	fmt.Fprintf(cmd.OutOrStdout(), "バックグラウンドで起動しました。\n")
+	fmt.Fprintln(cmd.OutOrStdout(), "バックグラウンドで起動しました")
+	fmt.Fprintf(cmd.OutOrStdout(), "PID: %d\n", os.Getpid())
 	return nil
 }
 
