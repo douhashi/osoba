@@ -45,17 +45,33 @@ gh auth login
 
 ## インストール
 
-### リリース版のインストール
+### クイックインストール
 
-最新のリリース版は[GitHub Releases](https://github.com/douhashi/osoba/releases)からダウンロードできます。
+最も簡単なインストール方法です。お使いのプラットフォームを自動判定してインストールします。
 
 ```bash
-# Linux (amd64)
-curl -L https://github.com/douhashi/osoba/releases/latest/download/osoba_Linux_x86_64.tar.gz | tar xz
+curl -L https://github.com/douhashi/osoba/releases/latest/download/osoba_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/x86_64/; s/aarch64/arm64/').tar.gz | tar xz && sudo mv osoba /usr/local/bin/
+```
+
+### プラットフォーム別インストール
+
+手動でプラットフォームを指定してインストールする場合は、[GitHub Releases](https://github.com/douhashi/osoba/releases)から適切なファイルをダウンロードしてください。
+
+```bash
+# Linux (x86_64)
+curl -L https://github.com/douhashi/osoba/releases/latest/download/osoba_linux_x86_64.tar.gz | tar xz
 sudo mv osoba /usr/local/bin/
 
-# macOS (Apple Silicon)
-curl -L https://github.com/douhashi/osoba/releases/latest/download/osoba_Darwin_arm64.tar.gz | tar xz
+# Linux (ARM64)
+curl -L https://github.com/douhashi/osoba/releases/latest/download/osoba_linux_arm64.tar.gz | tar xz
+sudo mv osoba /usr/local/bin/
+
+# macOS (x86_64 / Intel)
+curl -L https://github.com/douhashi/osoba/releases/latest/download/osoba_darwin_x86_64.tar.gz | tar xz
+sudo mv osoba /usr/local/bin/
+
+# macOS (ARM64 / Apple Silicon)
+curl -L https://github.com/douhashi/osoba/releases/latest/download/osoba_darwin_arm64.tar.gz | tar xz
 sudo mv osoba /usr/local/bin/
 ```
 
