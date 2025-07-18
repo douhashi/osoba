@@ -965,3 +965,196 @@ func SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle s
 
 	return nil
 }
+
+// SelectOrCreatePaneForPhaseWithNewWindowFlag はフェーズ用のpaneを選択または作成する（新規ウィンドウフラグ対応）
+//
+// 新規ウィンドウの場合は分割をスキップして既存のpaneを使用し、
+// 既存ウィンドウの場合は縦分割（-h）でpaneを作成します。
+//
+// 引数:
+//   - sessionName: tmuxセッション名
+//   - windowName: ウィンドウ名
+//   - paneTitle: paneのタイトル
+//   - isNewWindow: 新規ウィンドウかどうか（trueの場合は分割をスキップ）
+//   - executor: コマンド実行インターフェース
+//
+// 戻り値:
+//   - string: paneのターゲット文字列（"session:window.index"形式）
+//   - error: エラーが発生した場合
+func SelectOrCreatePaneForPhaseWithNewWindowFlag(sessionName, windowName, paneTitle string, isNewWindow bool, executor CommandExecutor) (string, error) {
+	if sessionName == "" {
+		return "", fmt.Errorf("session name cannot be empty")
+	}
+	if windowName == "" {
+		return "", fmt.Errorf("window name cannot be empty")
+	}
+	if paneTitle == "" {
+		return "", fmt.Errorf("pane title cannot be empty")
+	}
+
+	target := fmt.Sprintf("%s:%s", sessionName, windowName)
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("フェーズ用ペイン管理開始（新規ウィンドウフラグ対応）",
+			"operation", "select_or_create_pane_with_new_window_flag",
+			"session_name", sessionName,
+			"window_name", windowName,
+			"pane_title", paneTitle,
+			"is_new_window", isNewWindow)
+	}
+
+	// 既存のpaneを探す
+	output, err := executor.Execute("tmux", "list-panes", "-t", target, "-F", "#{pane_index}:#{pane_title}")
+	if err != nil {
+		if logger := GetLogger(); logger != nil {
+			logger.Error("ペイン一覧取得失敗",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"error", err)
+		}
+		return "", fmt.Errorf("failed to list panes in window '%s': %w", windowName, err)
+	}
+
+	panes := strings.Split(strings.TrimSpace(output), "\n")
+
+	// 指定されたタイトルのpaneを検索
+	for _, pane := range panes {
+		if pane == "" {
+			continue
+		}
+		parts := strings.Split(pane, ":")
+		if len(parts) >= 2 {
+			paneIndex := parts[0]
+			title := strings.Join(parts[1:], ":")
+			if title == paneTitle {
+				// 既存のpaneを選択
+				paneTarget := fmt.Sprintf("%s.%s", target, paneIndex)
+				_, err := executor.Execute("tmux", "select-pane", "-t", paneTarget)
+				if err != nil {
+					if logger := GetLogger(); logger != nil {
+						logger.Error("既存ペイン選択失敗",
+							"session_name", sessionName,
+							"window_name", windowName,
+							"pane_title", paneTitle,
+							"pane_index", paneIndex,
+							"error", err)
+					}
+					return "", fmt.Errorf("failed to select existing pane '%s': %w", paneTitle, err)
+				}
+
+				if logger := GetLogger(); logger != nil {
+					logger.Info("既存ペインを選択",
+						"session_name", sessionName,
+						"window_name", windowName,
+						"pane_title", paneTitle,
+						"pane_index", paneIndex)
+				}
+				return paneTarget, nil
+			}
+		}
+	}
+
+	// 新規ウィンドウの場合は分割をスキップして、最初のpaneを使用
+	if isNewWindow {
+		if logger := GetLogger(); logger != nil {
+			logger.Info("新規ウィンドウのため分割をスキップ",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"pane_title", paneTitle)
+		}
+
+		// 最初のpaneを選択してタイトルを設定
+		firstPaneTarget := fmt.Sprintf("%s.0", target)
+		_, err := executor.Execute("tmux", "select-pane", "-t", firstPaneTarget)
+		if err != nil {
+			if logger := GetLogger(); logger != nil {
+				logger.Error("最初のペイン選択失敗",
+					"session_name", sessionName,
+					"window_name", windowName,
+					"error", err)
+			}
+			return "", fmt.Errorf("failed to select first pane: %w", err)
+		}
+
+		// paneにタイトルを設定
+		_, err = executor.Execute("tmux", "select-pane", "-t", target, "-T", paneTitle)
+		if err != nil {
+			if logger := GetLogger(); logger != nil {
+				logger.Error("ペインタイトル設定失敗",
+					"session_name", sessionName,
+					"window_name", windowName,
+					"pane_title", paneTitle,
+					"error", err)
+			}
+			return "", fmt.Errorf("failed to set pane title '%s': %w", paneTitle, err)
+		}
+
+		if logger := GetLogger(); logger != nil {
+			logger.Info("新規ウィンドウでペイン設定完了",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"pane_title", paneTitle,
+				"action", "title_set_only")
+		}
+
+		return firstPaneTarget, nil
+	}
+
+	// 既存ウィンドウの場合は縦分割でpaneを作成
+	paneCount := len(panes)
+	if panes[0] == "" {
+		paneCount = 0
+	}
+
+	// paneの分割比率を計算
+	var splitPercentage string
+	if paneCount == 1 {
+		splitPercentage = "50"
+	} else {
+		splitPercentage = "33"
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("既存ウィンドウで縦分割ペイン作成",
+			"session_name", sessionName,
+			"window_name", windowName,
+			"pane_title", paneTitle,
+			"existing_pane_count", paneCount,
+			"split_percentage", splitPercentage)
+	}
+
+	// 新しいpaneを縦分割で作成
+	_, err = executor.Execute("tmux", "split-window", "-t", target, "-h", "-p", splitPercentage)
+	if err != nil {
+		if logger := GetLogger(); logger != nil {
+			logger.Error("縦分割ペイン作成失敗",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"error", err)
+		}
+		return "", fmt.Errorf("failed to create new pane with horizontal split: %w", err)
+	}
+
+	// paneにタイトルを設定
+	_, err = executor.Execute("tmux", "select-pane", "-t", target, "-T", paneTitle)
+	if err != nil {
+		if logger := GetLogger(); logger != nil {
+			logger.Error("新規ペインタイトル設定失敗",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"pane_title", paneTitle,
+				"error", err)
+		}
+		return "", fmt.Errorf("failed to set pane title '%s': %w", paneTitle, err)
+	}
+
+	if logger := GetLogger(); logger != nil {
+		logger.Info("既存ウィンドウでペイン作成完了",
+			"session_name", sessionName,
+			"window_name", windowName,
+			"pane_title", paneTitle,
+			"action", "horizontal_split_created")
+	}
+
+	return target, nil
+}
