@@ -60,6 +60,30 @@ func (m *MockWorktreeManager) WorktreeExists(ctx context.Context, issueNumber in
 	return args.Bool(0), args.Error(1)
 }
 
+// CreateWorktreeForIssue はIssue単位でのworktree作成（V2用）
+func (m *MockWorktreeManager) CreateWorktreeForIssue(ctx context.Context, issueNumber int) error {
+	args := m.Called(ctx, issueNumber)
+	return args.Error(0)
+}
+
+// WorktreeExistsForIssue はIssue単位でのworktree存在確認（V2用）
+func (m *MockWorktreeManager) WorktreeExistsForIssue(ctx context.Context, issueNumber int) (bool, error) {
+	args := m.Called(ctx, issueNumber)
+	return args.Bool(0), args.Error(1)
+}
+
+// GetWorktreePathForIssue はIssue単位でのworktreeパス取得（V2用）
+func (m *MockWorktreeManager) GetWorktreePathForIssue(issueNumber int) string {
+	args := m.Called(issueNumber)
+	return args.String(0)
+}
+
+// RemoveWorktreeForIssue はIssue単位でのworktree削除（V2用）
+func (m *MockWorktreeManager) RemoveWorktreeForIssue(ctx context.Context, issueNumber int) error {
+	args := m.Called(ctx, issueNumber)
+	return args.Error(0)
+}
+
 // MockClaudeExecutor はClaudeExecutorのモック
 type MockClaudeExecutor struct {
 	mock.Mock

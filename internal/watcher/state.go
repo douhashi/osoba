@@ -20,8 +20,8 @@ func NewIssueStateManager() *IssueStateManager {
 	}
 }
 
-// GetState は指定されたIssueの状態を取得する
-func (m *IssueStateManager) GetState(issueNumber int64) (*types.IssueState, bool) {
+// GetIssueState は指定されたIssueの状態を取得する（旧インターフェース）
+func (m *IssueStateManager) GetIssueState(issueNumber int64) (*types.IssueState, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -90,8 +90,8 @@ func (m *IssueStateManager) MarkAsFailed(issueNumber int64, phase types.IssuePha
 	m.SetState(issueNumber, phase, types.IssueStatusFailed)
 }
 
-// GetAllStates はすべてのIssueの状態を取得する
-func (m *IssueStateManager) GetAllStates() map[int64]*types.IssueState {
+// GetAllIssueStates はすべてのIssueの状態を取得する（旧インターフェース）
+func (m *IssueStateManager) GetAllIssueStates() map[int64]*types.IssueState {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -104,6 +104,49 @@ func (m *IssueStateManager) GetAllStates() map[int64]*types.IssueState {
 			LastAction:  v.LastAction,
 			Status:      v.Status,
 		}
+	}
+
+	return statesCopy
+}
+
+// Clear は指定されたIssueのすべての状態をクリアする
+func (m *IssueStateManager) Clear(issueNumber int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.states, issueNumber)
+}
+
+// GetState はStateManagerV2インターフェース互換のメソッド
+func (m *IssueStateManager) GetState(issueNumber int64, phase types.IssuePhase) types.IssueStatus {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	state, exists := m.states[issueNumber]
+	if !exists {
+		return types.IssueStatusPending
+	}
+
+	// 指定されたフェーズの状態を返す
+	if state.Phase == phase {
+		return state.Status
+	}
+
+	return types.IssueStatusPending
+}
+
+// GetAllStates はStateManagerV2インターフェース互換のメソッド
+func (m *IssueStateManager) GetAllStates() map[int64]map[types.IssuePhase]types.IssueStatus {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// フェーズごとの状態を返す
+	statesCopy := make(map[int64]map[types.IssuePhase]types.IssueStatus)
+	for issueNumber, state := range m.states {
+		if _, exists := statesCopy[issueNumber]; !exists {
+			statesCopy[issueNumber] = make(map[types.IssuePhase]types.IssueStatus)
+		}
+		statesCopy[issueNumber][state.Phase] = state.Status
 	}
 
 	return statesCopy
