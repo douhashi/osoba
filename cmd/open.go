@@ -8,7 +8,10 @@ import (
 	"strings"
 
 	"github.com/douhashi/osoba/internal/config"
+	"github.com/douhashi/osoba/internal/daemon"
 	"github.com/douhashi/osoba/internal/git"
+	"github.com/douhashi/osoba/internal/paths"
+	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -69,7 +72,10 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	}
 
 	if !exists {
-		return fmt.Errorf("セッション '%s' が見つかりません。先に 'osoba start' を実行してください", sessionName)
+		// セッション自動復旧を試行
+		if err := attemptSessionRecovery(sessionName, repoName); err != nil {
+			return err
+		}
 	}
 
 	// 6. tmux内から実行されているか確認
@@ -118,6 +124,42 @@ func attachToSession(sessionName string) error {
 		}
 		return fmt.Errorf("セッションへの接続に失敗しました: %w", err)
 	}
+	return nil
+}
+
+// attemptSessionRecovery はセッション自動復旧を試行します
+func attemptSessionRecovery(sessionName, repoName string) error {
+	// 1. PathManagerを初期化
+	pathManager := paths.NewPathManager("")
+
+	// 2. リポジトリ識別子を生成
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("作業ディレクトリの取得に失敗しました: %w", err)
+	}
+
+	repoIdentifier := repoName
+	if workingDir != "" {
+		repoIdentifier = fmt.Sprintf("%s_%s", repoName, strings.ReplaceAll(workingDir, "/", "_"))
+	}
+
+	// 3. PIDファイルのパスを取得
+	pidFile := pathManager.PIDFile(repoIdentifier)
+
+	// 4. DaemonManagerでosoba動作確認
+	daemonManager := daemon.NewDaemonManager()
+	isRunning := daemonManager.IsRunning(pidFile)
+
+	if !isRunning {
+		return fmt.Errorf("セッション '%s' が見つかりません。先に 'osoba watch'を実行してください", sessionName)
+	}
+
+	// 5. tmuxセッションを再作成
+	tmuxManager := tmux.NewDefaultManager()
+	if err := tmuxManager.EnsureSession(sessionName); err != nil {
+		return fmt.Errorf("セッションの復旧に失敗しました: %w", err)
+	}
+
 	return nil
 }
 
