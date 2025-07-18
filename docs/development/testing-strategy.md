@@ -482,7 +482,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: '1.21'
-      - run: go test -v -race -cover ./...
+      - run: make test-coverage
 
   integration-test:
     runs-on: ubuntu-latest
@@ -581,7 +581,7 @@ func NewMockGitHubClientWithIssues(issues []*github.Issue) *MockGitHubClient {
 
 | コンポーネント | 目標カバレッジ | 測定方法 |
 |---------------|--------------|----------|
-| コアエンジン | 90%以上 | `go test -cover` |
+| コアエンジン | 90%以上 | `make test-coverage` |
 | アクション | 85%以上 | 統合テスト含む |
 | 統合レイヤー | 80%以上 | モック使用 |
 | E2E | 主要シナリオ100% | 実環境テスト |

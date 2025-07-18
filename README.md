@@ -321,7 +321,7 @@ go build
 ### テスト
 
 ```bash
-go test ./...
+make test
 ```
 
 ### Lint
