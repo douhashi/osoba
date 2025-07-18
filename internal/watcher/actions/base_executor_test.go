@@ -25,7 +25,7 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 		errContains string
 	}{
 		{
-			name: "新規workspace作成（Window、Worktree、Pane全て新規）",
+			name: "新規workspace作成（Window、Worktree、Pane全て新規）- pane分割なし",
 			issue: builders.NewIssueBuilder().
 				WithNumber(123).
 				WithTitle("Test Issue").
@@ -34,18 +34,20 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager) {
 				// Window存在確認（なし）
 				tmux.On("WindowExists", "test-session", "issue-123").Return(false, nil).Once()
-				// Window作成
-				tmux.On("CreateWindow", "test-session", "issue-123").Return(nil).Once()
+				// Window作成（新規ウィンドウ判定付き）
+				tmux.On("CreateWindowForIssueWithNewWindowDetection", "test-session", 123).
+					Return("issue-123", true, nil).Once()
 
 				// Worktree存在確認（なし）
 				git.On("WorktreeExistsForIssue", mock.Anything, 123).Return(false, nil).Once()
 				// Worktree作成
 				git.On("CreateWorktreeForIssue", mock.Anything, 123).Return(nil).Once()
 
+				// 新規ウィンドウの場合、pane検索を試みるがSetPaneTitleのみを実行
 				// Pane検索（なし）
 				tmux.On("GetPaneByTitle", "test-session", "issue-123", "Plan").
 					Return(nil, assert.AnError).Once()
-				// Pane 0のタイトル設定（Planフェーズは既存のpane 0を使用）
+				// Pane 0のタイトル設定のみ
 				tmux.On("SetPaneTitle", "test-session", "issue-123", 0, "Plan").Return(nil).Once()
 
 				// Worktreeパス取得
@@ -100,16 +102,21 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager) {
 				// Window存在確認（あり）
 				tmux.On("WindowExists", "test-session", "issue-789").Return(true, nil).Once()
+				// 既存ウィンドウなのでCreateWindowForIssueWithNewWindowDetectionは呼ばれない
 
 				// Worktree存在確認（あり）
 				git.On("WorktreeExistsForIssue", mock.Anything, 789).Return(true, nil).Once()
 
+				// 既存ウィンドウの場合、pane検索と分割を行う
 				// Pane検索（なし）
 				tmux.On("GetPaneByTitle", "test-session", "issue-789", "Implementation").
 					Return(nil, assert.AnError).Once()
-				// 新規pane作成
-				tmux.On("CreatePane", "test-session", "issue-789", mock.Anything).
-					Return(&tmuxpkg.PaneInfo{Index: 1, Title: "Implementation", Active: true}, nil).Once()
+				// 新規pane作成（縦分割）
+				tmux.On("CreatePane", "test-session", "issue-789", tmuxpkg.PaneOptions{
+					Split:      "-h", // 縦分割
+					Percentage: 50,
+					Title:      "Implementation",
+				}).Return(&tmuxpkg.PaneInfo{Index: 1, Title: "Implementation", Active: true}, nil).Once()
 
 				// Worktreeパス取得
 				git.On("GetWorktreePathForIssue", 789).Return("/test/worktree/issue-789").Once()
@@ -118,6 +125,43 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 				WindowName:   "issue-789",
 				WorktreePath: "/test/worktree/issue-789",
 				PaneIndex:    1,
+				PaneTitle:    "Implementation",
+			},
+			wantErr: false,
+		},
+		{
+			name: "新規ウィンドウでのImplementationフェーズ - pane分割なし",
+			issue: builders.NewIssueBuilder().
+				WithNumber(888).
+				WithTitle("Test Issue 4").
+				Build(),
+			phase: "Implementation",
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager) {
+				// Window存在確認（なし）
+				tmux.On("WindowExists", "test-session", "issue-888").Return(false, nil).Once()
+				// Window作成（新規ウィンドウ判定付き）
+				tmux.On("CreateWindowForIssueWithNewWindowDetection", "test-session", 888).
+					Return("issue-888", true, nil).Once()
+
+				// Worktree存在確認（なし）
+				git.On("WorktreeExistsForIssue", mock.Anything, 888).Return(false, nil).Once()
+				// Worktree作成
+				git.On("CreateWorktreeForIssue", mock.Anything, 888).Return(nil).Once()
+
+				// 新規ウィンドウの場合、Implementationフェーズでもpane分割しない
+				// Pane検索（なし）
+				tmux.On("GetPaneByTitle", "test-session", "issue-888", "Implementation").
+					Return(nil, assert.AnError).Once()
+				// Pane 0のタイトル設定のみ
+				tmux.On("SetPaneTitle", "test-session", "issue-888", 0, "Implementation").Return(nil).Once()
+
+				// Worktreeパス取得
+				git.On("GetWorktreePathForIssue", 888).Return("/test/worktree/issue-888").Once()
+			},
+			want: &WorkspaceInfo{
+				WindowName:   "issue-888",
+				WorktreePath: "/test/worktree/issue-888",
+				PaneIndex:    0,
 				PaneTitle:    "Implementation",
 			},
 			wantErr: false,
@@ -143,8 +187,8 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 				// Window存在確認（なし）
 				tmux.On("WindowExists", "test-session", "issue-999").Return(false, nil).Once()
 				// Window作成失敗
-				tmux.On("CreateWindow", "test-session", "issue-999").
-					Return(assert.AnError).Once()
+				tmux.On("CreateWindowForIssueWithNewWindowDetection", "test-session", 999).
+					Return("", false, assert.AnError).Once()
 			},
 			want:        nil,
 			wantErr:     true,

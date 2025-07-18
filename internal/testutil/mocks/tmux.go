@@ -198,5 +198,11 @@ func (m *MockTmuxManager) GetPaneByTitle(sessionName, windowName string, title s
 	return args.Get(0).(*tmux.PaneInfo), args.Error(1)
 }
 
+// CreateWindowForIssueWithNewWindowDetection mocks the CreateWindowForIssueWithNewWindowDetection method
+func (m *MockTmuxManager) CreateWindowForIssueWithNewWindowDetection(sessionName string, issueNumber int) (string, bool, error) {
+	args := m.Called(sessionName, issueNumber)
+	return args.String(0), args.Bool(1), args.Error(2)
+}
+
 // Ensure MockTmuxManager implements tmux.Manager interface
 var _ tmux.Manager = (*MockTmuxManager)(nil)

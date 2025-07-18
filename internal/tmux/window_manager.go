@@ -364,3 +364,8 @@ func IsIssueWindow(windowName string) bool {
 	phase := parts[1]
 	return phase == "plan" || phase == "implement" || phase == "review"
 }
+
+// CreateWindowForIssueWithNewWindowDetection Issue番号に基づいてウィンドウを作成し、新規作成かどうかを返す
+func (m *DefaultManager) CreateWindowForIssueWithNewWindowDetection(sessionName string, issueNumber int) (string, bool, error) {
+	return CreateWindowForIssueWithNewWindowDetection(sessionName, issueNumber, m.executor)
+}

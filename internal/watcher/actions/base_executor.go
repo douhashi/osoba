@@ -64,17 +64,20 @@ func (e *BaseExecutor) PrepareWorkspace(ctx context.Context, issue *github.Issue
 		"window_name", windowName,
 	)
 
-	// 1. Windowの存在確認（なければ作成）
+	// 1. Windowの存在確認と作成（新規判定付き）
+	isNewWindow := false
 	windowExists, err := e.tmuxManager.WindowExists(e.sessionName, windowName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check window existence: %w", err)
 	}
 
 	if !windowExists {
-		e.logger.Info("Creating new window", "window_name", windowName)
-		if err := e.tmuxManager.CreateWindow(e.sessionName, windowName); err != nil {
+		e.logger.Info("Creating new window with detection", "window_name", windowName)
+		_, isNewWindow, err = e.tmuxManager.CreateWindowForIssueWithNewWindowDetection(e.sessionName, int(issueNumber))
+		if err != nil {
 			return nil, fmt.Errorf("failed to create window: %w", err)
 		}
+		e.logger.Info("Window creation result", "is_new_window", isNewWindow)
 	}
 
 	// 2. Worktreeの存在確認（なければ作成）
@@ -91,7 +94,7 @@ func (e *BaseExecutor) PrepareWorkspace(ctx context.Context, issue *github.Issue
 	}
 
 	// 3. 適切なpaneの選択または作成
-	paneInfo, err := e.ensurePane(windowName, phase)
+	paneInfo, err := e.ensurePane(windowName, phase, isNewWindow)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure pane: %w", err)
 	}
@@ -108,7 +111,7 @@ func (e *BaseExecutor) PrepareWorkspace(ctx context.Context, issue *github.Issue
 }
 
 // ensurePane は指定されたフェーズ用のpaneを確保する
-func (e *BaseExecutor) ensurePane(windowName string, phase string) (*tmuxpkg.PaneInfo, error) {
+func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow bool) (*tmuxpkg.PaneInfo, error) {
 	// まず既存のpaneを検索
 	existingPane, err := e.tmuxManager.GetPaneByTitle(e.sessionName, windowName, phase)
 	if err == nil && existingPane != nil {
@@ -121,8 +124,23 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string) (*tmuxpkg.Pan
 	}
 
 	// 新しいpaneを作成する必要がある
-	e.logger.Info("Creating new pane", "phase", phase)
+	e.logger.Info("Creating new pane", "phase", phase, "is_new_window", isNewWindow)
 
+	// 新規ウィンドウの場合は、pane分割せずに既存のpane 0を使用
+	if isNewWindow {
+		e.logger.Info("Using existing pane for new window", "phase", phase)
+		// 既存のpane 0のタイトルを設定
+		if err := e.tmuxManager.SetPaneTitle(e.sessionName, windowName, 0, phase); err != nil {
+			return nil, fmt.Errorf("failed to set pane title: %w", err)
+		}
+		return &tmuxpkg.PaneInfo{
+			Index:  0,
+			Title:  phase,
+			Active: true,
+		}, nil
+	}
+
+	// 既存ウィンドウの場合
 	// フェーズに応じたpane作成オプション
 	opts := tmuxpkg.PaneOptions{
 		Split:      "-h", // 水平分割（縦分割）

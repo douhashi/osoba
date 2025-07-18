@@ -106,6 +106,12 @@ func (m *testWindowManager) FindIssueWindow(windowName string) (int, bool) {
 	return 0, false
 }
 
+func (m *testWindowManager) CreateWindowForIssueWithNewWindowDetection(sessionName string, issueNumber int) (string, bool, error) {
+	// テスト環境では常に新規ウィンドウとして扱う
+	windowName := fmt.Sprintf("issue-%d", issueNumber)
+	return windowName, true, nil
+}
+
 // testPaneManager はテスト用のPaneManager実装
 type testPaneManager struct{}
 
