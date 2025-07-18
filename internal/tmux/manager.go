@@ -55,6 +55,9 @@ type WindowManager interface {
 
 	// FindIssueWindow ウィンドウ名からIssue番号を抽出
 	FindIssueWindow(windowName string) (int, bool)
+
+	// CreateWindowForIssueWithNewWindowDetection Issue番号に基づいてウィンドウを作成し、新規作成かどうかを返す
+	CreateWindowForIssueWithNewWindowDetection(sessionName string, issueNumber int) (string, bool, error)
 }
 
 // Manager はtmuxの全操作を統合したインターフェース

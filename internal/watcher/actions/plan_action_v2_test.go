@@ -39,7 +39,8 @@ func TestPlanActionV2_Execute(t *testing.T) {
 
 				// PrepareWorkspace
 				tmux.On("WindowExists", "test-session", "issue-123").Return(false, nil).Once()
-				tmux.On("CreateWindow", "test-session", "issue-123").Return(nil).Once()
+				tmux.On("CreateWindowForIssueWithNewWindowDetection", "test-session", 123).
+					Return("issue-123", true, nil).Once()
 				git.On("WorktreeExistsForIssue", mock.Anything, 123).Return(false, nil).Once()
 				git.On("CreateWorktreeForIssue", mock.Anything, 123).Return(nil).Once()
 				tmux.On("GetPaneByTitle", "test-session", "issue-123", "Plan").Return(nil, assert.AnError).Once()
