@@ -1,93 +1,18 @@
+//go:build !windows
+// +build !windows
+
 package daemon
 
 import (
 	"context"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"testing"
 	"time"
 )
 
-func TestNewDaemonManager(t *testing.T) {
-	dm := NewDaemonManager()
-	if dm == nil {
-		t.Error("NewDaemonManager() returned nil")
-	}
-}
-
-func TestDaemonManager_WritePIDFile(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping PID file test on Windows")
-	}
-
-	tmpDir := t.TempDir()
-	pidFile := filepath.Join(tmpDir, "test.pid")
-
-	dm := &daemonManager{}
-	info := &ProcessInfo{
-		PID:       12345,
-		StartTime: time.Now(),
-		RepoPath:  "/path/to/repo",
-	}
-
-	err := dm.writePIDFile(pidFile, info)
-	if err != nil {
-		t.Fatalf("writePIDFile() error = %v", err)
-	}
-
-	// ファイルの存在確認
-	if _, err := os.Stat(pidFile); os.IsNotExist(err) {
-		t.Error("PID file was not created")
-	}
-
-	// 権限の確認
-	fileInfo, err := os.Stat(pidFile)
-	if err != nil {
-		t.Fatalf("Failed to stat PID file: %v", err)
-	}
-	if fileInfo.Mode().Perm() != 0600 {
-		t.Errorf("PID file permissions = %v, want 0600", fileInfo.Mode().Perm())
-	}
-}
-
-func TestDaemonManager_ReadPIDFile(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping PID file test on Windows")
-	}
-
-	tmpDir := t.TempDir()
-	pidFile := filepath.Join(tmpDir, "test.pid")
-
-	// テスト用のPIDファイルを作成
-	now := time.Now()
-	content := []byte(`12345
-` + now.Format(time.RFC3339) + `
-/path/to/repo`)
-	if err := os.WriteFile(pidFile, content, 0600); err != nil {
-		t.Fatalf("Failed to create test PID file: %v", err)
-	}
-
-	dm := &daemonManager{}
-	info, err := dm.readPIDFile(pidFile)
-	if err != nil {
-		t.Fatalf("readPIDFile() error = %v", err)
-	}
-
-	if info.PID != 12345 {
-		t.Errorf("PID = %d, want 12345", info.PID)
-	}
-	if info.RepoPath != "/path/to/repo" {
-		t.Errorf("RepoPath = %s, want /path/to/repo", info.RepoPath)
-	}
-}
-
 func TestDaemonManager_IsRunning(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping process test on Windows")
-	}
-
 	tmpDir := t.TempDir()
 
 	tests := []struct {
@@ -141,10 +66,6 @@ func TestDaemonManager_IsRunning(t *testing.T) {
 }
 
 func TestDaemonManager_Status(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping process test on Windows")
-	}
-
 	tmpDir := t.TempDir()
 	pidFile := filepath.Join(tmpDir, "test.pid")
 
@@ -174,10 +95,6 @@ func TestDaemonManager_Status(t *testing.T) {
 }
 
 func TestDaemonManager_CleanupStalePIDFile(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping process test on Windows")
-	}
-
 	tmpDir := t.TempDir()
 	pidFile := filepath.Join(tmpDir, "stale.pid")
 
@@ -187,8 +104,7 @@ func TestDaemonManager_CleanupStalePIDFile(t *testing.T) {
 		t.Fatalf("Failed to create test PID file: %v", err)
 	}
 
-	dm := &daemonManager{}
-	err := dm.cleanupStalePIDFile(pidFile)
+	err := cleanupStalePIDFile(pidFile)
 	if err != nil {
 		t.Errorf("cleanupStalePIDFile() error = %v", err)
 	}
@@ -200,10 +116,6 @@ func TestDaemonManager_CleanupStalePIDFile(t *testing.T) {
 }
 
 func TestProcessInfo_IsRunning(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping process test on Windows")
-	}
-
 	tests := []struct {
 		name     string
 		pid      int
@@ -237,18 +149,14 @@ func TestProcessInfo_IsRunning(t *testing.T) {
 }
 
 func TestDaemonManager_Start(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping daemon test on Windows")
-	}
-
-	// テストモードを設定
-	os.Setenv("GO_TEST", "1")
-	defer os.Unsetenv("GO_TEST")
-
 	// Start メソッドのテストは統合テストで行う
 	// ここでは基本的な構造のみ確認
 	dm := NewDaemonManager()
 	ctx := context.Background()
+
+	// テストモードを設定
+	os.Setenv("GO_TEST", "1")
+	defer os.Unsetenv("GO_TEST")
 
 	// 環境変数が設定されていない場合のテスト
 	if os.Getenv("OSOBA_DAEMON_MODE") == "" {

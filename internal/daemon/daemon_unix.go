@@ -1,3 +1,6 @@
+//go:build !windows
+// +build !windows
+
 package daemon
 
 import (
@@ -5,34 +8,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 )
-
-// DaemonManager はバックグラウンドプロセスを管理するインターフェース
-type DaemonManager interface {
-	Start(ctx context.Context, args []string) error
-	Stop(pidFile string) error
-	Status(pidFile string) (*ProcessStatus, error)
-	IsRunning(pidFile string) bool
-}
-
-// ProcessStatus はプロセスの状態を表す構造体
-type ProcessStatus struct {
-	PID       int
-	StartTime time.Time
-	RepoPath  string
-	Running   bool
-}
-
-// ProcessInfo はPIDファイルに保存する情報
-type ProcessInfo struct {
-	PID       int
-	StartTime time.Time
-	RepoPath  string
-}
 
 type daemonManager struct{}
 
@@ -78,7 +56,7 @@ func (dm *daemonManager) Start(ctx context.Context, args []string) error {
 
 // Stop はプロセスを停止します
 func (dm *daemonManager) Stop(pidFile string) error {
-	info, err := dm.readPIDFile(pidFile)
+	info, err := readPIDFile(pidFile)
 	if err != nil {
 		return fmt.Errorf("failed to read PID file: %w", err)
 	}
@@ -120,7 +98,7 @@ func (dm *daemonManager) Stop(pidFile string) error {
 
 // Status はプロセスの状態を取得します
 func (dm *daemonManager) Status(pidFile string) (*ProcessStatus, error) {
-	info, err := dm.readPIDFile(pidFile)
+	info, err := readPIDFile(pidFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &ProcessStatus{Running: false}, nil
@@ -137,7 +115,7 @@ func (dm *daemonManager) Status(pidFile string) (*ProcessStatus, error) {
 
 	// プロセスが死んでいる場合はPIDファイルをクリーンアップ
 	if !status.Running {
-		dm.cleanupStalePIDFile(pidFile)
+		cleanupStalePIDFile(pidFile)
 	}
 
 	return status, nil
@@ -145,59 +123,11 @@ func (dm *daemonManager) Status(pidFile string) (*ProcessStatus, error) {
 
 // IsRunning はプロセスが実行中かどうかを確認します
 func (dm *daemonManager) IsRunning(pidFile string) bool {
-	info, err := dm.readPIDFile(pidFile)
+	info, err := readPIDFile(pidFile)
 	if err != nil {
 		return false
 	}
 	return info.isRunning()
-}
-
-// writePIDFile はPIDファイルを作成します
-func (dm *daemonManager) writePIDFile(pidFile string, info *ProcessInfo) error {
-	content := fmt.Sprintf("%d\n%s\n%s",
-		info.PID,
-		info.StartTime.Format(time.RFC3339),
-		info.RepoPath)
-
-	if err := os.WriteFile(pidFile, []byte(content), 0600); err != nil {
-		return fmt.Errorf("failed to write PID file: %w", err)
-	}
-
-	return nil
-}
-
-// readPIDFile はPIDファイルを読み込みます
-func (dm *daemonManager) readPIDFile(pidFile string) (*ProcessInfo, error) {
-	content, err := os.ReadFile(pidFile)
-	if err != nil {
-		return nil, err
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	if len(lines) < 3 {
-		return nil, fmt.Errorf("invalid PID file format")
-	}
-
-	pid, err := strconv.Atoi(lines[0])
-	if err != nil {
-		return nil, fmt.Errorf("invalid PID: %w", err)
-	}
-
-	startTime, err := time.Parse(time.RFC3339, lines[1])
-	if err != nil {
-		return nil, fmt.Errorf("invalid start time: %w", err)
-	}
-
-	return &ProcessInfo{
-		PID:       pid,
-		StartTime: startTime,
-		RepoPath:  lines[2],
-	}, nil
-}
-
-// cleanupStalePIDFile は古いPIDファイルを削除します
-func (dm *daemonManager) cleanupStalePIDFile(pidFile string) error {
-	return os.Remove(pidFile)
 }
 
 // isRunning はプロセスが実行中かどうかを確認します
@@ -214,10 +144,4 @@ func (info *ProcessInfo) isRunning() bool {
 	// プロセスの存在確認（UNIX系）
 	err = proc.Signal(syscall.Signal(0))
 	return err == nil
-}
-
-// WritePIDFile は外部から呼び出し可能なPIDファイル作成関数
-func WritePIDFile(pidFile string, info *ProcessInfo) error {
-	dm := &daemonManager{}
-	return dm.writePIDFile(pidFile, info)
 }
