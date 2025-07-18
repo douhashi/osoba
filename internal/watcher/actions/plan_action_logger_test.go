@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/douhashi/osoba/internal/claude"
-	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/types"
@@ -83,11 +82,12 @@ func TestPlanActionWithLogger(t *testing.T) {
 		mockStateManager.On("HasBeenProcessed", int64(123), types.IssueStatePlan).Return(false)
 		mockStateManager.On("IsProcessing", int64(123)).Return(false)
 		mockStateManager.On("SetState", int64(123), types.IssueStatePlan, types.IssueStatusProcessing).Return()
-		mockTmuxClient.On("CreateWindowForIssue", "test-session", 123, "plan").Return(nil)
+		mockTmuxClient.On("CreateWindowForIssue", "test-session", 123).Return(nil)
+		mockTmuxClient.On("SelectOrCreatePaneForPhase", "test-session", "issue-123", "plan-phase").Return(nil)
 		mockWorktreeManager.On("UpdateMainBranch", mock.Anything).Return(nil)
-		mockWorktreeManager.On("CreateWorktree", mock.Anything, 123, git.PhasePlan).Return(nil)
-		mockWorktreeManager.On("GetWorktreePath", 123, git.PhasePlan).Return("/test/path")
-		mockClaudeExecutor.On("ExecuteInTmux", mock.Anything, mock.Anything, mock.Anything, "test-session", "123-plan", "/test/path").Return(nil)
+		mockWorktreeManager.On("CreateWorktreeForIssue", mock.Anything, 123).Return(nil)
+		mockWorktreeManager.On("GetWorktreePathForIssue", 123).Return("/test/path")
+		mockClaudeExecutor.On("ExecuteInTmux", mock.Anything, mock.Anything, mock.Anything, "test-session", "issue-123", "/test/path").Return(nil)
 		mockStateManager.On("MarkAsCompleted", int64(123), types.IssueStatePlan).Return()
 
 		claudeConfig := &claude.ClaudeConfig{

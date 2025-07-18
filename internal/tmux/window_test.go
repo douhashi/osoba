@@ -1092,7 +1092,7 @@ func TestPhaseIntegration(t *testing.T) {
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return(windowName, nil).Once()
 		// 2. Implementation pane作成
 		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase", nil).Once()
-		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-v", "-p", "50"}).Return("", nil).Once()
+		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-v", "-p", "50"}).Return("", nil).Times(2)
 		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName, "-T", "implement-phase"}).Return("", nil).Once()
 
 		// Review フェーズ

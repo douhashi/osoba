@@ -178,9 +178,16 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	a.stateManager.SetState(issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
 
 	// tmuxウィンドウ作成
-	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber), "review"); err != nil {
+	if err := a.tmuxClient.CreateWindowForIssue(a.sessionName, int(issueNumber)); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to create tmux window: %w", err)
+	}
+
+	// review用のpaneを作成/選択
+	windowName := fmt.Sprintf("issue-%d", issueNumber)
+	if err := a.tmuxClient.SelectOrCreatePaneForPhase(a.sessionName, windowName, "review-phase"); err != nil {
+		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
+		return fmt.Errorf("failed to create/select review pane: %w", err)
 	}
 
 	// mainブランチを最新化
@@ -190,14 +197,14 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 		return fmt.Errorf("failed to update main branch: %w", err)
 	}
 
-	// worktreeを作成（Reviewフェーズ用の独立したworktree）
-	a.logInfo("Creating worktree", "issue_number", issueNumber, "phase", "review")
-	if err := a.worktreeManager.CreateWorktree(ctx, int(issueNumber), git.PhaseReview); err != nil {
+	// worktreeを作成（Issue単位のworktree）
+	a.logInfo("Creating worktree", "issue_number", issueNumber)
+	if err := a.worktreeManager.CreateWorktreeForIssue(ctx, int(issueNumber)); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
-	worktreePath := a.worktreeManager.GetWorktreePath(int(issueNumber), git.PhaseReview)
-	a.logInfo("Worktree created", "issue_number", issueNumber, "path", worktreePath, "phase", "review")
+	worktreePath := a.worktreeManager.GetWorktreePathForIssue(int(issueNumber))
+	a.logInfo("Worktree created", "issue_number", issueNumber, "path", worktreePath)
 
 	// Claude実行用の変数を準備
 	templateVars := &claude.TemplateVariables{
@@ -214,9 +221,9 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	// tmuxウィンドウ内でClaude実行
-	windowName := fmt.Sprintf("%d-review", issueNumber)
-	a.logInfo("Executing Claude in tmux window", "issue_number", issueNumber, "window_name", windowName, "phase", "review")
-	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, windowName, worktreePath); err != nil {
+	claudeWindowName := fmt.Sprintf("issue-%d", issueNumber)
+	a.logInfo("Executing Claude in tmux window", "issue_number", issueNumber, "window_name", claudeWindowName, "phase", "review")
+	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, claudeWindowName, worktreePath); err != nil {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to execute claude: %w", err)
 	}
