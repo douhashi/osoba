@@ -98,10 +98,10 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	}
 
 	// Claude設定を取得
-	phaseConfig, exists := a.claudeConfig.GetPhase("implementation")
+	phaseConfig, exists := a.claudeConfig.GetPhase("implement")
 	if !exists {
 		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
-		return fmt.Errorf("implementation phase config not found")
+		return fmt.Errorf("implement phase config not found")
 	}
 
 	// Claudeコマンドの実行
