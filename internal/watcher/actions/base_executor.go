@@ -64,6 +64,20 @@ func (e *BaseExecutor) PrepareWorkspace(ctx context.Context, issue *github.Issue
 		"window_name", windowName,
 	)
 
+	// セッションの存在確認と自動作成
+	sessionExists, err := e.tmuxManager.SessionExists(e.sessionName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check session existence: %w", err)
+	}
+
+	if !sessionExists {
+		e.logger.Info("Session does not exist, creating new session", "session_name", e.sessionName)
+		if err := e.tmuxManager.EnsureSession(e.sessionName); err != nil {
+			return nil, fmt.Errorf("failed to ensure session: %w", err)
+		}
+		e.logger.Info("Session created successfully", "session_name", e.sessionName)
+	}
+
 	// 1. Windowの存在確認と作成（新規判定付き）
 	isNewWindow := false
 	windowExists, err := e.tmuxManager.WindowExists(e.sessionName, windowName)

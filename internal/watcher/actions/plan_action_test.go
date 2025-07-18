@@ -38,6 +38,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				state.On("SetState", int64(123), types.IssueStatePlan, types.IssueStatusProcessing).Once()
 
 				// PrepareWorkspace
+				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
 				tmux.On("WindowExists", "test-session", "issue-123").Return(false, nil).Once()
 				tmux.On("CreateWindowForIssueWithNewWindowDetection", "test-session", 123).
 					Return("issue-123", true, nil).Once()
@@ -133,6 +134,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				state.On("SetState", int64(999), types.IssueStatePlan, types.IssueStatusProcessing).Once()
 
 				// PrepareWorkspace
+				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
 				tmux.On("WindowExists", "test-session", "issue-999").Return(true, nil).Once()
 				git.On("WorktreeExistsForIssue", mock.Anything, 999).Return(true, nil).Once()
 				tmux.On("GetPaneByTitle", "test-session", "issue-999", "Plan").Return(nil, assert.AnError).Once()
