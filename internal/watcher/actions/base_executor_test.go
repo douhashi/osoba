@@ -51,6 +51,8 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 				// Pane検索（なし）
 				tmux.On("GetPaneByTitle", "test-session", "issue-111", "Plan").
 					Return(nil, assert.AnError).Once()
+				// pane-base-index取得
+				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
 				// Pane 0のタイトル設定のみ
 				tmux.On("SetPaneTitle", "test-session", "issue-111", 0, "Plan").Return(nil).Once()
 
@@ -91,6 +93,8 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 				// Pane検索（なし）
 				tmux.On("GetPaneByTitle", "test-session", "issue-123", "Plan").
 					Return(nil, assert.AnError).Once()
+				// pane-base-index取得
+				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
 				// Pane 0のタイトル設定のみ
 				tmux.On("SetPaneTitle", "test-session", "issue-123", 0, "Plan").Return(nil).Once()
 
@@ -205,6 +209,8 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 				// Pane検索（なし）
 				tmux.On("GetPaneByTitle", "test-session", "issue-888", "Implementation").
 					Return(nil, assert.AnError).Once()
+				// pane-base-index取得
+				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
 				// Pane 0のタイトル設定のみ
 				tmux.On("SetPaneTitle", "test-session", "issue-888", 0, "Implementation").Return(nil).Once()
 

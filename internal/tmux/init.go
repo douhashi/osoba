@@ -14,6 +14,12 @@ type MockManager struct {
 	PaneManager
 }
 
+// GetPaneBaseIndex テスト用のpane-base-index取得
+func (m *MockManager) GetPaneBaseIndex() (int, error) {
+	// テスト環境では0を返す
+	return 0, nil
+}
+
 // createTestMockManager はテスト用のモックマネージャーを作成
 func createTestMockManager() Manager {
 	return &MockManager{

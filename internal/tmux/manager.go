@@ -1,6 +1,8 @@
 package tmux
 
 import (
+	"fmt"
+
 	"github.com/douhashi/osoba/internal/logger"
 )
 
@@ -69,6 +71,9 @@ type Manager interface {
 	SessionManager
 	WindowManager
 	PaneManager
+
+	// GetPaneBaseIndex tmuxのpane-base-index設定を取得
+	GetPaneBaseIndex() (int, error)
 }
 
 // DefaultManager はManagerインターフェースのデフォルト実装
@@ -93,4 +98,22 @@ func NewDefaultManagerWithExecutor(executor CommandExecutor) *DefaultManager {
 // NewManager はロガーを使用してManagerを作成（V2互換性のため）
 func NewManager(logger logger.Logger) Manager {
 	return NewDefaultManager()
+}
+
+// GetPaneBaseIndex tmuxのpane-base-index設定を取得
+func (m *DefaultManager) GetPaneBaseIndex() (int, error) {
+	output, err := m.executor.Execute("tmux", "show-options", "-g", "pane-base-index")
+	if err != nil {
+		// 設定が存在しない場合はデフォルト値の0を返す
+		return 0, nil
+	}
+
+	// 出力をパース: "pane-base-index 1" の形式
+	var baseIndex int
+	if _, err := fmt.Sscanf(output, "pane-base-index %d", &baseIndex); err != nil {
+		// パースに失敗した場合もデフォルト値を返す
+		return 0, nil
+	}
+
+	return baseIndex, nil
 }

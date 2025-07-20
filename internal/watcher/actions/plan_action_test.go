@@ -45,6 +45,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				git.On("WorktreeExistsForIssue", mock.Anything, 123).Return(false, nil).Once()
 				git.On("CreateWorktreeForIssue", mock.Anything, 123).Return(nil).Once()
 				tmux.On("GetPaneByTitle", "test-session", "issue-123", "Plan").Return(nil, assert.AnError).Once()
+				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
 				tmux.On("SetPaneTitle", "test-session", "issue-123", 0, "Plan").Return(nil).Once()
 				git.On("GetWorktreePathForIssue", 123).Return("/test/worktree/issue-123").Once()
 
@@ -138,6 +139,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				tmux.On("WindowExists", "test-session", "issue-999").Return(true, nil).Once()
 				git.On("WorktreeExistsForIssue", mock.Anything, 999).Return(true, nil).Once()
 				tmux.On("GetPaneByTitle", "test-session", "issue-999", "Plan").Return(nil, assert.AnError).Once()
+				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
 				tmux.On("SetPaneTitle", "test-session", "issue-999", 0, "Plan").Return(nil).Once()
 				git.On("GetWorktreePathForIssue", 999).Return("/test/worktree/issue-999").Once()
 
