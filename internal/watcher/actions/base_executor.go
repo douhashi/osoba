@@ -143,12 +143,22 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 	// 新規ウィンドウの場合は、pane分割せずに既存のpane 0を使用
 	if isNewWindow {
 		e.logger.Info("Using existing pane for new window", "phase", phase)
-		// 既存のpane 0のタイトルを設定
-		if err := e.tmuxManager.SetPaneTitle(e.sessionName, windowName, 0, phase); err != nil {
+
+		// pane-base-indexを取得
+		baseIndex, err := e.tmuxManager.GetPaneBaseIndex()
+		if err != nil {
+			// エラーの場合はデフォルト値の0を使用
+			e.logger.Warn("Failed to get pane-base-index, using default 0", "error", err)
+			baseIndex = 0
+		}
+		e.logger.Info("Got pane-base-index", "baseIndex", baseIndex)
+
+		// 既存のpaneのタイトルを設定
+		if err := e.tmuxManager.SetPaneTitle(e.sessionName, windowName, baseIndex, phase); err != nil {
 			return nil, fmt.Errorf("failed to set pane title: %w", err)
 		}
 		return &tmuxpkg.PaneInfo{
-			Index:  0,
+			Index:  baseIndex,
 			Title:  phase,
 			Active: true,
 		}, nil
@@ -164,12 +174,21 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 
 	// 最初のフェーズ（Plan）の場合は、既存のpane（index 0）を使用
 	if phase == "Plan" {
-		// 既存のpane 0のタイトルを設定
-		if err := e.tmuxManager.SetPaneTitle(e.sessionName, windowName, 0, phase); err != nil {
+		// pane-base-indexを取得
+		baseIndex, err := e.tmuxManager.GetPaneBaseIndex()
+		if err != nil {
+			// エラーの場合はデフォルト値の0を使用
+			e.logger.Warn("Failed to get pane-base-index, using default 0", "error", err)
+			baseIndex = 0
+		}
+		e.logger.Info("Got pane-base-index", "baseIndex", baseIndex)
+
+		// 既存のpaneのタイトルを設定
+		if err := e.tmuxManager.SetPaneTitle(e.sessionName, windowName, baseIndex, phase); err != nil {
 			return nil, fmt.Errorf("failed to set pane title: %w", err)
 		}
 		return &tmuxpkg.PaneInfo{
-			Index:  0,
+			Index:  baseIndex,
 			Title:  phase,
 			Active: true,
 		}, nil

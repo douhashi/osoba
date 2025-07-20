@@ -55,9 +55,10 @@ func (m *DefaultManager) SelectPane(sessionName, windowName string, paneIndex in
 // SetPaneTitle ペインのタイトルを設定
 func (m *DefaultManager) SetPaneTitle(sessionName, windowName string, paneIndex int, title string) error {
 	// ペインのボーダーフォーマットを設定
-	args := []string{"set-option", "-t", fmt.Sprintf("%s:%s.%d", sessionName, windowName, paneIndex), "-p", "pane-border-format", fmt.Sprintf(" %s ", title)}
+	target := fmt.Sprintf("%s:%s.%d", sessionName, windowName, paneIndex)
+	args := []string{"set-option", "-t", target, "-p", "pane-border-format", fmt.Sprintf(" %s ", title)}
 	if _, err := m.executor.Execute("tmux", args...); err != nil {
-		return fmt.Errorf("failed to set pane title: %w", err)
+		return fmt.Errorf("failed to set pane title for %s: %w", target, err)
 	}
 	return nil
 }
