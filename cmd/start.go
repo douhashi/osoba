@@ -129,14 +129,14 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	}
 
 	// リポジトリ情報を取得
-	repoName, err := git.GetRepositoryName()
+	repoInfo, err := utils.GetGitHubRepoInfo(context.Background())
 	if err != nil {
-		return fmt.Errorf("リポジトリ名の取得に失敗: %w", err)
+		return fmt.Errorf("GitHubリポジトリ情報の取得に失敗: %w", err)
 	}
 
-	// リポジトリのオーナーを取得（簡易的にリポジトリ名から推測）
-	// TODO: より正確な方法で取得する
-	owner := "douhashi"
+	// リポジトリ名とオーナーを取得
+	repoName := repoInfo.Repo
+	owner := repoInfo.Owner
 
 	// GitHubクライアントを作成（設定に応じてghコマンドまたはAPIを使用）
 	var githubClient github.GitHubClient
