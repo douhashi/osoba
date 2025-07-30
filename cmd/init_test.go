@@ -787,3 +787,185 @@ func TestInitCmd_GitHubCLIChecks(t *testing.T) {
 		})
 	}
 }
+
+func TestSetupClaudeCommands(t *testing.T) {
+	// モック関数を保存しておく
+	origMkdirAll := mkdirAllFunc
+	origWriteFile := writeFileFunc
+	origStat := statFunc
+	defer func() {
+		mkdirAllFunc = origMkdirAll
+		writeFileFunc = origWriteFile
+		statFunc = origStat
+	}()
+
+	tests := []struct {
+		name         string
+		setupMocks   func()
+		wantErr      bool
+		wantOutput   string
+		filesCreated map[string]bool
+		filesSkipped map[string]bool
+	}{
+		{
+			name: "正常系: 全ファイルが新規作成される",
+			setupMocks: func() {
+				mkdirAllFunc = func(path string, perm os.FileMode) error {
+					return nil
+				}
+				statFunc = func(name string) (os.FileInfo, error) {
+					// 全ファイルが存在しない
+					return nil, os.ErrNotExist
+				}
+				writeFileFunc = func(path string, data []byte, perm os.FileMode) error {
+					return nil
+				}
+			},
+			wantErr:    false,
+			wantOutput: "✅",
+			filesCreated: map[string]bool{
+				".claude/commands/osoba/plan.md":      true,
+				".claude/commands/osoba/implement.md": true,
+				".claude/commands/osoba/review.md":    true,
+			},
+		},
+		{
+			name: "正常系: 全ファイルが既存でスキップされる",
+			setupMocks: func() {
+				mkdirAllFunc = func(path string, perm os.FileMode) error {
+					return nil
+				}
+				statFunc = func(name string) (os.FileInfo, error) {
+					// 全ファイルが存在する
+					return nil, nil
+				}
+				writeFileFunc = func(path string, data []byte, perm os.FileMode) error {
+					t.Errorf("writeFile should not be called for existing files: %s", path)
+					return nil
+				}
+			},
+			wantErr:    false,
+			wantOutput: "✅ (既存)",
+			filesSkipped: map[string]bool{
+				".claude/commands/osoba/plan.md":      true,
+				".claude/commands/osoba/implement.md": true,
+				".claude/commands/osoba/review.md":    true,
+			},
+		},
+		{
+			name: "正常系: 一部ファイルが既存で残りは新規作成",
+			setupMocks: func() {
+				mkdirAllFunc = func(path string, perm os.FileMode) error {
+					return nil
+				}
+				statFunc = func(name string) (os.FileInfo, error) {
+					// plan.mdのみ存在
+					if strings.HasSuffix(name, "plan.md") {
+						return nil, nil
+					}
+					return nil, os.ErrNotExist
+				}
+				writeFileFunc = func(path string, data []byte, perm os.FileMode) error {
+					if strings.HasSuffix(path, "plan.md") {
+						t.Errorf("writeFile should not be called for existing file: %s", path)
+					}
+					return nil
+				}
+			},
+			wantErr:    false,
+			wantOutput: "✅ (一部既存)",
+			filesCreated: map[string]bool{
+				".claude/commands/osoba/implement.md": true,
+				".claude/commands/osoba/review.md":    true,
+			},
+			filesSkipped: map[string]bool{
+				".claude/commands/osoba/plan.md": true,
+			},
+		},
+		{
+			name: "エラー: ディレクトリ作成失敗",
+			setupMocks: func() {
+				mkdirAllFunc = func(path string, perm os.FileMode) error {
+					return fmt.Errorf("permission denied")
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "エラー: ファイル書き込み失敗",
+			setupMocks: func() {
+				mkdirAllFunc = func(path string, perm os.FileMode) error {
+					return nil
+				}
+				statFunc = func(name string) (os.FileInfo, error) {
+					return nil, os.ErrNotExist
+				}
+				writeFileFunc = func(path string, data []byte, perm os.FileMode) error {
+					return fmt.Errorf("disk full")
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupMocks != nil {
+				tt.setupMocks()
+			}
+
+			// ファイル作成・スキップの追跡
+			filesCreated := make(map[string]bool)
+			filesSkipped := make(map[string]bool)
+
+			// モック関数を更新して追跡
+			origWriteFile := writeFileFunc
+			writeFileFunc = func(path string, data []byte, perm os.FileMode) error {
+				filesCreated[path] = true
+				return origWriteFile(path, data, perm)
+			}
+
+			origStat := statFunc
+			statFunc = func(name string) (os.FileInfo, error) {
+				info, err := origStat(name)
+				if err == nil && strings.Contains(name, ".claude/commands/osoba/") {
+					filesSkipped[name] = true
+				}
+				return info, err
+			}
+
+			buf := new(bytes.Buffer)
+			err := setupClaudeCommands(buf)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("setupClaudeCommands() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if err == nil {
+				output := buf.String()
+				if !strings.Contains(output, tt.wantOutput) {
+					t.Errorf("setupClaudeCommands() output = %v, want to contain %v", output, tt.wantOutput)
+				}
+
+				// ファイル作成の確認
+				if tt.filesCreated != nil {
+					for file, expected := range tt.filesCreated {
+						if filesCreated[file] != expected {
+							t.Errorf("file %s: created = %v, want %v", file, filesCreated[file], expected)
+						}
+					}
+				}
+
+				// ファイルスキップの確認
+				if tt.filesSkipped != nil {
+					for file, expected := range tt.filesSkipped {
+						if filesSkipped[file] != expected {
+							t.Errorf("file %s: skipped = %v, want %v", file, filesSkipped[file], expected)
+						}
+					}
+				}
+			}
+		})
+	}
+}

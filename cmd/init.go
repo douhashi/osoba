@@ -305,10 +305,24 @@ func setupClaudeCommands(out io.Writer) error {
 
 	// テンプレートファイルの配置
 	files := []string{"plan.md", "implement.md", "review.md"}
+	allExist := true
+	someExist := false
+
 	for _, file := range files {
-		src := "templates/commands/" + file
 		dst := filepath.Join(dir, file)
 
+		// 既存ファイルのチェック
+		if _, err := statFunc(dst); err == nil {
+			// ファイルが存在する
+			someExist = true
+			continue
+		} else {
+			// ファイルが存在しない
+			allExist = false
+		}
+
+		// テンプレートから新規ファイルを作成
+		src := "templates/commands/" + file
 		data, err := templateFS.ReadFile(src)
 		if err != nil {
 			return fmt.Errorf("テンプレートファイルの読み込みに失敗しました: %w", err)
@@ -319,7 +333,15 @@ func setupClaudeCommands(out io.Writer) error {
 		}
 	}
 
-	fmt.Fprintln(out, "✅")
+	// 出力メッセージの決定
+	if allExist {
+		fmt.Fprintln(out, "✅ (既存)")
+	} else if someExist {
+		fmt.Fprintln(out, "✅ (一部既存)")
+	} else {
+		fmt.Fprintln(out, "✅")
+	}
+
 	return nil
 }
 
