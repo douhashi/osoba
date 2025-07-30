@@ -1,44 +1,145 @@
 ---
-allowed-tools: Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS
-description: "TDDによる実装作業"
+allowed-tools: TodoRead, TodoWrite, Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS
+description: "Implementation work using TDD"
 ---
 
-# 実装
+## Overview
 
-開発者として、引数で指定されたIssueをTDD（テスト駆動開発）で実装する
+You are a skilled developer responsible for safely and reliably implementing this Issue.  
+In this phase, you will modify or add code based on the implementation plan, run tests, and finally create a Pull Request for review.
 
-## ワークフロー
+---
 
-1. **Issue確認**
-   - 引数で指定されたIssue番号をghコマンドで確認
-   - `GH_PAGER= gh issue view <issue番号>` でIssue内容を取得
-   - 実装内容と受け入れ条件を把握
+## Prerequisites
 
-2. **TDDによる実装**
-   - テストを先に作成
-   - テストが失敗することを確認
-   - 最小限の実装でテストをパス
-   - リファクタリング
+### Documents
 
-3. **テスト実行**
-   - 実装部分のテストを実行
-   - システム全体のフルテストを実行
+Refer to the following index for any necessary documentation:
 
-4. **PR作成**
-   - 全テストがパスしたらPRを作成
+- Development: `@docs/development/INDEX.md`
 
-5. **完了報告**
-   - Issueにコメントで完了を報告
-   - `GH_PAGER= gh issue comment <issue番号> --body "実装が完了しました。PRを作成しました: #<PR番号>"`
-   - `GH_PAGER= gh issue edit <issue番号>  --remove-label "status:implementing" --add-label "status:review-requested"` でラベルを付与/削除
+### Expected state of the Issue
 
-## 基本ルール
+- A comment contains the implementation plan
+- Acceptance criteria are clearly described
 
-- テストファーストで実装を進める
-- セキュリティを考慮した実装を行う
-- 既存のコーディング規約に従う
-- 全てのテストがパスすることを確認
-- テストがパスしたら、常にリファクタリングを行いコードベースを美しく保つ
-- テストコードについても常にリファクタリングすることを意識し、体系化された美しい状態を保つ
-- 特別な指示がない限りは後方互換を考慮しない
+---
 
+## Rules
+
+1. Always review the implementation plan and follow it carefully  
+2. Follow TDD; if you can't write tests first, reconsider your design  
+3. Respect the existing design and architecture (do not change it arbitrarily)  
+4. When implementation is complete, submit a Pull Request for review  
+5. PRs must include the purpose, changes made, test details, and linked Issue  
+6. If the current directory is under `.git/osoba/`, this is a dedicated codebase created using git worktree, so you must not reference or edit any parent directories  
+
+### Implementation Style Principles
+
+- **Follow the DRY (Don't Repeat Yourself) principle**  
+  Avoid repeating logic, knowledge, or structure
+
+- **Follow the YAGNI (You Aren’t Gonna Need It) principle**  
+  Don't add code for features that "might be needed someday"
+
+- **Use mocks only when necessary**  
+  Only mock external integrations (e.g., APIs, email)
+
+- **Use FactoryBot for test data**  
+  Maintain structured and flexible test fixtures
+
+- **Keep controllers skinny, models fat, and views simple**  
+  Concentrate business logic in models and keep controllers/views minimal
+
+---
+
+## Instructions
+
+### Workflow (Overview)
+
+1. Review the implementation plan and Issue  
+2. Write test cases first  
+3. Implement in small commits  
+4. Run tests and verify functionality  
+5. Run full test suite before PR creation
+6. Create a PR template as `./tmp/pull-request-<issue number>.md`  
+7. Create the Pull Request  
+8. Leave a comment on the Issue  
+9. Update Issue labels (remove "status:implementing", add "status:review-requested")  
+
+---
+
+## Detailed Steps
+
+1. **Review the implementation plan and Issue**
+   - Run `gh issue view <issue number>` to confirm requirements  
+   - Run `gh issue view <issue number> --comments` to review the implementation plan  
+   - If unclear, ask questions or request clarification
+
+2. **Write test cases first**
+   - Prepare tests based on the test strategy in the plan  
+   - Follow Red → Green → Refactor
+
+3. **Start implementation**
+   - Commit frequently with meaningful messages
+
+4. **Run tests and verify**
+   - Run `yarn test`, `rspec`, or your project's standard method  
+   - Perform manual UI/API testing if applicable
+
+5. **Run full test suite**
+   - Run `bundle exec rspec` to ensure all tests pass
+   - Fix any failures before proceeding
+   - Confirm: All tests must pass before creating a PR
+
+6. **Create the PR template**
+   - Write `./tmp/pull-request-123.md` based on the template shown below
+
+7. **Create the Pull Request**
+   - Title example: `feat: Add favorite feature for products (#123)`  
+   - Use `--body-file ./tmp/pull-request-123.md` to populate the PR body  
+   - Example using `gh`:
+
+     ```bash
+     gh pr create \\
+       --title "feat: Add favorite feature for products (#123)" \\
+       --body-file ./tmp/pull-request-123.md \\
+       --base main
+     ```
+
+8. **Leave a comment on the Issue**
+   - Example: "Submitted PR #456. Please review."
+
+9. **Update Issue labels**
+   - Remove "status:implementing" label
+   - Add "status:review-requested" label
+   - Example using `gh`:
+   
+     ```bash
+     gh issue edit <issue number> \\
+       --remove-label "status:implementing" \\
+       --add-label "status:review-requested"
+     ```
+
+---
+
+## PRテンプレート
+
+```markdown
+## 実装完了
+
+以下のIssueについて、TDDに基づき実装を完了しました。
+
+- Issue: fixes #<ISSUE番号>
+- 対応内容:
+  - <対応した主な機能や修正点1>
+  - <対応した主な機能や修正点2>
+- 実装方式: テスト駆動開発（TDD）に準拠
+- テスト状況:
+  - 単体テスト: ✅ パス ／ ❌ 失敗
+  - 結合テスト: ✅ パス ／ ❌ 失敗
+  - フルテスト: ✅ パス ／ ❌ 失敗
+- 関連PR: #<PR番号>
+
+ご確認のほどよろしくお願いいたします。
+```
