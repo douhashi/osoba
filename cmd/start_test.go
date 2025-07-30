@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +13,23 @@ import (
 	"github.com/douhashi/osoba/internal/testutil/helpers"
 	"github.com/spf13/cobra"
 )
+
+// createTestConfigFile はテスト用の設定ファイルを作成します
+func createTestConfigFile(dir string) error {
+	configDir := filepath.Join(dir, ".config", "osoba")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return err
+	}
+	configFile := filepath.Join(configDir, "osoba.yml")
+	configContent := `github:
+  token: "${GITHUB_TOKEN}"
+  poll_interval: 10s
+
+tmux:
+  session_prefix: "osoba-"
+`
+	return os.WriteFile(configFile, []byte(configContent), 0644)
+}
 
 func TestStartCmd(t *testing.T) {
 	tests := []struct {
@@ -69,6 +87,9 @@ func TestStartCmd(t *testing.T) {
 
 // 実際の機能をテストするユニットテスト
 func TestStartCmdExecution(t *testing.T) {
+	// 元の環境変数を保存
+	origHome := os.Getenv("HOME")
+	defer func() { os.Setenv("HOME", origHome) }()
 	tests := []struct {
 		name            string
 		setupMock       func(t *testing.T)
@@ -384,6 +405,12 @@ func TestStartCmdExecution(t *testing.T) {
 			// テスト用ディレクトリに移動
 			err = os.Chdir(dir)
 			if err != nil {
+				t.Fatal(err)
+			}
+
+			// HOMEをテスト用ディレクトリに設定して設定ファイルを作成
+			os.Setenv("HOME", dir)
+			if err := createTestConfigFile(dir); err != nil {
 				t.Fatal(err)
 			}
 
