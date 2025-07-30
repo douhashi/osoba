@@ -2,8 +2,12 @@ package cmd
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/viper"
 )
 
 func TestExecute(t *testing.T) {
@@ -196,6 +200,169 @@ func TestLogLevelFlag(t *testing.T) {
 				}
 				if val != tt.wantLogLevel {
 					t.Errorf("log-level flag = %v, want %v", val, tt.wantLogLevel)
+				}
+			}
+		})
+	}
+}
+
+func TestInitConfig(t *testing.T) {
+	tests := []struct {
+		name            string
+		setupConfigFile func(t *testing.T, tmpDir string) string
+		cfgFileOverride string
+		wantErr         bool
+		checkFunc       func(t *testing.T)
+	}{
+		{
+			name: "正常系: カレントディレクトリの.osoba.ymlを読み込み",
+			setupConfigFile: func(t *testing.T, tmpDir string) string {
+				configContent := `github:
+  poll_interval: 10s
+  labels:
+    plan: status:needs-plan
+    ready: status:ready
+    review: status:review-requested
+tmux:
+  session_prefix: test-osoba-
+`
+				configPath := filepath.Join(tmpDir, ".osoba.yml")
+				if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+					t.Fatalf("Failed to create config file: %v", err)
+				}
+				return configPath
+			},
+			wantErr: false,
+			checkFunc: func(t *testing.T) {
+				if viper.GetString("github.poll_interval") != "10s" {
+					t.Errorf("github.poll_interval = %v, want 10s", viper.GetString("github.poll_interval"))
+				}
+				if viper.GetString("tmux.session_prefix") != "test-osoba-" {
+					t.Errorf("tmux.session_prefix = %v, want test-osoba-", viper.GetString("tmux.session_prefix"))
+				}
+			},
+		},
+		{
+			name: "正常系: カレントディレクトリの.osoba.yamlを読み込み",
+			setupConfigFile: func(t *testing.T, tmpDir string) string {
+				configContent := `github:
+  poll_interval: 15s
+tmux:
+  session_prefix: yaml-osoba-
+`
+				configPath := filepath.Join(tmpDir, ".osoba.yaml")
+				if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+					t.Fatalf("Failed to create config file: %v", err)
+				}
+				return configPath
+			},
+			wantErr: false,
+			checkFunc: func(t *testing.T) {
+				if viper.GetString("github.poll_interval") != "15s" {
+					t.Errorf("github.poll_interval = %v, want 15s", viper.GetString("github.poll_interval"))
+				}
+				if viper.GetString("tmux.session_prefix") != "yaml-osoba-" {
+					t.Errorf("tmux.session_prefix = %v, want yaml-osoba-", viper.GetString("tmux.session_prefix"))
+				}
+			},
+		},
+		{
+			name: "正常系: 設定ファイルが存在しない場合（デフォルト値使用）",
+			setupConfigFile: func(t *testing.T, tmpDir string) string {
+				return ""
+			},
+			wantErr: false,
+			checkFunc: func(t *testing.T) {
+				// 設定ファイルが存在しない場合はReadInConfigでエラーが発生するが
+				// ConfigFileNotFoundErrorの場合は正常終了する
+			},
+		},
+		{
+			name: "正常系: 指定されたconfigファイルを読み込み",
+			setupConfigFile: func(t *testing.T, tmpDir string) string {
+				configContent := `github:
+  poll_interval: 30s
+tmux:
+  session_prefix: custom-osoba-
+`
+				configPath := filepath.Join(tmpDir, "custom-config.yml")
+				if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+					t.Fatalf("Failed to create config file: %v", err)
+				}
+				return configPath
+			},
+			cfgFileOverride: "custom-config.yml",
+			wantErr:         false,
+			checkFunc: func(t *testing.T) {
+				if viper.GetString("github.poll_interval") != "30s" {
+					t.Errorf("github.poll_interval = %v, want 30s", viper.GetString("github.poll_interval"))
+				}
+				if viper.GetString("tmux.session_prefix") != "custom-osoba-" {
+					t.Errorf("tmux.session_prefix = %v, want custom-osoba-", viper.GetString("tmux.session_prefix"))
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// テンポラリディレクトリを作成
+			tmpDir, err := os.MkdirTemp("", "osoba-test-")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tmpDir)
+
+			// 元のディレクトリを保存してテンポラリディレクトリに移動
+			originalDir, err := os.Getwd()
+			if err != nil {
+				t.Fatalf("Failed to get current dir: %v", err)
+			}
+			if err := os.Chdir(tmpDir); err != nil {
+				t.Fatalf("Failed to change dir: %v", err)
+			}
+			defer func() {
+				os.Chdir(originalDir)
+			}()
+
+			// Viperのクリーンアップ
+			viper.Reset()
+
+			// テスト用の設定ファイルを作成
+			configPath := tt.setupConfigFile(t, tmpDir)
+
+			// cfgFileの設定
+			if tt.cfgFileOverride != "" {
+				cfgFile = tt.cfgFileOverride
+			} else {
+				cfgFile = ""
+			}
+
+			// initConfig実行
+			err = initConfig()
+
+			// エラーチェック
+			if (err != nil) != tt.wantErr {
+				t.Errorf("initConfig() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			// 追加チェック
+			if tt.checkFunc != nil {
+				tt.checkFunc(t)
+			}
+
+			// configPathが設定されている場合のファイル読み込み確認
+			if configPath != "" && tt.cfgFileOverride == "" && !tt.wantErr {
+				// 設定ファイルが正しく使用されたかを確認するため、
+				// 実際にviperから値を読み取ってテストする
+				configFile := viper.ConfigFileUsed()
+				if configFile != "" {
+					expectedPath, _ := filepath.Abs(configPath)
+					actualPath, _ := filepath.Abs(configFile)
+					if actualPath != expectedPath {
+						t.Errorf("Used config file = %v, want %v", actualPath, expectedPath)
+					}
 				}
 			}
 		})

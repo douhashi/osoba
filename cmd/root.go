@@ -108,14 +108,9 @@ func initConfig() error {
 		}
 		viper.SetConfigFile(cfgFile)
 	} else {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get home directory: %w", err)
-		}
-
-		viper.AddConfigPath(home + "/.config/osoba")
-		viper.AddConfigPath(home)
-		viper.SetConfigName("osoba")
+		// カレントディレクトリから設定ファイルを検索
+		viper.AddConfigPath(".")
+		viper.SetConfigName(".osoba")
 		viper.SetConfigType("yaml")
 	}
 
