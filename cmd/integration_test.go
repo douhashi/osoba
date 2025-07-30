@@ -87,7 +87,6 @@ func TestIntegration_ConfigLoading(t *testing.T) {
 		name          string
 		configContent string
 		envVars       map[string]string
-		wantToken     string
 		wantInterval  time.Duration
 		wantLabels    []string
 	}{
@@ -104,7 +103,6 @@ github:
 			envVars: map[string]string{
 				"GITHUB_TOKEN": "env-token-123",
 			},
-			wantToken:    "env-token-123",
 			wantInterval: 10 * time.Second,
 			wantLabels:   []string{"status:planning", "status:ready-to-dev", "status:review-requested"},
 		},
@@ -117,7 +115,6 @@ github:
 			envVars: map[string]string{
 				"GITHUB_TOKEN": "github-env-token",
 			},
-			wantToken:    "github-env-token",
 			wantInterval: 5 * time.Second, // デフォルト値
 			wantLabels:   []string{"status:needs-plan", "status:ready", "status:review-requested"},
 		},
@@ -163,9 +160,7 @@ github:
 			}
 
 			// 検証
-			if cfg.GitHub.Token != tt.wantToken {
-				t.Errorf("Token = %v, want %v", cfg.GitHub.Token, tt.wantToken)
-			}
+			// Tokenフィールドは削除された
 			if cfg.GitHub.PollInterval != tt.wantInterval {
 				t.Errorf("PollInterval = %v, want %v", cfg.GitHub.PollInterval, tt.wantInterval)
 			}
@@ -191,20 +186,9 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 		expectError string
 	}{
 		{
-			name: "GitHubトークンが空の場合",
-			setupConfig: func() *config.Config {
-				cfg := config.NewConfig()
-				cfg.GitHub.Token = ""
-				cfg.GitHub.UseGhCommand = false // GitHub APIを使用する設定
-				return cfg
-			},
-			expectError: "GitHub token is required when not using gh command",
-		},
-		{
 			name: "ポーリング間隔が短すぎる場合",
 			setupConfig: func() *config.Config {
 				cfg := config.NewConfig()
-				cfg.GitHub.Token = "test-token"
 				cfg.GitHub.PollInterval = 500 * time.Millisecond
 				return cfg
 			},

@@ -219,28 +219,15 @@ func TestConfig_Validate(t *testing.T) {
 						Ready:  "status:ready",
 						Review: "status:review-requested",
 					},
-					UseGhCommand: true,
 				},
 			},
 			wantErr: false,
-		},
-		{
-			name: "異常系: ghコマンドが無効",
-			cfg: &Config{
-				GitHub: GitHubConfig{
-					PollInterval: 5 * time.Second,
-					UseGhCommand: false,
-				},
-			},
-			wantErr: true,
-			errMsg:  "gh command must be enabled (use_gh_command: true)",
 		},
 		{
 			name: "異常系: ポーリング間隔が短すぎる",
 			cfg: &Config{
 				GitHub: GitHubConfig{
 					PollInterval: 500 * time.Millisecond,
-					UseGhCommand: true,
 				},
 			},
 			wantErr: true,
@@ -252,17 +239,6 @@ func TestConfig_Validate(t *testing.T) {
 				GitHub: GitHubConfig{
 					PollInterval: 5 * time.Second,
 					Labels:       LabelConfig{},
-					UseGhCommand: true,
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "正常系: ghコマンド使用時はトークンが不要",
-			cfg: &Config{
-				GitHub: GitHubConfig{
-					PollInterval: 5 * time.Second,
-					UseGhCommand: true,
 				},
 			},
 			wantErr: false,

@@ -227,8 +227,6 @@ flowchart LR
 ```yaml
 # .osoba.yml
 github:
-  # ghコマンドを使用する（デフォルト: true）
-  use_gh_command: true
   poll_interval: 10s
 
 tmux:

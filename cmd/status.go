@@ -121,17 +121,10 @@ func runStatusCmd(cmd *cobra.Command) error {
 	}
 
 	// GitHub クライアントを作成（ghコマンドのみ使用）
-	var client githubClient.GitHubClient
-	if cfg.GitHub.UseGhCommand {
-		executor := gh.NewRealCommandExecutor()
-		ghClient, err := gh.NewClient(executor)
-		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHub クライアント作成エラー: %v\n", err)
-			return nil
-		}
-		client = ghClient
-	} else {
-		fmt.Fprintln(cmd.OutOrStdout(), "⚠️  ghコマンドを使用する設定にしてください")
+	executor := gh.NewRealCommandExecutor()
+	client, err := gh.NewClient(executor)
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHub クライアント作成エラー: %v\n", err)
 		return nil
 	}
 

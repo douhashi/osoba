@@ -26,7 +26,6 @@ type GitHubConfig struct {
 	PollInterval time.Duration      `mapstructure:"poll_interval"`
 	Labels       LabelConfig        `mapstructure:"labels"`
 	Messages     PhaseMessageConfig `mapstructure:"messages"`
-	UseGhCommand bool               `mapstructure:"use_gh_command"` // ghコマンドを使用するかどうか
 }
 
 // LabelConfig は監視対象のラベル設定
@@ -73,8 +72,7 @@ func NewConfig() *Config {
 				Ready:  "status:ready",
 				Review: "status:review-requested",
 			},
-			Messages:     NewDefaultPhaseMessageConfig(),
-			UseGhCommand: true, // デフォルトでghコマンドを使用
+			Messages: NewDefaultPhaseMessageConfig(),
 		},
 		Tmux: TmuxConfig{
 			SessionPrefix: "osoba-",
@@ -112,7 +110,6 @@ func (c *Config) Load(configPath string) error {
 	v.SetDefault("github.messages.plan", "osoba: 計画を作成します")
 	v.SetDefault("github.messages.implement", "osoba: 実装を開始します")
 	v.SetDefault("github.messages.review", "osoba: レビューを開始します")
-	v.SetDefault("github.use_gh_command", true) // デフォルトでghコマンドを使用
 	v.SetDefault("tmux.session_prefix", "osoba-")
 
 	// ログ設定のデフォルト値
@@ -184,11 +181,6 @@ func (c *Config) LoadOrDefault(configPath string) string {
 
 // Validate は設定の妥当性を検証する
 func (c *Config) Validate() error {
-	// ghコマンドの使用は必須
-	if !c.GitHub.UseGhCommand {
-		return errors.New("gh command must be enabled (use_gh_command: true)")
-	}
-
 	if c.GitHub.PollInterval < 1*time.Second {
 		return errors.New("poll interval must be at least 1 second")
 	}

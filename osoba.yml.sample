@@ -2,16 +2,8 @@
 # このファイルを ~/.config/osoba/osoba.yml にコピーして使用してください
 
 github:
-  # GitHubへのアクセス方法を選択（デフォルト: true）
-  # - true: ghコマンドを使用（推奨）
-  # - false: GitHub APIを直接使用
-  use_gh_command: true
-  
-  # GitHub APIを直接使用する場合のみ必要
-  # use_gh_command: falseの場合、以下のいずれかでトークンを設定:
-  # 1. 環境変数 GITHUB_TOKEN
-  # 2. 以下のtoken設定
-  # token: "${GITHUB_TOKEN}"
+  # ghコマンドを使用してGitHub APIにアクセスします
+  # 事前に gh auth login でログインしておく必要があります
   
   # Issueの監視間隔
   poll_interval: 10s

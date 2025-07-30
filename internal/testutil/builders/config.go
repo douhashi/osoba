@@ -29,7 +29,6 @@ func NewConfigBuilder() *ConfigBuilder {
 					Implement: "osoba: 実装を開始します",
 					Review:    "osoba: レビューを開始します",
 				},
-				UseGhCommand: true,
 			},
 			Tmux: config.TmuxConfig{
 				SessionPrefix: "osoba-",
