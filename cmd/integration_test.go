@@ -160,7 +160,6 @@ github:
 			}
 
 			// 検証
-			// Tokenフィールドは削除された
 			if cfg.GitHub.PollInterval != tt.wantInterval {
 				t.Errorf("PollInterval = %v, want %v", cfg.GitHub.PollInterval, tt.wantInterval)
 			}

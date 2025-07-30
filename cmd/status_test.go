@@ -112,7 +112,6 @@ claude:
 		{
 			name: "設定ファイル存在しない場合",
 			setupConfig: func(cfg *config.Config) {
-				// Tokenフィールドは削除された
 				cfg.Tmux.SessionPrefix = "osoba-"
 			},
 			expectedOutput: []string{

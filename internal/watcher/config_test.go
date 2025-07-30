@@ -64,7 +64,6 @@ github:
 			t.Fatalf("LoadConfig() error = %v", err)
 		}
 
-		// Tokenフィールドは削除された
 		if config.GitHub.Owner != "douhashi" {
 			t.Errorf("Owner = %v, want %v", config.GitHub.Owner, "douhashi")
 		}
@@ -179,7 +178,6 @@ github:
 			t.Fatalf("LoadConfig() error = %v", err)
 		}
 
-		// Tokenフィールドは削除された
 		if config.GitHub.Owner != "env-owner" {
 			t.Errorf("Owner = %v, want %v", config.GitHub.Owner, "env-owner")
 		}

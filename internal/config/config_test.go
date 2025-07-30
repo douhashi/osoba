@@ -87,7 +87,6 @@ claude:
 `,
 			wantErr: false,
 			checkFunc: func(cfg *Config, t *testing.T) {
-				// Tokenフィールドは削除された
 				if cfg.GitHub.PollInterval != 10*time.Second {
 					t.Errorf("poll interval = %v, want 10s", cfg.GitHub.PollInterval)
 				}
@@ -122,7 +121,6 @@ github:
 			},
 			wantErr: false,
 			checkFunc: func(cfg *Config, t *testing.T) {
-				// Tokenフィールドは削除された
 			},
 		},
 		{

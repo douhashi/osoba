@@ -562,7 +562,6 @@ github:
 		}
 
 		// 設定値を検証
-		// Tokenフィールドは削除された
 		if config.GitHub.PollInterval != 2*time.Second {
 			t.Errorf("PollInterval = %v, want 2s", config.GitHub.PollInterval)
 		}
