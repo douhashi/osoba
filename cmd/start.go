@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -38,6 +39,12 @@ func newStartCmd() *cobra.Command {
 tmuxセッションが存在しない場合は自動的に作成されます。
 デフォルトではバックグラウンドで実行されます。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// ヘルプフラグが指定されている場合は何もしない（ヘルプ表示のみ）
+			help, _ := cmd.Flags().GetBool("help")
+			if help {
+				return nil
+			}
+
 			// フォアグラウンドフラグが指定されている場合は従来の動作
 			if foregroundFlag {
 				return runWatchWithFlagsFunc(cmd, args, intervalFlag, configFlag)
@@ -79,9 +86,37 @@ var (
 	runInDaemonModeFunc      = runInDaemonMode
 	checkExistingProcessFunc = checkExistingProcess
 	createPIDFileFunc        = createPIDFile
+	osUserHomeDirFunc        = os.UserHomeDir
 )
 
+// checkConfigFileExists は設定ファイルの存在をチェックし、存在しない場合はエラーメッセージを出力します
+func checkConfigFileExists(errOut io.Writer) error {
+	_, found := findConfigFile()
+	if !found {
+		fmt.Fprintln(errOut, "エラー: 設定ファイルが見つかりません")
+		fmt.Fprintln(errOut, "")
+		fmt.Fprintln(errOut, "以下のいずれかの場所に設定ファイルを配置してください:")
+
+		paths := getConfigFilePaths()
+		for _, path := range paths {
+			fmt.Fprintf(errOut, "  - %s\n", path)
+		}
+
+		fmt.Fprintln(errOut, "")
+		fmt.Fprintln(errOut, "または、以下のコマンドで初期設定を行ってください:")
+		fmt.Fprintln(errOut, "  osoba init")
+
+		return fmt.Errorf("設定ファイルが見つかりません")
+	}
+	return nil
+}
+
 func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFlag string) error {
+	// 設定ファイルの存在チェック
+	if err := checkConfigFileExists(cmd.OutOrStderr()); err != nil {
+		return err
+	}
+
 	fmt.Fprintln(cmd.OutOrStdout(), "Issue監視モードを開始します")
 
 	// 設定を読み込む
@@ -263,6 +298,11 @@ func isDaemonMode() bool {
 
 // startInBackground はプロセスをバックグラウンドで起動します
 func startInBackground(cmd *cobra.Command, args []string) error {
+	// 設定ファイルの存在チェック
+	if err := checkConfigFileExists(cmd.OutOrStderr()); err != nil {
+		return err
+	}
+
 	fmt.Fprintln(cmd.OutOrStdout(), "Issue監視を開始しています...")
 
 	// 設定を読み込む
