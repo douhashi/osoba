@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/douhashi/osoba/internal/utils"
 )
@@ -22,32 +21,11 @@ func getRepoIdentifier() (string, error) {
 
 // getConfigFilePaths は設定ファイルの候補パスを優先順位順に返します
 func getConfigFilePaths() []string {
-	var paths []string
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		// エラーが発生した場合は空のスライスを返す
-		return paths
+	// カレントディレクトリのみを返す
+	return []string{
+		".osoba.yml",
+		".osoba.yaml",
 	}
-
-	xdgConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	if xdgConfigHome != "" {
-		// XDG_CONFIG_HOMEが設定されている場合
-		paths = append(paths,
-			filepath.Join(xdgConfigHome, "osoba", "osoba.yml"),
-			filepath.Join(xdgConfigHome, "osoba", "osoba.yaml"),
-		)
-	}
-
-	// デフォルトのパス
-	paths = append(paths,
-		filepath.Join(home, ".config", "osoba", "osoba.yml"),
-		filepath.Join(home, ".config", "osoba", "osoba.yaml"),
-		filepath.Join(home, ".osoba.yml"),
-		filepath.Join(home, ".osoba.yaml"),
-	)
-
-	return paths
 }
 
 // findConfigFile は実際に存在する設定ファイルのパスを返します

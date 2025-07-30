@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -23,32 +21,19 @@ func TestGetConfigFilePaths(t *testing.T) {
 		setupEnv     func()
 		cleanupEnv   func()
 		wantContains []string
+		wantLength   int
 	}{
 		{
-			name: "デフォルト設定（環境変数なし）",
+			name: "カレントディレクトリのみを返す",
 			setupEnv: func() {
 				os.Unsetenv("XDG_CONFIG_HOME")
 			},
 			cleanupEnv: func() {},
 			wantContains: []string{
-				".config/osoba/osoba.yml",
-				".config/osoba/osoba.yaml",
 				".osoba.yml",
 				".osoba.yaml",
 			},
-		},
-		{
-			name: "XDG_CONFIG_HOMEが設定されている場合",
-			setupEnv: func() {
-				os.Setenv("XDG_CONFIG_HOME", "/custom/config")
-			},
-			cleanupEnv: func() {
-				os.Unsetenv("XDG_CONFIG_HOME")
-			},
-			wantContains: []string{
-				"/custom/config/osoba/osoba.yml",
-				"/custom/config/osoba/osoba.yaml",
-			},
+			wantLength: 2,
 		},
 	}
 
@@ -59,17 +44,18 @@ func TestGetConfigFilePaths(t *testing.T) {
 
 			paths := getConfigFilePaths()
 
-			for _, want := range tt.wantContains {
-				found := false
-				for _, path := range paths {
-					// パスの最後の部分が一致するかチェック
-					if strings.HasSuffix(filepath.ToSlash(path), filepath.ToSlash(want)) {
-						found = true
-						break
-					}
+			// 長さの確認
+			if len(paths) != tt.wantLength {
+				t.Errorf("Expected %d paths, but got %d", tt.wantLength, len(paths))
+			}
+
+			// 内容の確認
+			for i, want := range tt.wantContains {
+				if i >= len(paths) {
+					break
 				}
-				if !found {
-					t.Errorf("Expected paths to contain %s, but it was not found in %v", want, paths)
+				if paths[i] != want {
+					t.Errorf("Expected path[%d] to be %s, but got %s", i, want, paths[i])
 				}
 			}
 		})
@@ -77,89 +63,56 @@ func TestGetConfigFilePaths(t *testing.T) {
 }
 
 func TestFindConfigFile(t *testing.T) {
-	// テスト用の一時ディレクトリを作成
+	// 元のワーキングディレクトリを保存
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origWd)
+
+	// テスト用の一時ディレクトリを作成し、そこに移動
 	tmpDir := t.TempDir()
-
-	// 元の環境変数を保存
-	origHome := os.Getenv("HOME")
-	origXDGConfigHome := os.Getenv("XDG_CONFIG_HOME")
-
-	// テスト用の環境変数を設定
-	os.Setenv("HOME", tmpDir)
-	defer func() {
-		os.Setenv("HOME", origHome)
-		os.Setenv("XDG_CONFIG_HOME", origXDGConfigHome)
-	}()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
 
 	tests := []struct {
 		name       string
 		setupFiles func()
-		setupEnv   func()
 		wantFound  bool
 		wantPath   string
 	}{
 		{
 			name:       "設定ファイルが存在しない場合",
 			setupFiles: func() {},
-			setupEnv: func() {
-				os.Unsetenv("XDG_CONFIG_HOME")
-			},
-			wantFound: false,
-			wantPath:  "",
+			wantFound:  false,
+			wantPath:   "",
 		},
 		{
-			name: "デフォルトパスに設定ファイルが存在する場合",
+			name: "カレントディレクトリに.osoba.ymlが存在する場合",
 			setupFiles: func() {
-				configDir := filepath.Join(tmpDir, ".config", "osoba")
-				os.MkdirAll(configDir, 0755)
-				configFile := filepath.Join(configDir, "osoba.yml")
-				os.WriteFile(configFile, []byte("test"), 0644)
-			},
-			setupEnv: func() {
-				os.Unsetenv("XDG_CONFIG_HOME")
+				os.WriteFile(".osoba.yml", []byte("test"), 0644)
 			},
 			wantFound: true,
-			wantPath:  filepath.Join(tmpDir, ".config", "osoba", "osoba.yml"),
+			wantPath:  ".osoba.yml",
 		},
 		{
-			name: "XDG_CONFIG_HOMEのパスに設定ファイルが存在する場合",
+			name: "カレントディレクトリに.osoba.yamlが存在する場合",
 			setupFiles: func() {
-				xdgDir := filepath.Join(tmpDir, "xdg")
-				configDir := filepath.Join(xdgDir, "osoba")
-				os.MkdirAll(configDir, 0755)
-				configFile := filepath.Join(configDir, "osoba.yml")
-				os.WriteFile(configFile, []byte("test"), 0644)
-			},
-			setupEnv: func() {
-				os.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, "xdg"))
+				os.WriteFile(".osoba.yaml", []byte("test"), 0644)
 			},
 			wantFound: true,
-			wantPath:  filepath.Join(tmpDir, "xdg", "osoba", "osoba.yml"),
-		},
-		{
-			name: "ホームディレクトリに.osoba.ymlが存在する場合",
-			setupFiles: func() {
-				configFile := filepath.Join(tmpDir, ".osoba.yml")
-				os.WriteFile(configFile, []byte("test"), 0644)
-			},
-			setupEnv: func() {
-				os.Unsetenv("XDG_CONFIG_HOME")
-			},
-			wantFound: true,
-			wantPath:  filepath.Join(tmpDir, ".osoba.yml"),
+			wantPath:  ".osoba.yaml",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// クリーンアップ
-			os.RemoveAll(filepath.Join(tmpDir, ".config"))
-			os.RemoveAll(filepath.Join(tmpDir, "xdg"))
-			os.Remove(filepath.Join(tmpDir, ".osoba.yml"))
-			os.Remove(filepath.Join(tmpDir, ".osoba.yaml"))
+			os.Remove(".osoba.yml")
+			os.Remove(".osoba.yaml")
 
 			tt.setupFiles()
-			tt.setupEnv()
 
 			path, found := findConfigFile()
 

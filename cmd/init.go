@@ -245,24 +245,13 @@ func checkGitHubToken(out io.Writer) {
 }
 
 func setupConfigFile(out io.Writer) error {
-	home := getEnvFunc("HOME")
-	xdgConfigHome := getEnvFunc("XDG_CONFIG_HOME")
-	configDir := filepath.Join(home, ".config", "osoba")
-	if xdgConfigHome != "" {
-		configDir = filepath.Join(xdgConfigHome, "osoba")
-	}
-
-	configPath := filepath.Join(configDir, "osoba.yml")
+	// カレントディレクトリに設定ファイルを作成
+	configPath := ".osoba.yml"
 
 	// 既存ファイルの確認
 	if _, err := statFunc(configPath); err == nil {
 		fmt.Fprintln(out, "✅ (既存)")
 		return nil
-	}
-
-	// ディレクトリの作成
-	if err := mkdirAllFunc(configDir, 0755); err != nil {
-		return fmt.Errorf("設定ディレクトリの作成に失敗しました: %w", err)
 	}
 
 	// デフォルト設定の作成
