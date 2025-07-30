@@ -15,7 +15,6 @@ import (
 	"github.com/douhashi/osoba/internal/daemon"
 	"github.com/douhashi/osoba/internal/gh"
 	"github.com/douhashi/osoba/internal/git"
-	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/paths"
 	"github.com/douhashi/osoba/internal/tmux"
@@ -148,14 +147,12 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	fmt.Fprintln(cmd.OutOrStdout(), "\n設定値:")
 	fmt.Fprintf(cmd.OutOrStdout(), "  ポーリング間隔: %s\n", cfg.GitHub.PollInterval)
 
-	// トークンの取得元を表示
+	// gh認証状態を表示
 	token, source := config.GetGitHubToken(cfg)
 	if token != "" {
-		// トークンの最初の3文字と長さを表示（セキュリティのため全体は表示しない）
-		maskedToken := fmt.Sprintf("%s... (長さ: %d文字)", token[:3], len(token))
-		fmt.Fprintf(cmd.OutOrStdout(), "  GitHubトークン: %s (取得元: %s)\n", maskedToken, source)
+		fmt.Fprintf(cmd.OutOrStdout(), "  GitHub認証: 有効 (取得元: %s)\n", source)
 	} else {
-		fmt.Fprintln(cmd.OutOrStdout(), "  GitHubトークン: 未設定")
+		fmt.Fprintln(cmd.OutOrStdout(), "  GitHub認証: 未設定")
 	}
 
 	// 設定の検証
@@ -173,30 +170,18 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	repoName := repoInfo.Repo
 	owner := repoInfo.Owner
 
-	// GitHubクライアントを作成（設定に応じてghコマンドまたはAPIを使用）
-	var githubClient github.GitHubClient
-	if cfg.GitHub.UseGhCommand {
-		// ghコマンドベースのクライアント
-		executor := gh.NewRealCommandExecutor()
-		ghClient, err := gh.NewClient(executor)
-		if err != nil {
-			return fmt.Errorf("ghクライアントの作成に失敗: %w", err)
-		}
-		// 前提条件を検証
-		if err := ghClient.ValidatePrerequisites(context.Background()); err != nil {
-			return fmt.Errorf("ghコマンドの前提条件を満たしていません: %w", err)
-		}
-		githubClient = ghClient
-		fmt.Fprintln(cmd.OutOrStdout(), "  GitHub接続: ghコマンドを使用")
-	} else {
-		// GitHub APIベースのクライアント
-		apiClient, err := github.NewClient(cfg.GitHub.Token)
-		if err != nil {
-			return fmt.Errorf("GitHubクライアントの作成に失敗: %w", err)
-		}
-		githubClient = apiClient
-		fmt.Fprintln(cmd.OutOrStdout(), "  GitHub接続: GitHub APIを使用")
+	// GitHubクライアントを作成（ghコマンドのみ使用）
+	executor := gh.NewRealCommandExecutor()
+	ghClient, err := gh.NewClient(executor)
+	if err != nil {
+		return fmt.Errorf("ghクライアントの作成に失敗: %w", err)
 	}
+	// 前提条件を検証
+	if err := ghClient.ValidatePrerequisites(context.Background()); err != nil {
+		return fmt.Errorf("ghコマンドの前提条件を満たしていません: %w", err)
+	}
+	githubClient := ghClient
+	fmt.Fprintln(cmd.OutOrStdout(), "  GitHub接続: ghコマンドを使用")
 
 	// tmuxがインストールされているか確認
 	if err := tmux.CheckTmuxInstalled(); err != nil {

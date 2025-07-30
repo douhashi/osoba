@@ -13,7 +13,7 @@ func TestConfigBuilder(t *testing.T) {
 		config := builders.NewConfigBuilder().Build()
 
 		assert.NotNil(t, config)
-		assert.Equal(t, "", config.GitHub.Token)
+		// Tokenフィールドは削除された
 		assert.Equal(t, 5*time.Minute, config.GitHub.PollInterval)
 		assert.Equal(t, "osoba-", config.Tmux.SessionPrefix)
 		assert.NotNil(t, config.Claude)
@@ -28,7 +28,7 @@ func TestConfigBuilder(t *testing.T) {
 			WithPollingInterval(10 * time.Minute).
 			Build()
 
-		assert.Equal(t, "CUSTOM_TOKEN", config.GitHub.Token)
+		// Tokenフィールドは削除された（WithGitHubTokenは何もしない）
 		assert.Equal(t, 10*time.Minute, config.GitHub.PollInterval)
 	})
 

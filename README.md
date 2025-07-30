@@ -229,8 +229,6 @@ flowchart LR
 github:
   # ghコマンドを使用する（デフォルト: true）
   use_gh_command: true
-  # GitHub APIを直接使用する場合のみ必要
-  # token: "${GITHUB_TOKEN}"
   poll_interval: 10s
 
 tmux:
@@ -251,9 +249,7 @@ claude:
 
 ### 環境変数
 
-| 環境変数 | 説明 | デフォルト値 |
-|----------|------|-------------|
-| `GITHUB_TOKEN` | GitHub Personal Access Token（gh auth tokenで自動取得可） | - |
+osobaは環境変数での設定を必要としません。GitHub認証はghコマンドを通じて行います。
 
 
 

@@ -69,7 +69,6 @@ func TestConfig_Load(t *testing.T) {
 			configFile: "test_config.yml",
 			configContent: `
 github:
-  token: test-token-from-file
   poll_interval: 10s
   labels:
     plan: "status:needs-plan"
@@ -88,9 +87,7 @@ claude:
 `,
 			wantErr: false,
 			checkFunc: func(cfg *Config, t *testing.T) {
-				if cfg.GitHub.Token != "test-token-from-file" {
-					t.Errorf("token = %v, want test-token-from-file", cfg.GitHub.Token)
-				}
+				// Tokenフィールドは削除された
 				if cfg.GitHub.PollInterval != 10*time.Second {
 					t.Errorf("poll interval = %v, want 10s", cfg.GitHub.PollInterval)
 				}
@@ -118,7 +115,6 @@ claude:
 			configFile: "test_config_env.yml",
 			configContent: `
 github:
-  token: file-token
   poll_interval: 10s
 `,
 			envVars: map[string]string{
@@ -126,9 +122,7 @@ github:
 			},
 			wantErr: false,
 			checkFunc: func(cfg *Config, t *testing.T) {
-				if cfg.GitHub.Token != "env-token" {
-					t.Errorf("token = %v, want env-token", cfg.GitHub.Token)
-				}
+				// Tokenフィールドは削除された
 			},
 		},
 		{
@@ -151,7 +145,7 @@ github:
 			configFile: "test_config_invalid.yml",
 			configContent: `
 github:
-  token: [invalid yaml
+  poll_interval: [invalid yaml
 `,
 			wantErr: true,
 		},
@@ -219,34 +213,34 @@ func TestConfig_Validate(t *testing.T) {
 			name: "正常系: 有効な設定",
 			cfg: &Config{
 				GitHub: GitHubConfig{
-					Token:        "test-token",
 					PollInterval: 5 * time.Second,
 					Labels: LabelConfig{
 						Plan:   "status:needs-plan",
 						Ready:  "status:ready",
 						Review: "status:review-requested",
 					},
+					UseGhCommand: true,
 				},
 			},
 			wantErr: false,
 		},
 		{
-			name: "異常系: GitHubトークンが空",
+			name: "異常系: ghコマンドが無効",
 			cfg: &Config{
 				GitHub: GitHubConfig{
-					Token:        "",
 					PollInterval: 5 * time.Second,
+					UseGhCommand: false,
 				},
 			},
 			wantErr: true,
-			errMsg:  "GitHub token is required when not using gh command",
+			errMsg:  "gh command must be enabled (use_gh_command: true)",
 		},
 		{
 			name: "異常系: ポーリング間隔が短すぎる",
 			cfg: &Config{
 				GitHub: GitHubConfig{
-					Token:        "test-token",
 					PollInterval: 500 * time.Millisecond,
+					UseGhCommand: true,
 				},
 			},
 			wantErr: true,
@@ -256,9 +250,9 @@ func TestConfig_Validate(t *testing.T) {
 			name: "正常系: ラベルが空でもデフォルト値が使われる",
 			cfg: &Config{
 				GitHub: GitHubConfig{
-					Token:        "test-token",
 					PollInterval: 5 * time.Second,
 					Labels:       LabelConfig{},
+					UseGhCommand: true,
 				},
 			},
 			wantErr: false,
@@ -267,7 +261,6 @@ func TestConfig_Validate(t *testing.T) {
 			name: "正常系: ghコマンド使用時はトークンが不要",
 			cfg: &Config{
 				GitHub: GitHubConfig{
-					Token:        "",
 					PollInterval: 5 * time.Second,
 					UseGhCommand: true,
 				},
@@ -368,7 +361,6 @@ func TestConfigSettingsReflection(t *testing.T) {
 			name: "GitHub設定値の反映確認",
 			configContent: `
 github:
-  token: "${GITHUB_TOKEN}"
   poll_interval: 15s
   labels:
     plan: "status:needs-planning"
@@ -485,7 +477,6 @@ claude:
 			name: "環境変数展開の確認",
 			configContent: `
 github:
-  token: "${GITHUB_TOKEN}"
   poll_interval: 10s
 `,
 			checkFunc: func(cfg *Config, t *testing.T) {
@@ -633,71 +624,33 @@ func TestConfig_ValidateClaudeConfig(t *testing.T) {
 	}
 }
 
-// TestGetGitHubToken はGitHubトークン取得の優先順位をテストする
+// TestGetGitHubToken はGitHubトークン取得をテストする
 func TestGetGitHubToken(t *testing.T) {
 	tests := []struct {
 		name        string
-		envVars     map[string]string
 		ghAuthToken string
 		ghCmdExists bool
-		configToken string
 		want        string
 		wantSource  string
 	}{
 		{
-			name: "優先順位1: GITHUB_TOKEN環境変数",
-			envVars: map[string]string{
-				"GITHUB_TOKEN":       "env-github-token",
-				"OSOBA_GITHUB_TOKEN": "env-osoba-token",
-			},
-			ghAuthToken: "gh-token",
-			ghCmdExists: true,
-			configToken: "config-token",
-			want:        "env-github-token",
-			wantSource:  "environment variable GITHUB_TOKEN",
-		},
-		{
-			name:        "優先順位2: ghコマンドのトークン",
-			envVars:     map[string]string{},
+			name:        "ghコマンドのトークンが取得できる",
 			ghAuthToken: "gh-auth-token",
 			ghCmdExists: true,
-			configToken: "config-token",
 			want:        "gh-auth-token",
 			wantSource:  "gh auth token",
 		},
 		{
-			name:        "優先順位3: 設定ファイルのトークン",
-			envVars:     map[string]string{},
-			ghAuthToken: "",
-			ghCmdExists: true,
-			configToken: "config-file-token",
-			want:        "config-file-token",
-			wantSource:  "config file",
-		},
-		{
 			name:        "ghコマンドが存在しない場合",
-			envVars:     map[string]string{},
 			ghAuthToken: "",
 			ghCmdExists: false,
-			configToken: "config-token",
-			want:        "config-token",
-			wantSource:  "config file",
+			want:        "",
+			wantSource:  "",
 		},
 		{
 			name:        "ghコマンドがエラーを返す場合",
-			envVars:     map[string]string{},
 			ghAuthToken: "", // 空文字列はエラーをシミュレート
 			ghCmdExists: true,
-			configToken: "config-token",
-			want:        "config-token",
-			wantSource:  "config file",
-		},
-		{
-			name:        "全てのソースが空の場合",
-			envVars:     map[string]string{},
-			ghAuthToken: "",
-			ghCmdExists: false,
-			configToken: "",
 			want:        "",
 			wantSource:  "",
 		},
@@ -705,26 +658,6 @@ func TestGetGitHubToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 環境変数のバックアップとクリア
-			envBackup := make(map[string]string)
-			for _, key := range []string{"GITHUB_TOKEN", "OSOBA_GITHUB_TOKEN"} {
-				if val, exists := os.LookupEnv(key); exists {
-					envBackup[key] = val
-				}
-				os.Unsetenv(key)
-			}
-			defer func() {
-				// 環境変数を復元
-				for key, val := range envBackup {
-					os.Setenv(key, val)
-				}
-			}()
-
-			// テスト用の環境変数を設定
-			for k, v := range tt.envVars {
-				os.Setenv(k, v)
-			}
-
 			// ghコマンドのモック
 			originalGhAuthTokenFunc := GhAuthTokenFunc
 			GhAuthTokenFunc = func() (string, error) {
@@ -742,7 +675,6 @@ func TestGetGitHubToken(t *testing.T) {
 
 			// Configを作成
 			cfg := NewConfig()
-			cfg.GitHub.Token = tt.configToken
 
 			// トークンを取得
 			token, source := GetGitHubToken(cfg)
@@ -795,7 +727,7 @@ log:
 			name: "デフォルト値でログレベルを設定",
 			configContent: `
 github:
-  token: test-token
+  poll_interval: 10s
 `,
 			envVars:       map[string]string{},
 			wantLogLevel:  "info",

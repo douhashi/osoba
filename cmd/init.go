@@ -235,12 +235,11 @@ func checkGitHubToken(out io.Writer) {
 	token, source := config.GetGitHubToken(cfg)
 
 	if token == "" {
-		fmt.Fprintln(out, "⚠️  GitHub Personal Access Tokenが設定されていません")
-		fmt.Fprintln(out, "   以下のいずれかの方法で設定してください:")
-		fmt.Fprintln(out, "   1. export GITHUB_TOKEN=your_token_here")
-		fmt.Fprintln(out, "   2. gh auth login (GitHub CLIでログイン)")
+		fmt.Fprintln(out, "⚠️  GitHub認証が設定されていません")
+		fmt.Fprintln(out, "   以下のコマンドで認証してください:")
+		fmt.Fprintln(out, "   gh auth login")
 	} else {
-		fmt.Fprintf(out, "✅ GitHub Token設定済み (取得元: %s)\n", source)
+		fmt.Fprintf(out, "✅ GitHub認証済み (取得元: %s)\n", source)
 	}
 }
 

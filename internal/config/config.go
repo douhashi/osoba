@@ -23,7 +23,6 @@ type Config struct {
 
 // GitHubConfig はGitHub関連の設定
 type GitHubConfig struct {
-	Token        string             `mapstructure:"token"`
 	PollInterval time.Duration      `mapstructure:"poll_interval"`
 	Labels       LabelConfig        `mapstructure:"labels"`
 	Messages     PhaseMessageConfig `mapstructure:"messages"`
@@ -99,8 +98,7 @@ func (c *Config) Load(configPath string) error {
 	v.SetEnvPrefix("OSOBA")
 	v.AutomaticEnv()
 
-	// GITHUB_TOKENのみをバインド（OSOBA_GITHUB_TOKENは廃止）
-	v.BindEnv("github.token", "GITHUB_TOKEN")
+	// 環境変数のバインドは不要（ghコマンドのみ使用）
 
 	// ログレベルの環境変数バインド
 	v.BindEnv("log.level", "OSOBA_LOG_LEVEL")
@@ -139,11 +137,7 @@ func (c *Config) Load(configPath string) error {
 		return err
 	}
 
-	// トークンが設定されていない場合、GetGitHubTokenで取得
-	if c.GitHub.Token == "" {
-		token, _ := GetGitHubToken(c)
-		c.GitHub.Token = token
-	}
+	// ghコマンドを使用するため、トークンの取得は不要
 
 	return nil
 }
@@ -190,9 +184,9 @@ func (c *Config) LoadOrDefault(configPath string) string {
 
 // Validate は設定の妥当性を検証する
 func (c *Config) Validate() error {
-	// ghコマンドを使用しない場合のみトークンが必須
-	if !c.GitHub.UseGhCommand && c.GitHub.Token == "" {
-		return errors.New("GitHub token is required when not using gh command")
+	// ghコマンドの使用は必須
+	if !c.GitHub.UseGhCommand {
+		return errors.New("gh command must be enabled (use_gh_command: true)")
 	}
 
 	if c.GitHub.PollInterval < 1*time.Second {
@@ -319,21 +313,11 @@ func executeGhAuthToken() (string, error) {
 }
 
 // GetGitHubToken はGitHubトークンを取得し、取得元を返す
-// 優先順位: 1) GITHUB_TOKEN環境変数, 2) gh auth token, 3) 設定ファイル
+// ghコマンドのみをサポート
 func GetGitHubToken(cfg *Config) (token string, source string) {
-	// 1. GITHUB_TOKEN環境変数をチェック
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
-		return token, "environment variable GITHUB_TOKEN"
-	}
-
-	// 2. gh auth tokenコマンドを試す
+	// gh auth tokenコマンドを試す
 	if ghToken, err := GhAuthTokenFunc(); err == nil && ghToken != "" {
 		return ghToken, "gh auth token"
-	}
-
-	// 3. 設定ファイルのトークンを使用
-	if cfg.GitHub.Token != "" {
-		return cfg.GitHub.Token, "config file"
 	}
 
 	return "", ""

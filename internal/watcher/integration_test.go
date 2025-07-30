@@ -531,7 +531,6 @@ func TestConfigIntegration(t *testing.T) {
 		// テスト用設定ファイルを作成
 		configContent := `
 github:
-  token: "test-token"
   owner: "douhashi"
   repo: "osoba"
   poll_interval: 2s
@@ -563,9 +562,7 @@ github:
 		}
 
 		// 設定値を検証
-		if config.GitHub.Token != "test-token" {
-			t.Errorf("Token = %v, want test-token", config.GitHub.Token)
-		}
+		// Tokenフィールドは削除された
 		if config.GitHub.PollInterval != 2*time.Second {
 			t.Errorf("PollInterval = %v, want 2s", config.GitHub.PollInterval)
 		}
