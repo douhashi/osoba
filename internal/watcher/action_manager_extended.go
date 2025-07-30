@@ -11,17 +11,15 @@ import (
 
 // ActionManagerExtended は拡張されたアクション実行管理構造体
 type ActionManagerExtended struct {
-	sessionName  string
-	stateManager *IssueStateManager
-	factory      ActionFactory
+	sessionName string
+	factory     ActionFactory
 }
 
 // NewActionManagerExtended は新しいActionManagerExtendedを作成する
 func NewActionManagerExtended(sessionName string, factory ActionFactory) *ActionManagerExtended {
 	return &ActionManagerExtended{
-		sessionName:  sessionName,
-		stateManager: NewIssueStateManager(),
-		factory:      factory,
+		sessionName: sessionName,
+		factory:     factory,
 	}
 }
 
@@ -61,9 +59,4 @@ func (m *ActionManagerExtended) GetActionForIssue(issue *github.Issue) ActionExe
 	}
 
 	return nil
-}
-
-// GetStateManager は状態管理オブジェクトを返す
-func (m *ActionManagerExtended) GetStateManager() *IssueStateManager {
-	return m.stateManager
 }

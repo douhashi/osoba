@@ -30,15 +30,13 @@ func hasLabel(issue *github.Issue, labelName string) bool {
 // ActionManager はアクション実行を管理する構造体
 type ActionManager struct {
 	sessionName   string
-	stateManager  *IssueStateManager
 	actionFactory ActionFactory
 }
 
 // NewActionManager は新しいActionManagerを作成する
 func NewActionManager(sessionName string) *ActionManager {
 	return &ActionManager{
-		sessionName:  sessionName,
-		stateManager: NewIssueStateManager(),
+		sessionName: sessionName,
 	}
 }
 
@@ -83,9 +81,4 @@ func (m *ActionManager) GetActionForIssue(issue *github.Issue) ActionExecutor {
 	}
 
 	return nil
-}
-
-// GetStateManager は状態管理オブジェクトを返す
-func (m *ActionManager) GetStateManager() *IssueStateManager {
-	return m.stateManager
 }

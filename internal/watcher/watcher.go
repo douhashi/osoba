@@ -36,7 +36,6 @@ type ActionManagerInterface interface {
 	ExecuteAction(ctx context.Context, issue *github.Issue) error
 	GetActionForIssue(issue *github.Issue) ActionExecutor
 	SetActionFactory(factory ActionFactory)
-	GetStateManager() *IssueStateManager
 }
 
 // IssueWatcher はGitHub Issueを監視する構造体

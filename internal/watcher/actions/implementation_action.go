@@ -17,7 +17,6 @@ type ImplementationAction struct {
 	types.BaseAction
 	baseExecutor *BaseExecutor
 	sessionName  string
-	stateManager StateManagerV2
 	labelManager ActionsLabelManager
 	claudeConfig *claude.ClaudeConfig
 	logger       logger.Logger
@@ -27,7 +26,6 @@ type ImplementationAction struct {
 func NewImplementationAction(
 	sessionName string,
 	tmuxManager tmuxpkg.Manager,
-	stateManager StateManagerV2,
 	labelManager ActionsLabelManager,
 	worktreeManager git.WorktreeManager,
 	claudeExecutor ClaudeCommandBuilder,
@@ -46,7 +44,6 @@ func NewImplementationAction(
 		BaseAction:   types.BaseAction{Type: types.ActionTypeImplementation},
 		baseExecutor: baseExecutor,
 		sessionName:  sessionName,
-		stateManager: stateManager,
 		labelManager: labelManager,
 		claudeConfig: claudeConfig,
 		logger:       logger,
@@ -62,24 +59,9 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	issueNumber := int64(*issue.Number)
 	a.logger.Info("Executing implementation action", "issue_number", issueNumber)
 
-	// 既に処理済みかチェック
-	if a.stateManager.HasBeenProcessed(issueNumber, types.IssueStateImplementation) {
-		a.logger.Info("Issue has already been processed for implementation phase", "issue_number", issueNumber)
-		return nil
-	}
-
-	// 処理中かチェック
-	if a.stateManager.IsProcessing(issueNumber) {
-		return fmt.Errorf("issue #%d is already processing", issueNumber)
-	}
-
-	// 処理開始
-	a.stateManager.SetState(issueNumber, types.IssueStateImplementation, types.IssueStatusProcessing)
-
 	// ワークスペースの準備
 	workspace, err := a.baseExecutor.PrepareWorkspace(ctx, issue, "Implementation")
 	if err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
 		return fmt.Errorf("failed to prepare workspace: %w", err)
 	}
 
@@ -100,7 +82,6 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 	// Claude設定を取得
 	phaseConfig, exists := a.claudeConfig.GetPhase("implement")
 	if !exists {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
 		return fmt.Errorf("implement phase config not found")
 	}
 
@@ -121,7 +102,6 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 
 	// ワークスペースでClaudeコマンドを実行
 	if err := a.baseExecutor.ExecuteInWorkspace(workspace, claudeCmd); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateImplementation)
 		return fmt.Errorf("failed to execute Claude command: %w", err)
 	}
 
@@ -144,8 +124,6 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 		}
 	}
 
-	// 完了処理
-	a.stateManager.MarkAsCompleted(issueNumber, types.IssueStateImplementation)
 	a.logger.Info("Implementation action completed successfully", "issue_number", issueNumber)
 
 	// V2ではフェーズ遷移は行わない（別のコンポーネントが管理）

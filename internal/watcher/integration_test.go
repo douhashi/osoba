@@ -157,14 +157,6 @@ func (m *MockActionManager) SetActionFactory(factory ActionFactory) {
 	m.Called(factory)
 }
 
-func (m *MockActionManager) GetStateManager() *IssueStateManager {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).(*IssueStateManager)
-}
-
 // mockActionFactory はActionFactoryのモック実装
 type mockActionFactory struct {
 	planAction           ActionExecutor
