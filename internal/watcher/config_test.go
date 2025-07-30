@@ -14,7 +14,6 @@ func TestLoadConfig(t *testing.T) {
 	// テスト用の一時ファイルを作成
 	configContent := `
 github:
-  token: "test-token"
   owner: "douhashi"
   repo: "osoba"
   poll_interval: 10s
@@ -65,9 +64,6 @@ github:
 			t.Fatalf("LoadConfig() error = %v", err)
 		}
 
-		if config.GitHub.Token != "test-token" {
-			t.Errorf("Token = %v, want %v", config.GitHub.Token, "test-token")
-		}
 		if config.GitHub.Owner != "douhashi" {
 			t.Errorf("Owner = %v, want %v", config.GitHub.Owner, "douhashi")
 		}
@@ -100,7 +96,6 @@ func TestLoadConfigWithDefaults(t *testing.T) {
 	// 最小限の設定ファイル
 	configContent := `
 github:
-  token: "test-token"
   owner: "douhashi"
   repo: "osoba"
 `
@@ -160,7 +155,6 @@ func TestConfigFromEnv(t *testing.T) {
 	// 最小限の設定ファイル
 	configContent := `
 github:
-  token: ""
   owner: ""
   repo: ""
 `
@@ -184,9 +178,6 @@ github:
 			t.Fatalf("LoadConfig() error = %v", err)
 		}
 
-		if config.GitHub.Token != "env-token" {
-			t.Errorf("Token = %v, want %v", config.GitHub.Token, "env-token")
-		}
 		if config.GitHub.Owner != "env-owner" {
 			t.Errorf("Owner = %v, want %v", config.GitHub.Owner, "env-owner")
 		}
@@ -207,7 +198,6 @@ func TestValidateConfig(t *testing.T) {
 			name: "正常な設定",
 			config: &Config{
 				GitHub: GitHubConfig{
-					Token:          "test-token",
 					Owner:          "douhashi",
 					Repo:           "osoba",
 					PollInterval:   5 * time.Second,
@@ -219,26 +209,9 @@ func TestValidateConfig(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "トークンが空",
-			config: &Config{
-				GitHub: GitHubConfig{
-					Token:          "",
-					Owner:          "douhashi",
-					Repo:           "osoba",
-					PollInterval:   5 * time.Second,
-					MaxRetries:     3,
-					RetryBaseDelay: time.Second,
-					Labels:         []string{"status:ready"},
-				},
-			},
-			wantErr: true,
-			errMsg:  "github.token is required",
-		},
-		{
 			name: "オーナーが空",
 			config: &Config{
 				GitHub: GitHubConfig{
-					Token:          "test-token",
 					Owner:          "",
 					Repo:           "osoba",
 					PollInterval:   5 * time.Second,
@@ -254,7 +227,6 @@ func TestValidateConfig(t *testing.T) {
 			name: "リポジトリが空",
 			config: &Config{
 				GitHub: GitHubConfig{
-					Token:          "test-token",
 					Owner:          "douhashi",
 					Repo:           "",
 					PollInterval:   5 * time.Second,
@@ -270,7 +242,6 @@ func TestValidateConfig(t *testing.T) {
 			name: "ポーリング間隔が無効",
 			config: &Config{
 				GitHub: GitHubConfig{
-					Token:          "test-token",
 					Owner:          "douhashi",
 					Repo:           "osoba",
 					PollInterval:   500 * time.Millisecond,
@@ -286,7 +257,6 @@ func TestValidateConfig(t *testing.T) {
 			name: "最大リトライ回数が無効",
 			config: &Config{
 				GitHub: GitHubConfig{
-					Token:          "test-token",
 					Owner:          "douhashi",
 					Repo:           "osoba",
 					PollInterval:   5 * time.Second,
@@ -302,7 +272,6 @@ func TestValidateConfig(t *testing.T) {
 			name: "リトライ基本遅延が無効",
 			config: &Config{
 				GitHub: GitHubConfig{
-					Token:          "test-token",
 					Owner:          "douhashi",
 					Repo:           "osoba",
 					PollInterval:   5 * time.Second,

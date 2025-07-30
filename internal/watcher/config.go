@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/douhashi/osoba/internal/config"
 	"github.com/spf13/viper"
 )
 
@@ -16,7 +15,6 @@ type Config struct {
 
 // GitHubConfig はGitHub関連の設定を表す
 type GitHubConfig struct {
-	Token          string        `mapstructure:"token"`
 	Owner          string        `mapstructure:"owner"`
 	Repo           string        `mapstructure:"repo"`
 	PollInterval   time.Duration `mapstructure:"poll_interval"`
@@ -37,7 +35,6 @@ func LoadConfig(path string) (*Config, error) {
 	v.SetEnvPrefix("OSOBA")
 	v.AutomaticEnv()
 	// 環境変数のマッピングを明示的に設定
-	v.BindEnv("github.token", "GITHUB_TOKEN")
 	v.BindEnv("github.owner", "OSOBA_GITHUB_OWNER")
 	v.BindEnv("github.repo", "OSOBA_GITHUB_REPO")
 
@@ -52,17 +49,7 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	// トークンが設定されていない場合、GetGitHubTokenで取得
-	if cfg.GitHub.Token == "" {
-		// 仮のConfigを作成して、GetGitHubTokenを呼び出す
-		tempCfg := &config.Config{
-			GitHub: config.GitHubConfig{
-				Token: cfg.GitHub.Token,
-			},
-		}
-		token, _ := config.GetGitHubToken(tempCfg)
-		cfg.GitHub.Token = token
-	}
+	// ghコマンドを使用するため、トークンの取得は不要
 
 	// 設定の検証
 	if err := ValidateConfig(&cfg); err != nil {
@@ -81,9 +68,6 @@ func SetViperDefaults(v *viper.Viper) {
 
 // ValidateConfig は設定の妥当性を検証する
 func ValidateConfig(cfg *Config) error {
-	if cfg.GitHub.Token == "" {
-		return errors.New("github.token is required")
-	}
 	if cfg.GitHub.Owner == "" {
 		return errors.New("github.owner is required")
 	}

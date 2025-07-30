@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,11 +23,9 @@ type Config struct {
 
 // GitHubConfig はGitHub関連の設定
 type GitHubConfig struct {
-	Token        string             `mapstructure:"token"`
 	PollInterval time.Duration      `mapstructure:"poll_interval"`
 	Labels       LabelConfig        `mapstructure:"labels"`
 	Messages     PhaseMessageConfig `mapstructure:"messages"`
-	UseGhCommand bool               `mapstructure:"use_gh_command"` // ghコマンドを使用するかどうか
 }
 
 // LabelConfig は監視対象のラベル設定
@@ -75,8 +72,7 @@ func NewConfig() *Config {
 				Ready:  "status:ready",
 				Review: "status:review-requested",
 			},
-			Messages:     NewDefaultPhaseMessageConfig(),
-			UseGhCommand: true, // デフォルトでghコマンドを使用
+			Messages: NewDefaultPhaseMessageConfig(),
 		},
 		Tmux: TmuxConfig{
 			SessionPrefix: "osoba-",
@@ -100,8 +96,7 @@ func (c *Config) Load(configPath string) error {
 	v.SetEnvPrefix("OSOBA")
 	v.AutomaticEnv()
 
-	// GITHUB_TOKENのみをバインド（OSOBA_GITHUB_TOKENは廃止）
-	v.BindEnv("github.token", "GITHUB_TOKEN")
+	// 環境変数のバインドは不要（ghコマンドのみ使用）
 
 	// ログレベルの環境変数バインド
 	v.BindEnv("log.level", "OSOBA_LOG_LEVEL")
@@ -115,7 +110,6 @@ func (c *Config) Load(configPath string) error {
 	v.SetDefault("github.messages.plan", "osoba: 計画を作成します")
 	v.SetDefault("github.messages.implement", "osoba: 実装を開始します")
 	v.SetDefault("github.messages.review", "osoba: レビューを開始します")
-	v.SetDefault("github.use_gh_command", true) // デフォルトでghコマンドを使用
 	v.SetDefault("tmux.session_prefix", "osoba-")
 
 	// ログ設定のデフォルト値
@@ -140,11 +134,7 @@ func (c *Config) Load(configPath string) error {
 		return err
 	}
 
-	// トークンが設定されていない場合、GetGitHubTokenで取得
-	if c.GitHub.Token == "" {
-		token, _ := GetGitHubToken(c)
-		c.GitHub.Token = token
-	}
+	// ghコマンドを使用するため、トークンの取得は不要
 
 	return nil
 }
@@ -154,23 +144,18 @@ func (c *Config) Load(configPath string) error {
 func (c *Config) LoadOrDefault(configPath string) string {
 	actualPath := configPath
 
-	// configPathが空の場合はデフォルトパスを試す
+	// configPathが空の場合はカレントディレクトリのデフォルトパスを試す
 	if configPath == "" {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			// デフォルトパスの候補を試す
-			defaultPaths := []string{
-				filepath.Join(home, ".config", "osoba", "osoba.yml"),
-				filepath.Join(home, ".config", "osoba", "osoba.yaml"),
-				filepath.Join(home, ".osoba.yml"),
-				filepath.Join(home, ".osoba.yaml"),
-			}
+		// カレントディレクトリのパスの候補を試す
+		defaultPaths := []string{
+			".osoba.yml",
+			".osoba.yaml",
+		}
 
-			for _, path := range defaultPaths {
-				if _, err := os.Stat(path); err == nil {
-					actualPath = path
-					break
-				}
+		for _, path := range defaultPaths {
+			if _, err := os.Stat(path); err == nil {
+				actualPath = path
+				break
 			}
 		}
 	}
@@ -196,11 +181,6 @@ func (c *Config) LoadOrDefault(configPath string) string {
 
 // Validate は設定の妥当性を検証する
 func (c *Config) Validate() error {
-	// ghコマンドを使用しない場合のみトークンが必須
-	if !c.GitHub.UseGhCommand && c.GitHub.Token == "" {
-		return errors.New("GitHub token is required when not using gh command")
-	}
-
 	if c.GitHub.PollInterval < 1*time.Second {
 		return errors.New("poll interval must be at least 1 second")
 	}
@@ -325,21 +305,11 @@ func executeGhAuthToken() (string, error) {
 }
 
 // GetGitHubToken はGitHubトークンを取得し、取得元を返す
-// 優先順位: 1) GITHUB_TOKEN環境変数, 2) gh auth token, 3) 設定ファイル
+// ghコマンドのみをサポート
 func GetGitHubToken(cfg *Config) (token string, source string) {
-	// 1. GITHUB_TOKEN環境変数をチェック
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
-		return token, "environment variable GITHUB_TOKEN"
-	}
-
-	// 2. gh auth tokenコマンドを試す
+	// gh auth tokenコマンドを試す
 	if ghToken, err := GhAuthTokenFunc(); err == nil && ghToken != "" {
 		return ghToken, "gh auth token"
-	}
-
-	// 3. 設定ファイルのトークンを使用
-	if cfg.GitHub.Token != "" {
-		return cfg.GitHub.Token, "config file"
 	}
 
 	return "", ""

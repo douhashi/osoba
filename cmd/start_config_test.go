@@ -2,47 +2,41 @@ package cmd
 
 import (
 	"bytes"
-	"errors"
 	"os"
-	"path/filepath"
 	"testing"
-
-	"github.com/douhashi/osoba/internal/testutil/helpers"
 )
 
 func TestCheckConfigFileExists(t *testing.T) {
-	// テスト用の一時ディレクトリを作成
+	// 元のワーキングディレクトリを保存
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origWd)
+
+	// テスト用の一時ディレクトリを作成し、そこに移動
 	tmpDir := t.TempDir()
-
-	// 元の環境変数を保存
-	origHome := os.Getenv("HOME")
-	origXDGConfigHome := os.Getenv("XDG_CONFIG_HOME")
-
-	// テスト用の環境変数を設定
-	os.Setenv("HOME", tmpDir)
-	defer func() {
-		os.Setenv("HOME", origHome)
-		os.Setenv("XDG_CONFIG_HOME", origXDGConfigHome)
-	}()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
 
 	tests := []struct {
 		name            string
 		setupFiles      func()
-		setupEnv        func()
-		mockStat        func(*helpers.FunctionMocker)
 		wantErr         bool
 		wantErrContains string
 	}{
 		{
-			name: "設定ファイルが存在する場合",
+			name: "カレントディレクトリに.osoba.ymlが存在する場合",
 			setupFiles: func() {
-				configDir := filepath.Join(tmpDir, ".config", "osoba")
-				os.MkdirAll(configDir, 0755)
-				configFile := filepath.Join(configDir, "osoba.yml")
-				os.WriteFile(configFile, []byte("test"), 0644)
+				os.WriteFile(".osoba.yml", []byte("test"), 0644)
 			},
-			setupEnv: func() {
-				os.Unsetenv("XDG_CONFIG_HOME")
+			wantErr: false,
+		},
+		{
+			name: "カレントディレクトリに.osoba.yamlが存在する場合",
+			setupFiles: func() {
+				os.WriteFile(".osoba.yaml", []byte("test"), 0644)
 			},
 			wantErr: false,
 		},
@@ -50,38 +44,6 @@ func TestCheckConfigFileExists(t *testing.T) {
 			name: "設定ファイルが存在しない場合",
 			setupFiles: func() {
 				// 何もしない（ファイルを作成しない）
-			},
-			setupEnv: func() {
-				os.Unsetenv("XDG_CONFIG_HOME")
-			},
-			wantErr:         true,
-			wantErrContains: "設定ファイルが見つかりません",
-		},
-		{
-			name: "XDG_CONFIG_HOMEに設定ファイルが存在する場合",
-			setupFiles: func() {
-				xdgDir := filepath.Join(tmpDir, "xdg")
-				configDir := filepath.Join(xdgDir, "osoba")
-				os.MkdirAll(configDir, 0755)
-				configFile := filepath.Join(configDir, "osoba.yml")
-				os.WriteFile(configFile, []byte("test"), 0644)
-			},
-			setupEnv: func() {
-				os.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, "xdg"))
-			},
-			wantErr: false,
-		},
-		{
-			name:       "ホームディレクトリの取得に失敗した場合",
-			setupFiles: func() {},
-			setupEnv: func() {
-				os.Unsetenv("XDG_CONFIG_HOME")
-			},
-			mockStat: func(mocker *helpers.FunctionMocker) {
-				// os.UserHomeDirをモックして失敗させる
-				mocker.MockFunc(&osUserHomeDirFunc, func() (string, error) {
-					return "", errors.New("home directory not found")
-				})
 			},
 			wantErr:         true,
 			wantErrContains: "設定ファイルが見つかりません",
@@ -91,21 +53,10 @@ func TestCheckConfigFileExists(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// クリーンアップ
-			os.RemoveAll(filepath.Join(tmpDir, ".config"))
-			os.RemoveAll(filepath.Join(tmpDir, "xdg"))
-			os.Remove(filepath.Join(tmpDir, ".osoba.yml"))
-			os.Remove(filepath.Join(tmpDir, ".osoba.yaml"))
-
-			// モッカーのセットアップ
-			mocker := helpers.NewFunctionMocker()
-			defer mocker.Restore()
+			os.Remove(".osoba.yml")
+			os.Remove(".osoba.yaml")
 
 			tt.setupFiles()
-			tt.setupEnv()
-
-			if tt.mockStat != nil {
-				tt.mockStat(mocker)
-			}
 
 			errBuf := new(bytes.Buffer)
 			err := checkConfigFileExists(errBuf)

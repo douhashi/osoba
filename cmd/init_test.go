@@ -61,9 +61,6 @@ func TestInitCmd(t *testing.T) {
 					return nil
 				}
 				getEnvFunc = func(key string) string {
-					if key == "GITHUB_TOKEN" || key == "OSOBA_GITHUB_TOKEN" {
-						return "test-token"
-					}
 					return ""
 				}
 				writeFileFunc = func(path string, data []byte, perm os.FileMode) error {
@@ -207,7 +204,7 @@ func TestInitCmd_EnvironmentChecks(t *testing.T) {
 			wantErrContains: "claudeがインストールされていません",
 		},
 		{
-			name: "警告: GitHub Tokenが設定されていない",
+			name: "警告: GitHub認証が設定されていない",
 			setupMocks: func() {
 				isGitRepositoryFunc = func(path string) (bool, error) {
 					return true, nil
@@ -624,9 +621,6 @@ func TestInitCmd_GitHubCLIChecks(t *testing.T) {
 					return nil
 				}
 				getEnvFunc = func(key string) string {
-					if key == "GITHUB_TOKEN" || key == "OSOBA_GITHUB_TOKEN" {
-						return "test-token"
-					}
 					return ""
 				}
 				execCommandFunc = func(name string, args ...string) ([]byte, error) {
@@ -721,9 +715,6 @@ func TestInitCmd_GitHubCLIChecks(t *testing.T) {
 					return nil
 				}
 				getEnvFunc = func(key string) string {
-					if key == "GITHUB_TOKEN" || key == "OSOBA_GITHUB_TOKEN" {
-						return "test-token"
-					}
 					return ""
 				}
 				execCommandFunc = func(name string, args ...string) ([]byte, error) {

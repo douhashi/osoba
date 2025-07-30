@@ -12,6 +12,7 @@ import (
 
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/daemon"
+	"github.com/douhashi/osoba/internal/gh"
 	githubClient "github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/paths"
@@ -110,20 +111,18 @@ func runStatusCmd(cmd *cobra.Command) error {
 		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  設定表示エラー: %v\n", err)
 	}
 
-	// GitHub APIが利用可能かチェック
+	// GitHub認証が利用可能かチェック
 	token, _ := config.GetGitHubToken(cfg)
 	if token == "" {
-		fmt.Fprintln(cmd.OutOrStdout(), "⚠️  GitHub APIトークンが設定されていません")
-		fmt.Fprintln(cmd.OutOrStdout(), "   詳細なステータス情報を表示するには、以下のいずれかの方法でトークンを設定してください:")
-		fmt.Fprintln(cmd.OutOrStdout(), "   1. export GITHUB_TOKEN=your_token_here")
-		fmt.Fprintln(cmd.OutOrStdout(), "   2. gh auth login (GitHub CLIでログイン)")
-		fmt.Fprintln(cmd.OutOrStdout(), "   3. 設定ファイルで github.token を設定")
+		fmt.Fprintln(cmd.OutOrStdout(), "⚠️  GitHub認証が設定されていません")
+		fmt.Fprintln(cmd.OutOrStdout(), "   詳細なステータス情報を表示するには、以下のコマンドで認証してください:")
+		fmt.Fprintln(cmd.OutOrStdout(), "   gh auth login")
 		return nil
 	}
-	cfg.GitHub.Token = token
 
-	// GitHub クライアントを作成
-	client, err := githubClient.NewClient(cfg.GitHub.Token)
+	// GitHub クライアントを作成（ghコマンドのみ使用）
+	executor := gh.NewRealCommandExecutor()
+	client, err := gh.NewClient(executor)
 	if err != nil {
 		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHub クライアント作成エラー: %v\n", err)
 		return nil
@@ -213,7 +212,7 @@ func getLogger() logger.Logger {
 	return log
 }
 
-func displayGitHubIssues(cmd *cobra.Command, ctx context.Context, client *githubClient.GHClient, repoInfo *utils.GitHubRepoInfo, cfg *config.Config) error {
+func displayGitHubIssues(cmd *cobra.Command, ctx context.Context, client githubClient.GitHubClient, repoInfo *utils.GitHubRepoInfo, cfg *config.Config) error {
 	statusLabels := []string{
 		"status:planning",
 		"status:implementing",

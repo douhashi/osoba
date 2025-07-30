@@ -1,0 +1,19 @@
+# 最小限の設定ファイルサンプル
+
+github:
+  poll_interval: 10s
+
+tmux:
+  session_prefix: "osoba-"
+
+claude:
+  phases:
+    plan:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:plan {{issue-number}}"
+    implement:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:implement {{issue-number}}"
+    review:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:review {{issue-number}}"

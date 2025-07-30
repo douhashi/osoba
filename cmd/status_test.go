@@ -87,7 +87,6 @@ func TestDisplayConfiguration(t *testing.T) {
 			name: "正常な設定表示",
 			configContent: `
 github:
-  token: "ghp_1234567890abcdef"
   poll_interval: "30s"
 tmux:
   session_prefix: "test-"
@@ -100,7 +99,6 @@ claude:
 			expectedOutput: []string{
 				"Configuration",
 				"GitHub:",
-				"Token: ghp*****************",
 				"Poll Interval: 30s",
 				"TMux:",
 				"Session Prefix: test-",
@@ -114,41 +112,14 @@ claude:
 		{
 			name: "設定ファイル存在しない場合",
 			setupConfig: func(cfg *config.Config) {
-				cfg.GitHub.Token = "default_token"
 				cfg.Tmux.SessionPrefix = "osoba-"
 			},
 			expectedOutput: []string{
 				"Configuration",
 				"GitHub:",
-				"Token: def*********",
+				// Tokenの表示は削除された
 				"TMux:",
 				"Session Prefix: osoba-",
-			},
-			expectError: false,
-		},
-		{
-			name: "空のトークン",
-			configContent: `
-github:
-  token: ""
-  poll_interval: "10s"
-`,
-			expectedOutput: []string{
-				"Configuration",
-				"GitHub:",
-				"Token: (not set)",
-				"Poll Interval: 10s",
-			},
-			expectError: false,
-		},
-		{
-			name: "短いトークン",
-			configContent: `
-github:
-  token: "abc"
-`,
-			expectedOutput: []string{
-				"Token: ***",
 			},
 			expectError: false,
 		},

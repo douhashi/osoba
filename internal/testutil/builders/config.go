@@ -18,7 +18,6 @@ func NewConfigBuilder() *ConfigBuilder {
 	return &ConfigBuilder{
 		cfg: &config.Config{
 			GitHub: config.GitHubConfig{
-				Token:        "",
 				PollInterval: 5 * time.Minute,
 				Labels: config.LabelConfig{
 					Plan:   "status:needs-plan",
@@ -30,7 +29,6 @@ func NewConfigBuilder() *ConfigBuilder {
 					Implement: "osoba: 実装を開始します",
 					Review:    "osoba: レビューを開始します",
 				},
-				UseGhCommand: true,
 			},
 			Tmux: config.TmuxConfig{
 				SessionPrefix: "osoba-",
@@ -59,9 +57,9 @@ func NewConfigBuilder() *ConfigBuilder {
 	}
 }
 
-// WithGitHubToken sets the GitHub token
+// WithGitHubToken is deprecated and does nothing (gh command is used instead)
 func (b *ConfigBuilder) WithGitHubToken(token string) *ConfigBuilder {
-	b.cfg.GitHub.Token = token
+	// No-op: gh command is used for authentication
 	return b
 }
 

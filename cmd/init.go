@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-//go:embed templates/*
+//go:embed templates/* templates/commands/*
 var templateFS embed.FS
 
 // githubInterface はテスト用のGitHubクライアントインターフェース
@@ -235,24 +235,17 @@ func checkGitHubToken(out io.Writer) {
 	token, source := config.GetGitHubToken(cfg)
 
 	if token == "" {
-		fmt.Fprintln(out, "⚠️  GitHub Personal Access Tokenが設定されていません")
-		fmt.Fprintln(out, "   以下のいずれかの方法で設定してください:")
-		fmt.Fprintln(out, "   1. export GITHUB_TOKEN=your_token_here")
-		fmt.Fprintln(out, "   2. gh auth login (GitHub CLIでログイン)")
+		fmt.Fprintln(out, "⚠️  GitHub認証が設定されていません")
+		fmt.Fprintln(out, "   以下のコマンドで認証してください:")
+		fmt.Fprintln(out, "   gh auth login")
 	} else {
-		fmt.Fprintf(out, "✅ GitHub Token設定済み (取得元: %s)\n", source)
+		fmt.Fprintf(out, "✅ GitHub認証済み (取得元: %s)\n", source)
 	}
 }
 
 func setupConfigFile(out io.Writer) error {
-	home := getEnvFunc("HOME")
-	xdgConfigHome := getEnvFunc("XDG_CONFIG_HOME")
-	configDir := filepath.Join(home, ".config", "osoba")
-	if xdgConfigHome != "" {
-		configDir = filepath.Join(xdgConfigHome, "osoba")
-	}
-
-	configPath := filepath.Join(configDir, "osoba.yml")
+	// カレントディレクトリに設定ファイルを作成
+	configPath := ".osoba.yml"
 
 	// 既存ファイルの確認
 	if _, err := statFunc(configPath); err == nil {
@@ -260,35 +253,13 @@ func setupConfigFile(out io.Writer) error {
 		return nil
 	}
 
-	// ディレクトリの作成
-	if err := mkdirAllFunc(configDir, 0755); err != nil {
-		return fmt.Errorf("設定ディレクトリの作成に失敗しました: %w", err)
+	// テンプレートファイルから設定内容を読み込む
+	templateContent, err := templateFS.ReadFile("templates/config.yml")
+	if err != nil {
+		return fmt.Errorf("設定ファイルテンプレートの読み込みに失敗しました: %w", err)
 	}
 
-	// デフォルト設定の作成
-	defaultConfig := `# 最小限の設定ファイルサンプル
-
-github:
-  token: "${GITHUB_TOKEN}"
-  poll_interval: 10s
-
-tmux:
-  session_prefix: "osoba-"
-
-claude:
-  phases:
-    plan:
-      args: ["--dangerously-skip-permissions"]
-      prompt: "/osoba:plan {{issue-number}}"
-    implement:
-      args: ["--dangerously-skip-permissions"]
-      prompt: "/osoba:implement {{issue-number}}"
-    review:
-      args: ["--dangerously-skip-permissions"]
-      prompt: "/osoba:review {{issue-number}}"
-`
-
-	if err := writeFileFunc(configPath, []byte(defaultConfig), 0644); err != nil {
+	if err := writeFileFunc(configPath, templateContent, 0644); err != nil {
 		return fmt.Errorf("設定ファイルの作成に失敗しました: %w", err)
 	}
 

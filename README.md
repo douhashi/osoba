@@ -40,7 +40,7 @@ devcontainerや隔離された環境で実行するなど、可能な限りの�
 
 ### 代替案
 
-より安全な使用を希望する場合は、`$HOME/.config/osoba/osoba.yml` に以下の設定変更を検討してください：
+より安全な使用を希望する場合は、`.osoba.yml` に以下の設定変更を検討してください：
 
 ```yaml
 claude:
@@ -225,12 +225,8 @@ flowchart LR
 ### 設定ファイルの構造
 
 ```yaml
-# ~/.config/osoba/osoba.yml
+# .osoba.yml
 github:
-  # ghコマンドを使用する（デフォルト: true）
-  use_gh_command: true
-  # GitHub APIを直接使用する場合のみ必要
-  # token: "${GITHUB_TOKEN}"
   poll_interval: 10s
 
 tmux:
@@ -251,9 +247,7 @@ claude:
 
 ### 環境変数
 
-| 環境変数 | 説明 | デフォルト値 |
-|----------|------|-------------|
-| `GITHUB_TOKEN` | GitHub Personal Access Token（gh auth tokenで自動取得可） | - |
+osobaは環境変数での設定を必要としません。GitHub認証はghコマンドを通じて行います。
 
 
 
