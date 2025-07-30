@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -381,26 +382,37 @@ tmux:
 					}
 					args = []string{"status", "-c", configPath}
 				} else {
-					// デフォルトパスに設定ファイルを配置
-					configDir := filepath.Join(tmpDir, ".config", "osoba")
-					err := os.MkdirAll(configDir, 0755)
-					if err != nil {
-						t.Fatalf("設定ディレクトリ作成失敗: %v", err)
-					}
-					configPath := filepath.Join(configDir, "osoba.yml")
-					err = os.WriteFile(configPath, []byte(tt.configContent), 0644)
+					// カレントディレクトリに設定ファイルを配置
+					configPath := filepath.Join(tmpDir, ".osoba.yml")
+					err := os.WriteFile(configPath, []byte(tt.configContent), 0644)
 					if err != nil {
 						t.Fatalf("設定ファイル作成失敗: %v", err)
 					}
-					// HOMEを一時ディレクトリに設定
-					originalHome := os.Getenv("HOME")
-					os.Setenv("HOME", tmpDir)
+					// テンポラリディレクトリをGitリポジトリとして初期化
+					gitInit := exec.Command("git", "init")
+					gitInit.Dir = tmpDir
+					err = gitInit.Run()
+					if err != nil {
+						t.Fatalf("git init失敗: %v", err)
+					}
+					gitRemote := exec.Command("git", "remote", "add", "origin", "https://github.com/douhashi/osoba.git")
+					gitRemote.Dir = tmpDir
+					err = gitRemote.Run()
+					if err != nil {
+						t.Fatalf("git remote add失敗: %v", err)
+					}
+
+					// カレントディレクトリを一時ディレクトリに変更
+					originalDir, err := os.Getwd()
+					if err != nil {
+						t.Fatalf("カレントディレクトリ取得失敗: %v", err)
+					}
+					err = os.Chdir(tmpDir)
+					if err != nil {
+						t.Fatalf("ディレクトリ変更失敗: %v", err)
+					}
 					defer func() {
-						if originalHome != "" {
-							os.Setenv("HOME", originalHome)
-						} else {
-							os.Unsetenv("HOME")
-						}
+						os.Chdir(originalDir)
 					}()
 					args = []string{"status"}
 				}
