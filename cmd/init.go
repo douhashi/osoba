@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-//go:embed templates/*
+//go:embed templates/* templates/commands/*
 var templateFS embed.FS
 
 // githubInterface はテスト用のGitHubクライアントインターフェース
@@ -254,30 +254,13 @@ func setupConfigFile(out io.Writer) error {
 		return nil
 	}
 
-	// デフォルト設定の作成
-	defaultConfig := `# 最小限の設定ファイルサンプル
+	// テンプレートファイルから設定内容を読み込む
+	templateContent, err := templateFS.ReadFile("templates/config.yml")
+	if err != nil {
+		return fmt.Errorf("設定ファイルテンプレートの読み込みに失敗しました: %w", err)
+	}
 
-github:
-  token: "${GITHUB_TOKEN}"
-  poll_interval: 10s
-
-tmux:
-  session_prefix: "osoba-"
-
-claude:
-  phases:
-    plan:
-      args: ["--dangerously-skip-permissions"]
-      prompt: "/osoba:plan {{issue-number}}"
-    implement:
-      args: ["--dangerously-skip-permissions"]
-      prompt: "/osoba:implement {{issue-number}}"
-    review:
-      args: ["--dangerously-skip-permissions"]
-      prompt: "/osoba:review {{issue-number}}"
-`
-
-	if err := writeFileFunc(configPath, []byte(defaultConfig), 0644); err != nil {
+	if err := writeFileFunc(configPath, templateContent, 0644); err != nil {
 		return fmt.Errorf("設定ファイルの作成に失敗しました: %w", err)
 	}
 
