@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -154,23 +153,18 @@ func (c *Config) Load(configPath string) error {
 func (c *Config) LoadOrDefault(configPath string) string {
 	actualPath := configPath
 
-	// configPathが空の場合はデフォルトパスを試す
+	// configPathが空の場合はカレントディレクトリのデフォルトパスを試す
 	if configPath == "" {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			// デフォルトパスの候補を試す
-			defaultPaths := []string{
-				filepath.Join(home, ".config", "osoba", "osoba.yml"),
-				filepath.Join(home, ".config", "osoba", "osoba.yaml"),
-				filepath.Join(home, ".osoba.yml"),
-				filepath.Join(home, ".osoba.yaml"),
-			}
+		// カレントディレクトリのパスの候補を試す
+		defaultPaths := []string{
+			".osoba.yml",
+			".osoba.yaml",
+		}
 
-			for _, path := range defaultPaths {
-				if _, err := os.Stat(path); err == nil {
-					actualPath = path
-					break
-				}
+		for _, path := range defaultPaths {
+			if _, err := os.Stat(path); err == nil {
+				actualPath = path
+				break
 			}
 		}
 	}
