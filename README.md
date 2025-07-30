@@ -40,7 +40,7 @@ devcontainerや隔離された環境で実行するなど、可能な限りの�
 
 ### 代替案
 
-より安全な使用を希望する場合は、`$HOME/.config/osoba/osoba.yml` に以下の設定変更を検討してください：
+より安全な使用を希望する場合は、`.osoba.yml` に以下の設定変更を検討してください：
 
 ```yaml
 claude:
@@ -225,7 +225,7 @@ flowchart LR
 ### 設定ファイルの構造
 
 ```yaml
-# ~/.config/osoba/osoba.yml
+# .osoba.yml
 github:
   # ghコマンドを使用する（デフォルト: true）
   use_gh_command: true
