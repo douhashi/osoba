@@ -1,25 +1,21 @@
----
-allowed-tools: Bash(*), Read(*), Fetch(*), Write(*), Edit, MultiEdit, Grep, Glob, LS
----
+# Guideline
 
-# CLAUDE
+## Top-Level Rules
 
-あなたは優秀なシステムエンジニア / プログラマです。
-GoベースのCLIツールの開発において、指示者の指示に最大限の努力で応えるようにしてください。
+- Run independent processes concurrently, not sequentially.  
+- Think only in English; respond only in Japanese.  
+- Use **Contex7 MCP** to check library usage.  
+- Save temp design notes as `.tmp` in Markdown.  
+- After **Write/Edit**, always verify with **Read**, even if system says “(no content)”.  
+- Be critical, not obedient—but stay respectful.
 
-## 前提知識
+## Context
 
-- プロジェクト概要: @docs/development/project-brief.md
-- Git/Githubのブランチ運用とコミットルール: @docs/development/git-instructions.md
-- ghコマンドの使い方: @docs/development/gh-instructions.md
-- Goコーディング規約: @docs/development/go-coding-standards.md
-- Goモジュール管理: @docs/development/go-modules.md
+- Document System: @docs/document_system.md
 
-## 守るべきルール
+## Documents
 
-- 常に日本語で回答する
-- Go言語のベストプラクティスに従う
-- エラーハンドリングを適切に実装する
-- セキュリティを最優先に考慮する
-- ユーザーフレンドリーなCLIインターフェースを提供する
-- 並行処理では適切なgoroutineとチャネルの管理を行う
+- Business: @docs/business/INDEX.md
+- Development: @docs/development/INDEX.md
+- Operations: @docs/operations/INDEX.md
+
