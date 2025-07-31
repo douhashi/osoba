@@ -74,12 +74,24 @@ func TestShouldProcessIssue(t *testing.T) {
 			expectedResult: true,
 			expectedReason: "Trigger label 'status:ready' found without corresponding execution label",
 		},
+		// 異常系のテストケース
+		{
+			name:           "nilのIssueの場合は処理しない",
+			issueLabels:    nil, // createTestIssueWithLabelsでnilを処理する
+			expectedResult: false,
+			expectedReason: "No trigger labels found",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			issue := createTestIssueWithLabels(tt.issueLabels)
+			var issue *github.Issue
+			if tt.name == "nilのIssueの場合は処理しない" {
+				issue = nil
+			} else {
+				issue = createTestIssueWithLabels(tt.issueLabels)
+			}
 
 			// Act
 			shouldProcess, reason := ShouldProcessIssue(issue)
@@ -89,6 +101,45 @@ func TestShouldProcessIssue(t *testing.T) {
 			assert.Equal(t, tt.expectedReason, reason, "判定理由が期待値と異なる")
 		})
 	}
+}
+
+func TestShouldProcessIssue_NilLabels(t *testing.T) {
+	// Arrange: Issueはあるが、Labelsがnilの場合
+	number := 1
+	title := "Test Issue"
+	issue := &github.Issue{
+		Number: &number,
+		Title:  &title,
+		Labels: nil,
+	}
+
+	// Act
+	shouldProcess, reason := ShouldProcessIssue(issue)
+
+	// Assert
+	assert.False(t, shouldProcess, "nilのLabelsの場合は処理しない")
+	assert.Equal(t, "No trigger labels found", reason)
+}
+
+func TestShouldProcessIssue_LabelWithNilName(t *testing.T) {
+	// Arrange: Labelオブジェクトはあるが、Nameがnilの場合
+	number := 1
+	title := "Test Issue"
+	issue := &github.Issue{
+		Number: &number,
+		Title:  &title,
+		Labels: []*github.Label{
+			{Name: nil},                            // nilのName
+			{Name: stringPtr("status:needs-plan")}, // 正常なラベル
+		},
+	}
+
+	// Act
+	shouldProcess, reason := ShouldProcessIssue(issue)
+
+	// Assert
+	assert.True(t, shouldProcess, "nilのNameは無視して他のラベルで判定する")
+	assert.Equal(t, "Trigger label 'status:needs-plan' found without corresponding execution label", reason)
 }
 
 func TestGetTriggerLabelMapping(t *testing.T) {

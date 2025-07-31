@@ -154,9 +154,10 @@ func TestExecuteLabelTransition(t *testing.T) {
 				},
 			},
 			setupMock: func(m *MockGitHubClient) {
-				m.On("RemoveLabel", mock.Anything, "owner", "repo", 123, "status:needs-plan").Return(errors.New("API error"))
+				// リトライメカニズムのため、3回呼ばれることを期待
+				m.On("RemoveLabel", mock.Anything, "owner", "repo", 123, "status:needs-plan").Return(errors.New("API error")).Times(3)
 			},
-			expectedError: "failed to remove label status:needs-plan: API error",
+			expectedError: "failed to remove label status:needs-plan (attempt 3/3): API error",
 		},
 		{
 			name: "add label fails",
@@ -168,9 +169,10 @@ func TestExecuteLabelTransition(t *testing.T) {
 			},
 			setupMock: func(m *MockGitHubClient) {
 				m.On("RemoveLabel", mock.Anything, "owner", "repo", 123, "status:needs-plan").Return(nil)
-				m.On("AddLabel", mock.Anything, "owner", "repo", 123, "status:planning").Return(errors.New("API error"))
+				// リトライメカニズムのため、3回呼ばれることを期待
+				m.On("AddLabel", mock.Anything, "owner", "repo", 123, "status:planning").Return(errors.New("API error")).Times(3)
 			},
-			expectedError: "failed to add label status:planning: API error",
+			expectedError: "failed to add label status:planning (attempt 3/3): API error",
 		},
 	}
 

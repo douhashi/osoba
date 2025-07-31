@@ -249,7 +249,7 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 		currentLabels := getLabels(issue)
 
 		// ステートレスな判定ロジックを使用してIssueを処理すべきか判断
-		shouldProcess, reason := ShouldProcessIssue(issue)
+		shouldProcess, reason := ShouldProcessIssueWithLogger(issue, w.logger)
 
 		w.logger.Debug("Issue check result",
 			"issueNumber", *issue.Number,
@@ -436,7 +436,7 @@ func NewIssueWatcherWithLabelTracking(client github.GitHubClient, owner, repo, s
 // executeLabelTransition は現在のラベルに基づいて適切なラベル遷移を実行する
 func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Issue) error {
 	if issue == nil || issue.Number == nil {
-		return fmt.Errorf("invalid issue")
+		return fmt.Errorf("invalid issue: nil issue or issue number")
 	}
 
 	// 現在のラベルを確認して適切な遷移を実行
@@ -466,21 +466,54 @@ func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Iss
 				"from", transition.from,
 				"to", transition.to)
 
-			// ラベルを削除
-			if err := w.client.RemoveLabel(ctx, w.owner, w.repo, *issue.Number, transition.from); err != nil {
-				return fmt.Errorf("failed to remove label %s: %w", transition.from, err)
+			// リトライメカニズムを実装
+			const maxRetries = 3
+			var lastErr error
+
+			for attempt := 1; attempt <= maxRetries; attempt++ {
+				// ラベルを削除
+				if err := w.client.RemoveLabel(ctx, w.owner, w.repo, *issue.Number, transition.from); err != nil {
+					lastErr = fmt.Errorf("failed to remove label %s (attempt %d/%d): %w", transition.from, attempt, maxRetries, err)
+					w.logger.Warn("Failed to remove label, retrying",
+						"issueNumber", *issue.Number,
+						"label", transition.from,
+						"attempt", attempt,
+						"error", err)
+
+					if attempt < maxRetries {
+						time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
+						continue
+					}
+					return lastErr
+				}
+
+				// 新しいラベルを追加
+				if err := w.client.AddLabel(ctx, w.owner, w.repo, *issue.Number, transition.to); err != nil {
+					lastErr = fmt.Errorf("failed to add label %s (attempt %d/%d): %w", transition.to, attempt, maxRetries, err)
+					w.logger.Warn("Failed to add label, retrying",
+						"issueNumber", *issue.Number,
+						"label", transition.to,
+						"attempt", attempt,
+						"error", err)
+
+					if attempt < maxRetries {
+						time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
+						continue
+					}
+					return lastErr
+				}
+
+				// 成功した場合はループを抜ける
+				w.logger.Info("Successfully transitioned label",
+					"issueNumber", *issue.Number,
+					"from", transition.from,
+					"to", transition.to,
+					"attempt", attempt)
+				return nil
 			}
 
-			// 新しいラベルを追加
-			if err := w.client.AddLabel(ctx, w.owner, w.repo, *issue.Number, transition.to); err != nil {
-				return fmt.Errorf("failed to add label %s: %w", transition.to, err)
-			}
-
-			w.logger.Info("Successfully transitioned label",
-				"issueNumber", *issue.Number,
-				"from", transition.from,
-				"to", transition.to)
-			return nil
+			// すべてのリトライが失敗した場合
+			return lastErr
 		}
 	}
 
