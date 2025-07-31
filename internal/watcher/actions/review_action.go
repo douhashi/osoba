@@ -17,7 +17,6 @@ type ReviewAction struct {
 	types.BaseAction
 	baseExecutor *BaseExecutor
 	sessionName  string
-	stateManager StateManagerV2
 	labelManager ActionsLabelManager
 	claudeConfig *claude.ClaudeConfig
 	logger       logger.Logger
@@ -27,7 +26,6 @@ type ReviewAction struct {
 func NewReviewAction(
 	sessionName string,
 	tmuxManager tmuxpkg.Manager,
-	stateManager StateManagerV2,
 	labelManager ActionsLabelManager,
 	worktreeManager git.WorktreeManager,
 	claudeExecutor ClaudeCommandBuilder,
@@ -46,7 +44,6 @@ func NewReviewAction(
 		BaseAction:   types.BaseAction{Type: types.ActionTypeReview},
 		baseExecutor: baseExecutor,
 		sessionName:  sessionName,
-		stateManager: stateManager,
 		labelManager: labelManager,
 		claudeConfig: claudeConfig,
 		logger:       logger,
@@ -62,24 +59,9 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	issueNumber := int64(*issue.Number)
 	a.logger.Info("Executing review action", "issue_number", issueNumber)
 
-	// 既に処理済みかチェック
-	if a.stateManager.HasBeenProcessed(issueNumber, types.IssueStateReview) {
-		a.logger.Info("Issue has already been processed for review phase", "issue_number", issueNumber)
-		return nil
-	}
-
-	// 処理中かチェック
-	if a.stateManager.IsProcessing(issueNumber) {
-		return fmt.Errorf("issue #%d is already processing", issueNumber)
-	}
-
-	// 処理開始
-	a.stateManager.SetState(issueNumber, types.IssueStateReview, types.IssueStatusProcessing)
-
 	// ワークスペースの準備
 	workspace, err := a.baseExecutor.PrepareWorkspace(ctx, issue, "Review")
 	if err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to prepare workspace: %w", err)
 	}
 
@@ -100,7 +82,6 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 	// Claude設定を取得
 	phaseConfig, exists := a.claudeConfig.GetPhase("review")
 	if !exists {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("review phase config not found")
 	}
 
@@ -122,7 +103,6 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 
 	// ワークスペースでClaudeコマンドを実行
 	if err := a.baseExecutor.ExecuteInWorkspace(workspace, claudeCmd); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStateReview)
 		return fmt.Errorf("failed to execute Claude command: %w", err)
 	}
 
@@ -145,8 +125,6 @@ func (a *ReviewAction) Execute(ctx context.Context, issue *github.Issue) error {
 		}
 	}
 
-	// 完了処理
-	a.stateManager.MarkAsCompleted(issueNumber, types.IssueStateReview)
 	a.logger.Info("Review action completed successfully", "issue_number", issueNumber)
 
 	// V2ではフェーズ遷移は行わない（別のコンポーネントが管理）

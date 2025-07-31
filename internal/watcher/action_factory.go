@@ -26,7 +26,6 @@ type DefaultActionFactory struct {
 	claudeExecutor  claude.ClaudeExecutor
 	commandBuilder  *claude.DefaultCommandBuilder
 	claudeConfig    *claude.ClaudeConfig
-	stateManager    *IssueStateManager
 	config          *config.Config
 	owner           string
 	repo            string
@@ -54,7 +53,6 @@ func NewDefaultActionFactory(
 		claudeExecutor:  claudeExecutor,
 		commandBuilder:  claude.NewCommandBuilder(),
 		claudeConfig:    claudeConfig,
-		stateManager:    NewIssueStateManager(),
 		config:          cfg,
 		owner:           owner,
 		repo:            repo,
@@ -67,7 +65,6 @@ func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
 	return actions.NewPlanAction(
 		f.sessionName,
 		f.tmuxManager,
-		f.stateManager,
 		f.worktreeManager,
 		f.commandBuilder,
 		f.claudeConfig,
@@ -86,7 +83,6 @@ func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 	return actions.NewImplementationAction(
 		f.sessionName,
 		f.tmuxManager,
-		f.stateManager,
 		labelManager,
 		f.worktreeManager,
 		f.commandBuilder,
@@ -106,7 +102,6 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 	return actions.NewReviewAction(
 		f.sessionName,
 		f.tmuxManager,
-		f.stateManager,
 		labelManager,
 		f.worktreeManager,
 		f.commandBuilder,

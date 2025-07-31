@@ -17,7 +17,6 @@ type PlanAction struct {
 	types.BaseAction
 	baseExecutor *BaseExecutor
 	sessionName  string
-	stateManager StateManagerV2
 	claudeConfig *claude.ClaudeConfig
 	logger       logger.Logger
 }
@@ -26,7 +25,6 @@ type PlanAction struct {
 func NewPlanAction(
 	sessionName string,
 	tmuxManager tmuxpkg.Manager,
-	stateManager StateManagerV2,
 	worktreeManager git.WorktreeManager,
 	claudeExecutor ClaudeCommandBuilder,
 	claudeConfig *claude.ClaudeConfig,
@@ -44,7 +42,6 @@ func NewPlanAction(
 		BaseAction:   types.BaseAction{Type: types.ActionTypePlan},
 		baseExecutor: baseExecutor,
 		sessionName:  sessionName,
-		stateManager: stateManager,
 		claudeConfig: claudeConfig,
 		logger:       logger,
 	}
@@ -59,24 +56,9 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 	issueNumber := int64(*issue.Number)
 	a.logger.Info("Executing plan action", "issue_number", issueNumber)
 
-	// 既に処理済みかチェック
-	if a.stateManager.HasBeenProcessed(issueNumber, types.IssueStatePlan) {
-		a.logger.Info("Issue has already been processed for plan phase", "issue_number", issueNumber)
-		return nil
-	}
-
-	// 処理中かチェック
-	if a.stateManager.IsProcessing(issueNumber) {
-		return fmt.Errorf("issue #%d is already processing", issueNumber)
-	}
-
-	// 処理開始
-	a.stateManager.SetState(issueNumber, types.IssueStatePlan, types.IssueStatusProcessing)
-
 	// ワークスペースの準備
 	workspace, err := a.baseExecutor.PrepareWorkspace(ctx, issue, "Plan")
 	if err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to prepare workspace: %w", err)
 	}
 
@@ -97,7 +79,6 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 	// Claude設定を取得
 	phaseConfig, exists := a.claudeConfig.GetPhase("plan")
 	if !exists {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("plan phase config not found")
 	}
 
@@ -119,12 +100,9 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 
 	// ワークスペースでClaudeコマンドを実行
 	if err := a.baseExecutor.ExecuteInWorkspace(workspace, claudeCmd); err != nil {
-		a.stateManager.MarkAsFailed(issueNumber, types.IssueStatePlan)
 		return fmt.Errorf("failed to execute Claude command: %w", err)
 	}
 
-	// 完了処理
-	a.stateManager.MarkAsCompleted(issueNumber, types.IssueStatePlan)
 	a.logger.Info("Plan action completed successfully", "issue_number", issueNumber)
 
 	// V2ではフェーズ遷移は行わない（別のコンポーネントが管理）

@@ -6,7 +6,6 @@ import (
 
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/git"
-	"github.com/douhashi/osoba/internal/types"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -115,39 +114,4 @@ func (m *MockClaudeExecutor) BuildCommand(ctx context.Context, args []string, pr
 func (m *MockClaudeExecutor) ExecuteInWorktree(ctx context.Context, config *claude.PhaseConfig, vars *claude.TemplateVariables, workdir string) error {
 	args := m.Called(ctx, config, vars, workdir)
 	return args.Error(0)
-}
-
-// MockStateManager は状態管理のモック
-type MockStateManager struct {
-	mock.Mock
-}
-
-func (m *MockStateManager) GetState(issueNumber int64) (*types.IssueState, bool) {
-	args := m.Called(issueNumber)
-	if args.Get(0) == nil {
-		return nil, args.Bool(1)
-	}
-	return args.Get(0).(*types.IssueState), args.Bool(1)
-}
-
-func (m *MockStateManager) SetState(issueNumber int64, phase types.IssuePhase, status types.IssueStatus) {
-	m.Called(issueNumber, phase, status)
-}
-
-func (m *MockStateManager) IsProcessing(issueNumber int64) bool {
-	args := m.Called(issueNumber)
-	return args.Bool(0)
-}
-
-func (m *MockStateManager) HasBeenProcessed(issueNumber int64, phase types.IssuePhase) bool {
-	args := m.Called(issueNumber, phase)
-	return args.Bool(0)
-}
-
-func (m *MockStateManager) MarkAsCompleted(issueNumber int64, phase types.IssuePhase) {
-	m.Called(issueNumber, phase)
-}
-
-func (m *MockStateManager) MarkAsFailed(issueNumber int64, phase types.IssuePhase) {
-	m.Called(issueNumber, phase)
 }

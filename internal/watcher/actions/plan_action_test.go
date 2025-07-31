@@ -9,7 +9,6 @@ import (
 	"github.com/douhashi/osoba/internal/testutil/builders"
 	"github.com/douhashi/osoba/internal/testutil/helpers"
 	"github.com/douhashi/osoba/internal/testutil/mocks"
-	"github.com/douhashi/osoba/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap/zapcore"
@@ -19,7 +18,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 	tests := []struct {
 		name         string
 		issue        *github.Issue
-		setupMocks   func(*mocks.MockTmuxManager, *mocks.MockGitWorktreeManager, *mocks.MockClaudeCommandBuilder, *mocks.MockStateManager)
+		setupMocks   func(*mocks.MockTmuxManager, *mocks.MockGitWorktreeManager, *mocks.MockClaudeCommandBuilder)
 		claudeConfig *claude.ClaudeConfig
 		wantErr      bool
 		errContains  string
@@ -31,12 +30,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				WithTitle("Test Issue").
 				WithLabel("status:needs-plan").
 				Build(),
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claude *mocks.MockClaudeCommandBuilder, state *mocks.MockStateManager) {
-				// 状態チェック
-				state.On("HasBeenProcessed", int64(123), types.IssueStatePlan).Return(false).Once()
-				state.On("IsProcessing", int64(123)).Return(false).Once()
-				state.On("SetState", int64(123), types.IssueStatePlan, types.IssueStatusProcessing).Once()
-
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claude *mocks.MockClaudeCommandBuilder) {
 				// PrepareWorkspace
 				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
 				tmux.On("WindowExists", "test-session", "issue-123").Return(false, nil).Once()
@@ -59,9 +53,6 @@ func TestPlanActionV2_Execute(t *testing.T) {
 
 				// RunInWindowを使用することを期待
 				tmux.On("RunInWindow", "test-session", "issue-123", "cd /test/worktree/issue-123 && claude plan command").Return(nil).Once()
-
-				// 完了処理
-				state.On("MarkAsCompleted", int64(123), types.IssueStatePlan).Once()
 			},
 			claudeConfig: &claude.ClaudeConfig{
 				Phases: map[string]*claude.PhaseConfig{
@@ -71,51 +62,11 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				},
 			},
 			wantErr: false,
-		},
-		{
-			name: "既に処理済みのIssue",
-			issue: builders.NewIssueBuilder().
-				WithNumber(456).
-				WithTitle("Already Processed").
-				WithLabel("status:needs-plan").
-				Build(),
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claude *mocks.MockClaudeCommandBuilder, state *mocks.MockStateManager) {
-				state.On("HasBeenProcessed", int64(456), types.IssueStatePlan).Return(true).Once()
-			},
-			claudeConfig: &claude.ClaudeConfig{
-				Phases: map[string]*claude.PhaseConfig{
-					"plan": {
-						Prompt: "prompts/plan.md",
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "処理中のIssue",
-			issue: builders.NewIssueBuilder().
-				WithNumber(789).
-				WithTitle("Processing").
-				WithLabel("status:needs-plan").
-				Build(),
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claude *mocks.MockClaudeCommandBuilder, state *mocks.MockStateManager) {
-				state.On("HasBeenProcessed", int64(789), types.IssueStatePlan).Return(false).Once()
-				state.On("IsProcessing", int64(789)).Return(true).Once()
-			},
-			claudeConfig: &claude.ClaudeConfig{
-				Phases: map[string]*claude.PhaseConfig{
-					"plan": {
-						Prompt: "prompts/plan.md",
-					},
-				},
-			},
-			wantErr:     true,
-			errContains: "is already processing",
 		},
 		{
 			name:  "nilのissue",
 			issue: nil,
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claude *mocks.MockClaudeCommandBuilder, state *mocks.MockStateManager) {
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claude *mocks.MockClaudeCommandBuilder) {
 				// 何も呼ばれない
 			},
 			claudeConfig: &claude.ClaudeConfig{},
@@ -129,11 +80,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				WithTitle("No Config").
 				WithLabel("status:needs-plan").
 				Build(),
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claude *mocks.MockClaudeCommandBuilder, state *mocks.MockStateManager) {
-				state.On("HasBeenProcessed", int64(999), types.IssueStatePlan).Return(false).Once()
-				state.On("IsProcessing", int64(999)).Return(false).Once()
-				state.On("SetState", int64(999), types.IssueStatePlan, types.IssueStatusProcessing).Once()
-
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claude *mocks.MockClaudeCommandBuilder) {
 				// PrepareWorkspace
 				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
 				tmux.On("WindowExists", "test-session", "issue-999").Return(true, nil).Once()
@@ -142,8 +89,6 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
 				tmux.On("SetPaneTitle", "test-session", "issue-999", 0, "Plan").Return(nil).Once()
 				git.On("GetWorktreePathForIssue", 999).Return("/test/worktree/issue-999").Once()
-
-				state.On("MarkAsFailed", int64(999), types.IssueStatePlan).Once()
 			},
 			claudeConfig: &claude.ClaudeConfig{
 				Phases: map[string]*claude.PhaseConfig{
@@ -162,16 +107,14 @@ func TestPlanActionV2_Execute(t *testing.T) {
 			tmuxManager := mocks.NewMockTmuxManager()
 			worktreeManager := mocks.NewMockGitWorktreeManager()
 			claudeExecutor := mocks.NewMockClaudeCommandBuilder()
-			stateManager := mocks.NewMockStateManager()
 
 			// モックの設定
-			tt.setupMocks(tmuxManager, worktreeManager, claudeExecutor, stateManager)
+			tt.setupMocks(tmuxManager, worktreeManager, claudeExecutor)
 
 			// アクションの作成
 			action := NewPlanAction(
 				"test-session",
 				tmuxManager,
-				stateManager,
 				worktreeManager,
 				claudeExecutor,
 				tt.claudeConfig,
@@ -195,7 +138,6 @@ func TestPlanActionV2_Execute(t *testing.T) {
 			tmuxManager.AssertExpectations(t)
 			worktreeManager.AssertExpectations(t)
 			claudeExecutor.AssertExpectations(t)
-			stateManager.AssertExpectations(t)
 		})
 	}
 }
