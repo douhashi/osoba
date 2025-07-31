@@ -286,6 +286,87 @@ flowchart TD
 
 ## 状態管理
 
+### ステートレス設計
+
+#### 概要
+
+osobaは2025年1月にステートフルからステートレスアーキテクチャへ移行しました。この変更により、システムの可用性、スケーラビリティ、保守性が大幅に向上しています。
+
+#### 設計原則
+
+1. **GitHubラベルを唯一の真実の源泉として使用**
+   - すべての状態情報はGitHubのIssueラベルで管理
+   - ローカルの状態ストレージ（IssueStateManager）を完全に削除
+   - ポーリング時に毎回GitHubから最新状態を取得
+
+2. **冪等性の保証**
+   - 同じ操作を複数回実行しても結果が同じになるよう設計
+   - ラベル遷移操作は既存ラベルの存在チェックにより冪等性を確保
+
+3. **ラベルベースの処理判定**
+   - `ShouldProcessIssue`関数により、ラベル状態から処理の必要性を判定
+   - トリガーラベルと実行中ラベルの組み合わせで処理を制御
+
+#### ラベル状態管理
+
+```mermaid
+stateDiagram-v2
+    [*] --> NeedsPlan: Issue作成
+    NeedsPlan --> Planning: osoba検出
+    Planning --> Ready: 計画完了
+    Ready --> Implementing: osoba検出
+    Implementing --> ReviewRequested: 実装完了
+    ReviewRequested --> Reviewing: osoba検出
+    Reviewing --> Completed: レビュー完了
+    Completed --> [*]
+    
+    Planning --> NeedsPlan: 手動で戻す
+    Implementing --> Ready: 手動で戻す
+    Reviewing --> ReviewRequested: 手動で戻す
+```
+
+#### トリガーラベルと実行中ラベルの対応
+
+| トリガーラベル | 実行中ラベル | アクション |
+|--------------|------------|-----------|
+| status:needs-plan | status:planning | PlanAction |
+| status:ready | status:implementing | ImplementationAction |
+| status:review-requested | status:reviewing | ReviewAction |
+
+#### 利点
+
+1. **高可用性**
+   - osobaプロセスがクラッシュしても状態は失われない
+   - 複数インスタンスで冗長化可能（将来的な拡張）
+
+2. **スケーラビリティ**
+   - 水平スケーリングが容易
+   - 状態同期の複雑さがない
+
+3. **デバッグ容易性**
+   - GitHubのUIで現在の状態が一目瞭然
+   - 状態の不整合が発生しにくい
+
+4. **運用の柔軟性**
+   - 手動でラベルを戻すことで処理の再実行が可能
+   - 特別な管理ツールやコマンドが不要
+
+#### 制限事項
+
+1. **多重実行の可能性**
+   - 現在の実装では、複数のosobaインスタンスが同じIssueを処理する可能性がある
+   - ラベル操作の冪等性により最終的には正しい状態に収束
+
+2. **ポーリング遅延**
+   - 状態変更からosobaの検出まで最大でポーリング間隔分の遅延が発生
+   - デフォルト設定では最大30秒
+
+#### 実装詳細
+
+主要な関数：
+- `ShouldProcessIssue` (internal/watcher/stateless_detector.go:44): ラベル状態から処理の必要性を判定
+- `executeLabelTransition` (internal/watcher/watcher.go): ラベル遷移を実行（リトライ機能付き）
+
 ### Issue状態遷移
 
 ```mermaid

@@ -481,6 +481,122 @@ export HTTPS_PROXY=http://proxy.example.com:8080
 
 ## ラベル遷移の問題
 
+### ステートレス動作関連の問題
+
+#### 問題: ラベルが手動で戻されても処理されない
+
+**症状:**
+- ラベルを手動で `status:implementing` から `status:ready` に戻したが、osobaが反応しない
+- ログに処理記録が出力されない
+
+**原因と解決策:**
+
+1. **ポーリング間隔の確認**
+```bash
+# 現在のポーリング間隔確認
+grep poll_interval ~/.config/osoba/osoba.yml
+
+# ログでポーリング実行確認
+tail -f osoba.log | grep "Checking issues"
+```
+
+2. **ラベル状態の確認**
+```bash
+# Issue のラベル状態確認
+gh issue view <issue-number> --json labels
+
+# ShouldProcessIssue の判定確認
+osoba debug should-process --issue=<issue-number>
+```
+
+3. **トリガーラベルと実行中ラベルの確認**
+```bash
+# 正しいラベル組み合わせ確認
+echo "トリガーラベル: status:ready"
+echo "実行中ラベル: status:implementing"
+
+# 両方のラベルが存在する場合は処理されない
+gh issue view <issue-number> --json labels | jq '.labels[].name'
+```
+
+**解決手順:**
+1. 実行中ラベルを手動で削除
+   ```bash
+   gh issue edit <issue-number> --remove-label "status:implementing"
+   ```
+2. トリガーラベルのみが存在する状態を確認
+3. 次のポーリングサイクルまで待機（最大30秒）
+
+#### 問題: 多重実行が発生している
+
+**症状:**
+- 同じIssueに対して複数回アクションが実行される
+- ログに重複した処理記録が出力される
+
+**原因:**
+- 複数のosobaインスタンスが同じリポジトリを監視している
+- ラベル遷移のタイミングで競合状態が発生
+
+**診断:**
+```bash
+# 実行中のosobaプロセス確認
+ps aux | grep osoba | grep -v grep
+
+# 各プロセスのセッションID確認
+for pid in $(pgrep osoba); do
+    echo "PID: $pid"
+    strings /proc/$pid/environ | grep SESSION_NAME
+done
+```
+
+**対策:**
+1. **単一インスタンスのみ実行**
+   ```bash
+   # 既存プロセスを停止
+   pkill osoba
+   
+   # 単一インスタンスで起動
+   osoba start --session-name="primary"
+   ```
+
+2. **ラベル操作の冪等性を活用**
+   - 多重実行が発生しても最終的な状態は正しく収束
+   - エラーログを無視して処理を継続
+
+#### 問題: ステートレス移行後の動作確認
+
+**症状:**
+- 以前の状態ファイルに依存していた処理が動作しない
+- 処理履歴が参照できない
+
+**対策:**
+
+1. **状態ファイルの削除確認**
+```bash
+# 旧状態ファイルが残っていないか確認
+ls -la ~/.osoba/state.json
+ls -la ~/.osoba/issues/
+
+# 残っている場合は削除
+rm -rf ~/.osoba/state.json
+rm -rf ~/.osoba/issues/
+```
+
+2. **ログベースの履歴確認**
+```bash
+# 処理履歴をログから確認
+grep "Processing issue" osoba.log | grep "<issue-number>"
+
+# ラベル遷移履歴確認
+grep "Label transition" osoba.log | grep "<issue-number>"
+```
+
+3. **GitHub APIで履歴確認**
+```bash
+# Issueのイベント履歴確認
+gh api repos/owner/repo/issues/<issue-number>/events --jq '.[] | select(.event=="labeled" or .event=="unlabeled")'
+```
+
 ### 1. メモリ使用量問題
 
 #### 問題: メモリ不足
