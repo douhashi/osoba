@@ -296,7 +296,6 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 			logger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
 			tmuxManager := mocks.NewMockTmuxManager()
 			worktreeManager := mocks.NewMockGitWorktreeManager()
-			claudeExecutor := mocks.NewMockClaudeCommandBuilder()
 
 			// モックの設定
 			tt.setupMocks(tmuxManager, worktreeManager)
@@ -306,7 +305,7 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 				"test-session",
 				tmuxManager,
 				worktreeManager,
-				claudeExecutor,
+				nil, // ClaudeCommandBuilderは不要
 				logger,
 			)
 
@@ -331,86 +330,4 @@ func TestBaseExecutor_PrepareWorkspace(t *testing.T) {
 	}
 }
 
-func TestBaseExecutor_ExecuteInWorkspace(t *testing.T) {
-	tests := []struct {
-		name        string
-		workspace   *WorkspaceInfo
-		command     string
-		setupMocks  func(*mocks.MockTmuxManager)
-		wantErr     bool
-		errContains string
-	}{
-		{
-			name: "コマンド実行成功",
-			workspace: &WorkspaceInfo{
-				WindowName:   "issue-123",
-				WorktreePath: "/test/worktree/issue-123",
-				PaneIndex:    0,
-				PaneTitle:    "Plan",
-			},
-			command: "echo 'Hello World'",
-			setupMocks: func(tmux *mocks.MockTmuxManager) {
-				expectedCmd := "cd /test/worktree/issue-123 && echo 'Hello World'"
-				// RunInWindowを使用することを期待
-				tmux.On("RunInWindow", "test-session", "issue-123", expectedCmd).Return(nil).Once()
-			},
-			wantErr: false,
-		},
-		{
-			name: "RunInWindow失敗",
-			workspace: &WorkspaceInfo{
-				WindowName:   "issue-456",
-				WorktreePath: "/test/worktree/issue-456",
-				PaneIndex:    1,
-				PaneTitle:    "Implementation",
-			},
-			command: "npm test",
-			setupMocks: func(tmux *mocks.MockTmuxManager) {
-				expectedCmd := "cd /test/worktree/issue-456 && npm test"
-				// RunInWindowを使用することを期待
-				tmux.On("RunInWindow", "test-session", "issue-456", expectedCmd).
-					Return(assert.AnError).Once()
-			},
-			wantErr:     true,
-			errContains: "failed to execute command in workspace",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// モックの作成
-			logger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
-			tmuxManager := mocks.NewMockTmuxManager()
-			worktreeManager := mocks.NewMockGitWorktreeManager()
-			claudeExecutor := mocks.NewMockClaudeCommandBuilder()
-
-			// モックの設定
-			tt.setupMocks(tmuxManager)
-
-			// BaseExecutorの作成
-			executor := NewBaseExecutor(
-				"test-session",
-				tmuxManager,
-				worktreeManager,
-				claudeExecutor,
-				logger,
-			)
-
-			// テスト実行
-			err := executor.ExecuteInWorkspace(tt.workspace, tt.command)
-
-			// アサーション
-			if tt.wantErr {
-				assert.Error(t, err)
-				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
-				}
-			} else {
-				assert.NoError(t, err)
-			}
-
-			// モックの期待値確認
-			tmuxManager.AssertExpectations(t)
-		})
-	}
-}
+// ExecuteInWorkspaceメソッドが削除されたため、このテストも削除

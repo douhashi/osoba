@@ -24,7 +24,6 @@ type DefaultActionFactory struct {
 	tmuxManager     tmux.Manager
 	worktreeManager git.WorktreeManager
 	claudeExecutor  claude.ClaudeExecutor
-	commandBuilder  *claude.DefaultCommandBuilder
 	claudeConfig    *claude.ClaudeConfig
 	config          *config.Config
 	owner           string
@@ -51,7 +50,6 @@ func NewDefaultActionFactory(
 		tmuxManager:     tmuxManager,
 		worktreeManager: worktreeManager,
 		claudeExecutor:  claudeExecutor,
-		commandBuilder:  claude.NewCommandBuilder(),
 		claudeConfig:    claudeConfig,
 		config:          cfg,
 		owner:           owner,
@@ -66,7 +64,7 @@ func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
 		f.sessionName,
 		f.tmuxManager,
 		f.worktreeManager,
-		f.commandBuilder,
+		f.claudeExecutor,
 		f.claudeConfig,
 		f.logger.WithFields("component", "PlanAction"),
 	)
@@ -85,7 +83,7 @@ func (f *DefaultActionFactory) CreateImplementationAction() ActionExecutor {
 		f.tmuxManager,
 		labelManager,
 		f.worktreeManager,
-		f.commandBuilder,
+		f.claudeExecutor,
 		f.claudeConfig,
 		f.logger.WithFields("component", "ImplementationAction"),
 	)
@@ -104,7 +102,7 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 		f.tmuxManager,
 		labelManager,
 		f.worktreeManager,
-		f.commandBuilder,
+		f.claudeExecutor,
 		f.claudeConfig,
 		f.logger.WithFields("component", "ReviewAction"),
 	)

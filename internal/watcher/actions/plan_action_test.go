@@ -18,19 +18,19 @@ func TestPlanActionV2_Execute(t *testing.T) {
 	tests := []struct {
 		name         string
 		issue        *github.Issue
-		setupMocks   func(*mocks.MockTmuxManager, *mocks.MockGitWorktreeManager, *mocks.MockClaudeCommandBuilder)
+		setupMocks   func(*mocks.MockTmuxManager, *mocks.MockGitWorktreeManager, *mocks.MockClaudeExecutor)
 		claudeConfig *claude.ClaudeConfig
 		wantErr      bool
 		errContains  string
 	}{
 		{
-			name: "正常なPlanアクション実行",
+			name: "正常なPlanアクション実行（argsあり）",
 			issue: builders.NewIssueBuilder().
 				WithNumber(123).
 				WithTitle("Test Issue").
 				WithLabel("status:needs-plan").
 				Build(),
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claude *mocks.MockClaudeCommandBuilder) {
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor) {
 				// PrepareWorkspace
 				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
 				tmux.On("WindowExists", "test-session", "issue-123").Return(false, nil).Once()
@@ -43,21 +43,70 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				tmux.On("SetPaneTitle", "test-session", "issue-123", 0, "Plan").Return(nil).Once()
 				git.On("GetWorktreePathForIssue", 123).Return("/test/worktree/issue-123").Once()
 
-				// Claude実行
-				claude.On("BuildCommand",
-					"prompts/plan.md",
-					"tmp/execution_plan_123.md",
-					"/test/worktree/issue-123",
+				// Claude実行 - ExecuteInWorktreeを使用
+				expectedConfig := &claude.PhaseConfig{
+					Prompt: "prompts/plan.md",
+					Args:   []string{"--arg1", "--arg2"},
+				}
+				expectedVars := &claude.TemplateVariables{
+					IssueNumber: 123,
+					IssueTitle:  "Test Issue",
+					RepoName:    "osoba",
+				}
+				claudeExec.On("ExecuteInWorktree",
 					mock.Anything,
-				).Return("claude plan command").Once()
-
-				// RunInWindowを使用することを期待
-				tmux.On("RunInWindow", "test-session", "issue-123", "cd /test/worktree/issue-123 && claude plan command").Return(nil).Once()
+					expectedConfig,
+					mock.MatchedBy(func(vars *claude.TemplateVariables) bool {
+						return vars.IssueNumber == expectedVars.IssueNumber &&
+							vars.IssueTitle == expectedVars.IssueTitle
+					}),
+					"/test/worktree/issue-123",
+				).Return(nil).Once()
 			},
 			claudeConfig: &claude.ClaudeConfig{
 				Phases: map[string]*claude.PhaseConfig{
 					"plan": {
 						Prompt: "prompts/plan.md",
+						Args:   []string{"--arg1", "--arg2"},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "正常なPlanアクション実行（args空配列）",
+			issue: builders.NewIssueBuilder().
+				WithNumber(456).
+				WithTitle("Test Issue 2").
+				WithLabel("status:needs-plan").
+				Build(),
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor) {
+				// PrepareWorkspace
+				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
+				tmux.On("WindowExists", "test-session", "issue-456").Return(true, nil).Once()
+				git.On("WorktreeExistsForIssue", mock.Anything, 456).Return(true, nil).Once()
+				tmux.On("GetPaneByTitle", "test-session", "issue-456", "Plan").Return(nil, assert.AnError).Once()
+				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
+				tmux.On("SetPaneTitle", "test-session", "issue-456", 0, "Plan").Return(nil).Once()
+				git.On("GetWorktreePathForIssue", 456).Return("/test/worktree/issue-456").Once()
+
+				// Claude実行 - ExecuteInWorktreeを使用（args空配列）
+				expectedConfig := &claude.PhaseConfig{
+					Prompt: "prompts/plan.md",
+					Args:   []string{},
+				}
+				claudeExec.On("ExecuteInWorktree",
+					mock.Anything,
+					expectedConfig,
+					mock.Anything,
+					"/test/worktree/issue-456",
+				).Return(nil).Once()
+			},
+			claudeConfig: &claude.ClaudeConfig{
+				Phases: map[string]*claude.PhaseConfig{
+					"plan": {
+						Prompt: "prompts/plan.md",
+						Args:   []string{},
 					},
 				},
 			},
@@ -66,7 +115,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 		{
 			name:  "nilのissue",
 			issue: nil,
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claude *mocks.MockClaudeCommandBuilder) {
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor) {
 				// 何も呼ばれない
 			},
 			claudeConfig: &claude.ClaudeConfig{},
@@ -80,7 +129,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				WithTitle("No Config").
 				WithLabel("status:needs-plan").
 				Build(),
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claude *mocks.MockClaudeCommandBuilder) {
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor) {
 				// PrepareWorkspace
 				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
 				tmux.On("WindowExists", "test-session", "issue-999").Return(true, nil).Once()
@@ -106,7 +155,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 			logger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
 			tmuxManager := mocks.NewMockTmuxManager()
 			worktreeManager := mocks.NewMockGitWorktreeManager()
-			claudeExecutor := mocks.NewMockClaudeCommandBuilder()
+			claudeExecutor := mocks.NewMockClaudeExecutor()
 
 			// モックの設定
 			tt.setupMocks(tmuxManager, worktreeManager, claudeExecutor)
