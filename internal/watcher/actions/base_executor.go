@@ -18,17 +18,11 @@ type WorkspaceInfo struct {
 	PaneTitle    string
 }
 
-// ClaudeCommandBuilder はClaudeコマンドを構築するインターフェース
-type ClaudeCommandBuilder interface {
-	BuildCommand(promptPath string, outputPath string, workdir string, vars interface{}) string
-}
-
 // BaseExecutor は各ActionExecutorの共通機能を提供する構造体
 type BaseExecutor struct {
 	sessionName     string
 	tmuxManager     tmuxpkg.Manager
 	worktreeManager git.WorktreeManager
-	claudeExecutor  ClaudeCommandBuilder
 	logger          logger.Logger
 }
 
@@ -37,14 +31,13 @@ func NewBaseExecutor(
 	sessionName string,
 	tmuxManager tmuxpkg.Manager,
 	worktreeManager git.WorktreeManager,
-	claudeExecutor ClaudeCommandBuilder,
+	_ interface{}, // 互換性保持のためのダミーパラメータ
 	logger logger.Logger,
 ) *BaseExecutor {
 	return &BaseExecutor{
 		sessionName:     sessionName,
 		tmuxManager:     tmuxManager,
 		worktreeManager: worktreeManager,
-		claudeExecutor:  claudeExecutor,
 		logger:          logger,
 	}
 }
@@ -201,17 +194,4 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 	}
 
 	return newPane, nil
-}
-
-// ExecuteInWorkspace はワークスペース内でコマンドを実行する
-func (e *BaseExecutor) ExecuteInWorkspace(workspace *WorkspaceInfo, command string) error {
-	// worktreeディレクトリに移動してコマンドを実行
-	cdCommand := fmt.Sprintf("cd %s && %s", workspace.WorktreePath, command)
-
-	// RunInWindowを使用してコマンドを実行（自動的にEnterキーが送信される）
-	if err := e.tmuxManager.RunInWindow(e.sessionName, workspace.WindowName, cdCommand); err != nil {
-		return fmt.Errorf("failed to execute command in workspace: %w", err)
-	}
-
-	return nil
 }

@@ -15,11 +15,12 @@ import (
 // ImplementationAction はpane管理方式を使用する実装フェーズのアクション実装
 type ImplementationAction struct {
 	types.BaseAction
-	baseExecutor *BaseExecutor
-	sessionName  string
-	labelManager ActionsLabelManager
-	claudeConfig *claude.ClaudeConfig
-	logger       logger.Logger
+	baseExecutor   *BaseExecutor
+	claudeExecutor claude.ClaudeExecutor
+	sessionName    string
+	labelManager   ActionsLabelManager
+	claudeConfig   *claude.ClaudeConfig
+	logger         logger.Logger
 }
 
 // NewImplementationAction は新しいImplementationActionを作成する
@@ -28,7 +29,7 @@ func NewImplementationAction(
 	tmuxManager tmuxpkg.Manager,
 	labelManager ActionsLabelManager,
 	worktreeManager git.WorktreeManager,
-	claudeExecutor ClaudeCommandBuilder,
+	claudeExecutor claude.ClaudeExecutor,
 	claudeConfig *claude.ClaudeConfig,
 	logger logger.Logger,
 ) *ImplementationAction {
@@ -36,17 +37,18 @@ func NewImplementationAction(
 		sessionName,
 		tmuxManager,
 		worktreeManager,
-		claudeExecutor,
+		nil, // ClaudeCommandBuilderは不要になったのでnilを渡す
 		logger,
 	)
 
 	return &ImplementationAction{
-		BaseAction:   types.BaseAction{Type: types.ActionTypeImplementation},
-		baseExecutor: baseExecutor,
-		sessionName:  sessionName,
-		labelManager: labelManager,
-		claudeConfig: claudeConfig,
-		logger:       logger,
+		BaseAction:     types.BaseAction{Type: types.ActionTypeImplementation},
+		baseExecutor:   baseExecutor,
+		claudeExecutor: claudeExecutor,
+		sessionName:    sessionName,
+		labelManager:   labelManager,
+		claudeConfig:   claudeConfig,
+		logger:         logger,
 	}
 }
 
@@ -85,23 +87,13 @@ func (a *ImplementationAction) Execute(ctx context.Context, issue *github.Issue)
 		return fmt.Errorf("implement phase config not found")
 	}
 
-	// Claudeコマンドの実行
-	promptPath := phaseConfig.Prompt
-
-	claudeCmd := a.baseExecutor.claudeExecutor.BuildCommand(
-		promptPath,
-		"", // 実装フェーズでは出力ファイルは使用しない
-		workspace.WorktreePath,
-		templateVars,
-	)
-
-	a.logger.Info("Executing Claude command",
+	// ClaudeExecutorを使用して直接実行
+	a.logger.Info("Executing Claude in worktree",
 		"issue_number", issueNumber,
-		"command", claudeCmd,
+		"worktree_path", workspace.WorktreePath,
 	)
 
-	// ワークスペースでClaudeコマンドを実行
-	if err := a.baseExecutor.ExecuteInWorkspace(workspace, claudeCmd); err != nil {
+	if err := a.claudeExecutor.ExecuteInWorktree(ctx, phaseConfig, templateVars, workspace.WorktreePath); err != nil {
 		return fmt.Errorf("failed to execute Claude command: %w", err)
 	}
 

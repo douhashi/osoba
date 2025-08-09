@@ -15,10 +15,11 @@ import (
 // PlanAction はpane管理方式を使用する計画フェーズのアクション実装
 type PlanAction struct {
 	types.BaseAction
-	baseExecutor *BaseExecutor
-	sessionName  string
-	claudeConfig *claude.ClaudeConfig
-	logger       logger.Logger
+	baseExecutor   *BaseExecutor
+	claudeExecutor claude.ClaudeExecutor
+	sessionName    string
+	claudeConfig   *claude.ClaudeConfig
+	logger         logger.Logger
 }
 
 // NewPlanAction は新しいPlanActionを作成する
@@ -26,7 +27,7 @@ func NewPlanAction(
 	sessionName string,
 	tmuxManager tmuxpkg.Manager,
 	worktreeManager git.WorktreeManager,
-	claudeExecutor ClaudeCommandBuilder,
+	claudeExecutor claude.ClaudeExecutor,
 	claudeConfig *claude.ClaudeConfig,
 	logger logger.Logger,
 ) *PlanAction {
@@ -34,16 +35,17 @@ func NewPlanAction(
 		sessionName,
 		tmuxManager,
 		worktreeManager,
-		claudeExecutor,
+		nil, // ClaudeCommandBuilderは不要になったのでnilを渡す
 		logger,
 	)
 
 	return &PlanAction{
-		BaseAction:   types.BaseAction{Type: types.ActionTypePlan},
-		baseExecutor: baseExecutor,
-		sessionName:  sessionName,
-		claudeConfig: claudeConfig,
-		logger:       logger,
+		BaseAction:     types.BaseAction{Type: types.ActionTypePlan},
+		baseExecutor:   baseExecutor,
+		claudeExecutor: claudeExecutor,
+		sessionName:    sessionName,
+		claudeConfig:   claudeConfig,
+		logger:         logger,
 	}
 }
 
@@ -82,24 +84,13 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 		return fmt.Errorf("plan phase config not found")
 	}
 
-	// Claudeコマンドの実行
-	promptPath := phaseConfig.Prompt
-	outputPath := fmt.Sprintf("tmp/execution_plan_%d.md", issueNumber)
-
-	claudeCmd := a.baseExecutor.claudeExecutor.BuildCommand(
-		promptPath,
-		outputPath,
-		workspace.WorktreePath,
-		templateVars,
-	)
-
-	a.logger.Info("Executing Claude command",
+	// ClaudeExecutorを使用して直接実行
+	a.logger.Info("Executing Claude in worktree",
 		"issue_number", issueNumber,
-		"command", claudeCmd,
+		"worktree_path", workspace.WorktreePath,
 	)
 
-	// ワークスペースでClaudeコマンドを実行
-	if err := a.baseExecutor.ExecuteInWorkspace(workspace, claudeCmd); err != nil {
+	if err := a.claudeExecutor.ExecuteInWorktree(ctx, phaseConfig, templateVars, workspace.WorktreePath); err != nil {
 		return fmt.Errorf("failed to execute Claude command: %w", err)
 	}
 
