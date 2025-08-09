@@ -9,28 +9,29 @@ import (
 	"github.com/douhashi/osoba/internal/testutil/builders"
 	"github.com/douhashi/osoba/internal/testutil/helpers"
 	"github.com/douhashi/osoba/internal/testutil/mocks"
+	tmuxpkg "github.com/douhashi/osoba/internal/tmux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap/zapcore"
 )
 
-func TestPlanActionV2_Execute(t *testing.T) {
+func TestReviewAction_Execute(t *testing.T) {
 	tests := []struct {
 		name         string
 		issue        *github.Issue
-		setupMocks   func(*mocks.MockTmuxManager, *mocks.MockGitWorktreeManager, *mocks.MockClaudeExecutor)
+		setupMocks   func(*mocks.MockTmuxManager, *mocks.MockGitWorktreeManager, *mocks.MockClaudeExecutor, *mocks.MockLabelManager)
 		claudeConfig *claude.ClaudeConfig
 		wantErr      bool
 		errContains  string
 	}{
 		{
-			name: "正常なPlanアクション実行（argsあり）",
+			name: "正常なReviewアクション実行",
 			issue: builders.NewIssueBuilder().
 				WithNumber(123).
 				WithTitle("Test Issue").
-				WithLabel("status:needs-plan").
+				WithLabel("status:review-requested").
 				Build(),
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor) {
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor, labelManager *mocks.MockLabelManager) {
 				// PrepareWorkspace
 				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
 				tmux.On("WindowExists", "test-session", "issue-123").Return(false, nil).Once()
@@ -38,15 +39,16 @@ func TestPlanActionV2_Execute(t *testing.T) {
 					Return("issue-123", true, nil).Once()
 				git.On("WorktreeExistsForIssue", mock.Anything, 123).Return(false, nil).Once()
 				git.On("CreateWorktreeForIssue", mock.Anything, 123).Return(nil).Once()
-				tmux.On("GetPaneByTitle", "test-session", "issue-123", "Plan").Return(nil, assert.AnError).Once()
+				tmux.On("GetPaneByTitle", "test-session", "issue-123", "Review").Return(nil, assert.AnError).Once()
+				// 新しいウィンドウの場合はGetPaneBaseIndexとSetPaneTitleが呼ばれる
 				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
-				tmux.On("SetPaneTitle", "test-session", "issue-123", 0, "Plan").Return(nil).Once()
+				tmux.On("SetPaneTitle", "test-session", "issue-123", 0, "Review").Return(nil).Once()
 				git.On("GetWorktreePathForIssue", 123).Return("/test/worktree/issue-123").Once()
 
 				// Claude実行 - ExecuteInTmuxを使用
 				expectedConfig := &claude.PhaseConfig{
-					Prompt: "prompts/plan.md",
-					Args:   []string{"--arg1", "--arg2"},
+					Prompt: "prompts/review.md",
+					Args:   []string{"--review"},
 				}
 				expectedVars := &claude.TemplateVariables{
 					IssueNumber: 123,
@@ -64,53 +66,16 @@ func TestPlanActionV2_Execute(t *testing.T) {
 					"issue-123",
 					"/test/worktree/issue-123",
 				).Return(nil).Once()
-			},
-			claudeConfig: &claude.ClaudeConfig{
-				Phases: map[string]*claude.PhaseConfig{
-					"plan": {
-						Prompt: "prompts/plan.md",
-						Args:   []string{"--arg1", "--arg2"},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "正常なPlanアクション実行（args空配列）",
-			issue: builders.NewIssueBuilder().
-				WithNumber(456).
-				WithTitle("Test Issue 2").
-				WithLabel("status:needs-plan").
-				Build(),
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor) {
-				// PrepareWorkspace
-				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
-				tmux.On("WindowExists", "test-session", "issue-456").Return(true, nil).Once()
-				git.On("WorktreeExistsForIssue", mock.Anything, 456).Return(true, nil).Once()
-				tmux.On("GetPaneByTitle", "test-session", "issue-456", "Plan").Return(nil, assert.AnError).Once()
-				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
-				tmux.On("SetPaneTitle", "test-session", "issue-456", 0, "Plan").Return(nil).Once()
-				git.On("GetWorktreePathForIssue", 456).Return("/test/worktree/issue-456").Once()
 
-				// Claude実行 - ExecuteInTmuxを使用（args空配列）
-				expectedConfig := &claude.PhaseConfig{
-					Prompt: "prompts/plan.md",
-					Args:   []string{},
-				}
-				claudeExec.On("ExecuteInTmux",
-					mock.Anything,
-					expectedConfig,
-					mock.Anything,
-					"test-session",
-					"issue-456",
-					"/test/worktree/issue-456",
-				).Return(nil).Once()
+				// ラベル更新
+				labelManager.On("RemoveLabel", mock.Anything, 123, "status:review-requested").Return(nil).Once()
+				labelManager.On("AddLabel", mock.Anything, 123, "status:reviewed").Return(nil).Once()
 			},
 			claudeConfig: &claude.ClaudeConfig{
 				Phases: map[string]*claude.PhaseConfig{
-					"plan": {
-						Prompt: "prompts/plan.md",
-						Args:   []string{},
+					"review": {
+						Prompt: "prompts/review.md",
+						Args:   []string{"--review"},
 					},
 				},
 			},
@@ -119,7 +84,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 		{
 			name:  "nilのissue",
 			issue: nil,
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor) {
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor, labelManager *mocks.MockLabelManager) {
 				// 何も呼ばれない
 			},
 			claudeConfig: &claude.ClaudeConfig{},
@@ -131,25 +96,26 @@ func TestPlanActionV2_Execute(t *testing.T) {
 			issue: builders.NewIssueBuilder().
 				WithNumber(999).
 				WithTitle("No Config").
-				WithLabel("status:needs-plan").
+				WithLabel("status:review-requested").
 				Build(),
-			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor) {
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor, labelManager *mocks.MockLabelManager) {
 				// PrepareWorkspace
 				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
 				tmux.On("WindowExists", "test-session", "issue-999").Return(true, nil).Once()
 				git.On("WorktreeExistsForIssue", mock.Anything, 999).Return(true, nil).Once()
-				tmux.On("GetPaneByTitle", "test-session", "issue-999", "Plan").Return(nil, assert.AnError).Once()
-				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
-				tmux.On("SetPaneTitle", "test-session", "issue-999", 0, "Plan").Return(nil).Once()
+				tmux.On("GetPaneByTitle", "test-session", "issue-999", "Review").Return(nil, assert.AnError).Once()
+				// Reviewフェーズでは新しいpaneを作成
+				tmux.On("CreatePane", "test-session", "issue-999", mock.Anything).
+					Return(&tmuxpkg.PaneInfo{Index: 1, Title: "Review", Active: true}, nil).Once()
 				git.On("GetWorktreePathForIssue", 999).Return("/test/worktree/issue-999").Once()
 			},
 			claudeConfig: &claude.ClaudeConfig{
 				Phases: map[string]*claude.PhaseConfig{
-					// planフェーズなし
+					// reviewフェーズなし
 				},
 			},
 			wantErr:     true,
-			errContains: "plan phase config not found",
+			errContains: "review phase config not found",
 		},
 	}
 
@@ -160,14 +126,16 @@ func TestPlanActionV2_Execute(t *testing.T) {
 			tmuxManager := mocks.NewMockTmuxManager()
 			worktreeManager := mocks.NewMockGitWorktreeManager()
 			claudeExecutor := mocks.NewMockClaudeExecutor()
+			labelManager := mocks.NewMockLabelManager()
 
 			// モックの設定
-			tt.setupMocks(tmuxManager, worktreeManager, claudeExecutor)
+			tt.setupMocks(tmuxManager, worktreeManager, claudeExecutor, labelManager)
 
 			// アクションの作成
-			action := NewPlanAction(
+			action := NewReviewAction(
 				"test-session",
 				tmuxManager,
+				labelManager,
 				worktreeManager,
 				claudeExecutor,
 				tt.claudeConfig,
@@ -191,29 +159,30 @@ func TestPlanActionV2_Execute(t *testing.T) {
 			tmuxManager.AssertExpectations(t)
 			worktreeManager.AssertExpectations(t)
 			claudeExecutor.AssertExpectations(t)
+			labelManager.AssertExpectations(t)
 		})
 	}
 }
 
-func TestPlanActionV2_CanExecute(t *testing.T) {
+func TestReviewAction_CanExecute(t *testing.T) {
 	tests := []struct {
 		name  string
 		issue *github.Issue
 		want  bool
 	}{
 		{
-			name: "status:needs-planラベルあり",
+			name: "status:review-requestedラベルあり",
 			issue: builders.NewIssueBuilder().
 				WithNumber(123).
-				WithLabel("status:needs-plan").
+				WithLabel("status:review-requested").
 				Build(),
 			want: true,
 		},
 		{
-			name: "status:needs-planラベルなし",
+			name: "status:review-requestedラベルなし",
 			issue: builders.NewIssueBuilder().
 				WithNumber(456).
-				WithLabel("status:ready").
+				WithLabel("status:implementing").
 				Build(),
 			want: false,
 		},
@@ -229,7 +198,7 @@ func TestPlanActionV2_CanExecute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
-			action := &PlanAction{
+			action := &ReviewAction{
 				logger: logger,
 			}
 

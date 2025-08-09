@@ -84,13 +84,15 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 		return fmt.Errorf("plan phase config not found")
 	}
 
-	// ClaudeExecutorを使用して直接実行
-	a.logger.Info("Executing Claude in worktree",
+	// ClaudeExecutorを使用してtmuxウィンドウ内で実行
+	a.logger.Info("Executing Claude in tmux window",
 		"issue_number", issueNumber,
+		"session", a.sessionName,
+		"window", workspace.WindowName,
 		"worktree_path", workspace.WorktreePath,
 	)
 
-	if err := a.claudeExecutor.ExecuteInWorktree(ctx, phaseConfig, templateVars, workspace.WorktreePath); err != nil {
+	if err := a.claudeExecutor.ExecuteInTmux(ctx, phaseConfig, templateVars, a.sessionName, workspace.WindowName, workspace.WorktreePath); err != nil {
 		return fmt.Errorf("failed to execute Claude command: %w", err)
 	}
 

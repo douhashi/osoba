@@ -11,6 +11,11 @@ type MockLabelManager struct {
 	mock.Mock
 }
 
+// NewMockLabelManager creates a new instance of MockLabelManager
+func NewMockLabelManager() *MockLabelManager {
+	return &MockLabelManager{}
+}
+
 // TransitionLabel はラベルを遷移させる
 func (m *MockLabelManager) TransitionLabel(ctx context.Context, issueNumber int, from, to string) error {
 	args := m.Called(ctx, issueNumber, from, to)
