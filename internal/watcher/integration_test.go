@@ -386,14 +386,14 @@ func TestStartWithActionsIntegration(t *testing.T) {
 			actionMu.Lock()
 			actionCount++
 			actionMu.Unlock()
-			t.Logf("Plan action executed for issue #%d", *issue.Number)
+			// t.Logf is not safe to call from goroutines during parallel test execution
 			return nil
 		}
 		factory.implementationAction.(*mockAction).execute = func(ctx context.Context, issue *github.Issue) error {
 			actionMu.Lock()
 			actionCount++
 			actionMu.Unlock()
-			t.Logf("Implementation action executed for issue #%d", *issue.Number)
+			// t.Logf is not safe to call from goroutines during parallel test execution
 			return nil
 		}
 

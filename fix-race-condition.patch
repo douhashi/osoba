@@ -1,0 +1,41 @@
+diff --git a/internal/watcher/integration_test.go b/internal/watcher/integration_test.go
+index abc1234..def5678 100644
+--- a/internal/watcher/integration_test.go
++++ b/internal/watcher/integration_test.go
+@@ -386,7 +386,7 @@ func TestStartWithActionsIntegration(t *testing.T) {
+ 			actionMu.Lock()
+ 			actionCount++
+ 			actionMu.Unlock()
+-			t.Logf("Plan action executed for issue #%d", *issue.Number)
++			// t.Logf is not safe to call from goroutines
+ 			return nil
+ 		}
+ 		factory.implementationAction.(*mockAction).execute = func(ctx context.Context, issue *github.Issue) error {
+@@ -393,7 +393,7 @@ func TestStartWithActionsIntegration(t *testing.T) {
+ 			actionMu.Lock()
+ 			actionCount++
+ 			actionMu.Unlock()
+-			t.Logf("Implementation action executed for issue #%d", *issue.Number)
++			// t.Logf is not safe to call from goroutines
+ 			return nil
+ 		}
+ 
+@@ -410,7 +410,7 @@ func TestStartWithActionsIntegration(t *testing.T) {
+ 		}
+ 		actionMu.Unlock()
+ 
+-		t.Logf("All actions executed successfully")
++		t.Logf("All actions executed successfully: %d actions", actionCount)
+ 	})
+ }
+ 
+@@ -525,7 +525,9 @@ func TestConcurrentWatchers(t *testing.T) {
+ 		}
+ 		executionMu.Unlock()
+ 
+-		t.Logf("Concurrent watchers test completed successfully")
++		if t != nil {
++			t.Logf("Concurrent watchers test completed successfully")
++		}
+ 	})
+ }
