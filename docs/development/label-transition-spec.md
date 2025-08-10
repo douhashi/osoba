@@ -48,6 +48,12 @@ if err := w.executeLabelTransition(ctx, issue); err != nil {
 |-------------|-------------|------------|
 | `status:review-requested` | `status:reviewing` | Issue に `status:review-requested` ラベルが存在する |
 
+### 4. 再実装フェーズ (Re-implementation Phase)
+
+| 遷移元ラベル | 遷移先ラベル | トリガー条件 | 追加処理 |
+|-------------|-------------|------------|---------|
+| `status:requires-changes` | `status:ready` | Issue に `status:requires-changes` ラベルが存在する | tmuxウィンドウをすべて削除（worktreeは保持） |
+
 ## ラベル遷移のタイミング
 
 1. **Issue 検知時**: watcher が Issue を検知
@@ -100,7 +106,8 @@ if err := w.executeLabelTransition(ctx, issue); err != nil {
 ### 3. 新しいフェーズ追加時の手順
 
 1. `executeLabelTransition` メソッドの `transitions` 配列に新しい遷移パターンを追加
-2. `label_transition_test.go` に単体テストケースを追加
+   - 特別な処理が必要な場合は、`executeRequiresChangesTransition` のような専用メソッドを作成
+2. `label_transition_test.go` または専用テストファイルに単体テストケースを追加
 3. 必要に応じて統合テストを更新
 
 ## 今後の拡張性
