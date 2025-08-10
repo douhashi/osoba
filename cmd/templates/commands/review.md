@@ -75,6 +75,30 @@ Be sure to run the version *without* `--comments` first to understand the requir
 - [Optional remarks if any]
 ```
 
+### 6. Update Labels
+
+After posting the review result, update the Issue labels based on the verdict:
+
+#### If Approved (LGTM):
+1. Remove `status:reviewing` label:
+   ```bash
+   gh issue edit <issue number> --remove-label "status:reviewing"
+   ```
+2. Add `status:lgtm` label:
+   ```bash
+   gh issue edit <issue number> --add-label "status:lgtm"
+   ```
+
+#### If Requires Changes:
+1. Remove `status:reviewing` label:
+   ```bash
+   gh issue edit <issue number> --remove-label "status:reviewing"
+   ```
+2. Add `status:requires-changes` label:
+   ```bash
+   gh issue edit <issue number> --add-label "status:requires-changes"
+   ```
+
 ## Basic Rules
 
 - Ensure compliance with coding conventions

@@ -228,6 +228,8 @@ flowchart LR
 # .osoba.yml
 github:
   poll_interval: 10s
+  auto_merge_lgtm: true     # status:lgtmラベル時の自動マージ（デフォルト: true）
+  auto_plan_issue: false    # 新規Issue作成時の自動計画（デフォルト: false）
 
 tmux:
   session_prefix: "osoba-"
@@ -244,6 +246,24 @@ claude:
       args: ["--dangerously-skip-permissions"]
       prompt: "/osoba:review {{issue-number}}"
 ```
+
+#### 設定項目の詳細
+
+##### `auto_merge_lgtm` (boolean)
+- **デフォルト**: `true`
+- **説明**: `status:lgtm`ラベルが付与されたPRを自動的にマージします
+- **動作**: 
+  - `true`に設定すると、レビュー完了後に`status:lgtm`ラベルが付与されたPRを自動マージ
+  - マージ前にCIチェックの成功を確認
+  - マージコンフリクトがある場合は自動マージされません
+
+##### `auto_plan_issue` (boolean)
+- **デフォルト**: `false`
+- **説明**: 新規Issueが作成された際に自動的に計画フェーズを開始します
+- **動作**:
+  - `true`に設定すると、新規Issue作成時に自動的に`status:needs-plan`ラベルを付与
+  - 計画フェーズが自動的に開始され、実行計画がIssueに追記されます
+  - 手動でのラベル付与が不要になり、開発プロセスが完全に自動化されます
 
 ### 環境変数
 
