@@ -21,6 +21,8 @@ func TestClient_EnsureLabelsExist(t *testing.T) {
 		"status:planning":         {"1d76db", "Currently in planning phase"},
 		"status:implementing":     {"28a745", "Currently being implemented"},
 		"status:reviewing":        {"e99695", "Currently under review"},
+		"status:lgtm":             {"0e8a16", "Approved"},
+		"status:requires-changes": {"fbca04", "Changes requested"},
 	}
 
 	tests := []struct {
@@ -49,6 +51,8 @@ func TestClient_EnsureLabelsExist(t *testing.T) {
 								{"name": "status:planning", "color": "1d76db", "description": "Currently in planning phase"},
 								{"name": "status:implementing", "color": "28a745", "description": "Currently being implemented"},
 								{"name": "status:reviewing", "color": "e99695", "description": "Currently under review"},
+								{"name": "status:lgtm", "color": "0e8a16", "description": "Approved"},
+								{"name": "status:requires-changes", "color": "fbca04", "description": "Changes requested"},
 								{"name": "bug", "color": "d73a4a", "description": "Something isn't working"}
 							]`, nil
 						}
@@ -104,8 +108,8 @@ func TestClient_EnsureLabelsExist(t *testing.T) {
 					if callCount == 1 {
 						// 最初の呼び出し: 空のラベル一覧
 						return `[]`, nil
-					} else if callCount <= 7 {
-						// 6つのラベルを作成
+					} else if callCount <= 9 {
+						// 8つのラベルを作成
 						return "", nil
 					}
 					return "", fmt.Errorf("unexpected call count: %d", callCount)

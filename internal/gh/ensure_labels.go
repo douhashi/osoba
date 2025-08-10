@@ -47,6 +47,17 @@ var requiredLabels = []LabelDefinition{
 		Color:       "e99695",
 		Description: "Currently under review",
 	},
+	// Review result labels
+	{
+		Name:        "status:lgtm",
+		Color:       "0e8a16",
+		Description: "Approved",
+	},
+	{
+		Name:        "status:requires-changes",
+		Color:       "fbca04",
+		Description: "Changes requested",
+	},
 }
 
 // EnsureLabelsExist は必要なラベルがリポジトリに存在することを保証する
