@@ -16,7 +16,9 @@ Your task is to create an Implementation Plan (Plan) for a given GitHub Issue, i
 
 Please refer to the relevant documents via the following index files (Document System format):
 
-- Development: `@docs/development/INDEX.md`
+- **Coding Standards**: @docs/development/coding-standards.md
+- **Testing Strategy**: @docs/development/testing-strategy.md
+- **Other Development Documents**: @docs/development/INDEX.md
 
 ### Expected State of the Issue
 
@@ -77,11 +79,11 @@ Please refer to the relevant documents via the following index files (Document S
    - Define estimated duration and key checkpoints
 
 6. **Write the implementation plan to a file**
-   - Use the implementation plan template and save to `./tmp/plan-[slug].md`
+   - Use the implementation plan template and save to `./.tmp/plan-[slug].md`
    - Replace `[slug]` with a kebab-case version of the issue title (e.g., `plan-add-favorite.md`)
 
 7. **Post the plan as a comment**
-   - Run: `gh issue comment <issue number> --body-file ./tmp/plan-[slug].md`
+   - Run: `gh issue comment <issue number> --body-file ./.tmp/plan-[slug].md`
 
 8. **Update the label**
    - Run: `gh issue edit <issue number> --remove-label "status:planning" --add-label "status:ready"`

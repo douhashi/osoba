@@ -101,7 +101,7 @@ func TestInitCmd_GitHubLabelManagement(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"[8/8] GitHubラベルの作成           ✅",
+				"[9/9] GitHubラベルの作成           ✅",
 			},
 		},
 		{

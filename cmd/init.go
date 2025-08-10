@@ -90,43 +90,50 @@ func newInitCmd() *cobra.Command {
 			}
 
 			// 2. 必要ツールの確認
-			fmt.Fprint(out, "[2/8] 必要なツールの確認            ")
+			fmt.Fprint(out, "[2/9] 必要なツールの確認            ")
 			if err := checkRequiredTools(out); err != nil {
 				fmt.Fprintln(out, "❌")
 				return err
 			}
 
 			// 3. GitHub CLI (gh)の確認
-			fmt.Fprint(out, "[3/8] GitHub CLI (gh)の確認        ")
+			fmt.Fprint(out, "[3/9] GitHub CLI (gh)の確認        ")
 			if err := checkGitHubCLI(out, errOut); err != nil {
 				fmt.Fprintln(out, "❌")
 				return err
 			}
 
 			// 4. GitHub認証の確認
-			fmt.Fprint(out, "[4/8] GitHub認証の確認             ")
+			fmt.Fprint(out, "[4/9] GitHub認証の確認             ")
 			checkGitHubAuth(out, errOut)
 
 			// 5. GitHubリポジトリへのアクセス確認
-			fmt.Fprint(out, "[5/8] GitHubリポジトリへのアクセス確認  ")
+			fmt.Fprint(out, "[5/9] GitHubリポジトリへのアクセス確認  ")
 			checkRepositoryAccess(out, errOut)
 
 			// 6. 設定ファイルの作成
-			fmt.Fprint(out, "[6/8] 設定ファイルの作成           ")
+			fmt.Fprint(out, "[6/9] 設定ファイルの作成           ")
 			if err := setupConfigFile(out); err != nil {
 				fmt.Fprintln(out, "❌")
 				return fmt.Errorf("設定ファイルの作成に失敗しました: %w", err)
 			}
 
 			// 7. Claude commandsの配置
-			fmt.Fprint(out, "[7/8] Claude commandsの配置        ")
+			fmt.Fprint(out, "[7/9] Claude commandsの配置        ")
 			if err := setupClaudeCommands(out); err != nil {
 				fmt.Fprintln(out, "❌")
 				return fmt.Errorf("Claude commandsの配置に失敗しました: %w", err)
 			}
 
-			// 8. GitHubラベルの作成（エラーは警告）
-			fmt.Fprint(out, "[8/8] GitHubラベルの作成           ")
+			// 8. ドキュメントシステムの配置
+			fmt.Fprint(out, "[8/9] ドキュメントシステムの配置   ")
+			if err := setupDocumentSystem(out); err != nil {
+				fmt.Fprintln(out, "❌")
+				return fmt.Errorf("ドキュメントシステムの配置に失敗しました: %w", err)
+			}
+
+			// 9. GitHubラベルの作成（エラーは警告）
+			fmt.Fprint(out, "[9/9] GitHubラベルの作成           ")
 			setupGitHubLabels(out, errOut)
 
 			fmt.Fprintln(out, "")
@@ -275,7 +282,7 @@ func setupClaudeCommands(out io.Writer) error {
 	}
 
 	// テンプレートファイルの配置
-	files := []string{"plan.md", "implement.md", "review.md"}
+	files := []string{"plan.md", "implement.md", "review.md", "add-backlog.md"}
 	allExist := true
 	someExist := false
 
@@ -313,6 +320,38 @@ func setupClaudeCommands(out io.Writer) error {
 		fmt.Fprintln(out, "✅")
 	}
 
+	return nil
+}
+
+func setupDocumentSystem(out io.Writer) error {
+	// docs ディレクトリの作成
+	dir := "docs"
+	if err := mkdirAllFunc(dir, 0755); err != nil {
+		return fmt.Errorf("ディレクトリの作成に失敗しました: %w", err)
+	}
+
+	// document_system.md ファイルの配置
+	dst := filepath.Join(dir, "document_system.md")
+
+	// 既存ファイルのチェック
+	if _, err := statFunc(dst); err == nil {
+		// ファイルが存在する
+		fmt.Fprintln(out, "✅ (既存)")
+		return nil
+	}
+
+	// テンプレートから新規ファイルを作成
+	src := "templates/document_system.md"
+	data, err := templateFS.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("テンプレートファイルの読み込みに失敗しました: %w", err)
+	}
+
+	if err := writeFileFunc(dst, data, 0644); err != nil {
+		return fmt.Errorf("ファイルの作成に失敗しました: %w", err)
+	}
+
+	fmt.Fprintln(out, "✅")
 	return nil
 }
 

@@ -52,8 +52,8 @@ Be sure to run the version *without* `--comments` first to understand the requir
 ### 5. Post Review Result
 
 - Post the review result using:
-  `GH_PAGER= gh pr comment <PR number> --body "$(cat ./tmp/review-result-<issue number>.md)"`
-- Use the following template for `./tmp/review-result-<issue number>.md`:
+  `GH_PAGER= gh pr comment <PR number> --body "$(cat ./.tmp/review-result-<issue number>.md)"`
+- Use the following template for `./.tmp/review-result-<issue number>.md`:
 
 ```markdown
 ## Review Result
