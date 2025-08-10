@@ -92,6 +92,60 @@ func TestClient_GetPullRequestForIssue(t *testing.T) {
 			expectedError: true,
 			errorContains: "failed to parse pull request",
 		},
+		{
+			name:        "正常系: UNKNOWN mergeable status",
+			issueNumber: 123,
+			mockGhOutput: `[
+				{
+					"number": 456,
+					"title": "feat: Add new feature",
+					"state": "OPEN", 
+					"mergeable": "UNKNOWN",
+					"isDraft": false,
+					"headRefName": "feature/new-feature",
+					"statusCheckRollup": {
+						"state": "PENDING"
+					}
+				}
+			]`,
+			expectedPR: &PullRequest{
+				Number:       456,
+				Title:        "feat: Add new feature",
+				State:        "OPEN",
+				Mergeable:    "UNKNOWN",
+				IsDraft:      false,
+				HeadRefName:  "feature/new-feature",
+				ChecksStatus: "PENDING",
+			},
+			expectedError: false,
+		},
+		{
+			name:        "正常系: CONFLICTING mergeable status",
+			issueNumber: 123,
+			mockGhOutput: `[
+				{
+					"number": 456,
+					"title": "feat: Add new feature",
+					"state": "OPEN",
+					"mergeable": "CONFLICTING", 
+					"isDraft": false,
+					"headRefName": "feature/new-feature",
+					"statusCheckRollup": {
+						"state": "SUCCESS"
+					}
+				}
+			]`,
+			expectedPR: &PullRequest{
+				Number:       456,
+				Title:        "feat: Add new feature",
+				State:        "OPEN",
+				Mergeable:    "CONFLICTING",
+				IsDraft:      false,
+				HeadRefName:  "feature/new-feature",
+				ChecksStatus: "SUCCESS",
+			},
+			expectedError: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -307,4 +361,26 @@ func TestClient_GetPullRequestStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGetPullRequestForIssueWithFallback tests the fallback mechanism for PR detection
+func TestGetPullRequestForIssueWithFallback(t *testing.T) {
+	t.Skip("Test to be implemented with fallback mechanism - this is a placeholder for TDD")
+
+	// This test will verify:
+	// 1. Primary linked: search works
+	// 2. Fallback to branch name search when linked: search fails
+	// 3. Proper logging of search attempts
+	// 4. Error handling for both search methods
+}
+
+// TestGetPullRequestStatusWithRetry tests retry mechanism for PR status
+func TestGetPullRequestStatusWithRetry(t *testing.T) {
+	t.Skip("Test to be implemented with retry mechanism - this is a placeholder for TDD")
+
+	// This test will verify:
+	// 1. Retry when mergeable status is UNKNOWN
+	// 2. Exponential backoff between retries
+	// 3. Maximum retry attempts
+	// 4. Proper logging of retry attempts
 }

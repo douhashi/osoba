@@ -186,9 +186,22 @@ func (w *IssueWatcher) StartWithActions(ctx context.Context) {
 				"error", err)
 		}
 
-		// ラベル遷移後、自動マージ処理を実行（設定が有効な場合）
-		if w.config != nil && w.config.GitHub.AutoMergeLGTM {
-			if err := executeAutoMergeIfLGTMWithLogger(ctx, issue, w.config, w.client, w.cleanupManager, w.logger); err != nil {
+		// ラベル遷移後、Issue情報を再取得して最新状態で自動マージ処理を実行
+		if w.config != nil && w.config.GitHub.AutoMergeLGTM && issue.Number != nil {
+			// ラベル遷移後のタイミング問題に対応するため、少し待機
+			time.Sleep(1 * time.Second)
+
+			// 最新のIssue状態を取得
+			updatedIssue, err := w.getUpdatedIssueState(ctx, *issue.Number)
+			if err != nil {
+				w.logger.Warn("Failed to get updated issue state for auto-merge",
+					"issueNumber", *issue.Number,
+					"error", err)
+				// エラーでも元のIssueで処理を続行
+				updatedIssue = issue
+			}
+
+			if err := executeAutoMergeIfLGTMWithLogger(ctx, updatedIssue, w.config, w.client, w.cleanupManager, w.logger); err != nil {
 				w.logger.Error("Failed to execute auto-merge for issue",
 					"issueNumber", *issue.Number,
 					"error", err)
@@ -468,6 +481,33 @@ func NewIssueWatcherWithLabelTracking(client github.GitHubClient, owner, repo, s
 	}
 	watcher.labelChangeTracking = true
 	return watcher, nil
+}
+
+// getUpdatedIssueState は指定されたIssue番号の最新状態を取得する
+func (w *IssueWatcher) getUpdatedIssueState(ctx context.Context, issueNumber int) (*gh.Issue, error) {
+	w.logger.Debug("Getting updated issue state",
+		"issue_number", issueNumber,
+	)
+
+	// GitHub APIから単一Issueの情報を取得
+	// 既存のListIssuesByLabelsを使用してstatus:lgtmラベルでフィルタリング
+	issues, err := w.client.ListIssuesByLabels(ctx, w.owner, w.repo, []string{"status:lgtm"})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list issues with LGTM label: %w", err)
+	}
+
+	// 該当のIssueを検索
+	for _, issue := range issues {
+		if issue.Number != nil && *issue.Number == issueNumber {
+			w.logger.Debug("Found updated issue state",
+				"issue_number", issueNumber,
+				"labels", getLabels(issue),
+			)
+			return issue, nil
+		}
+	}
+
+	return nil, fmt.Errorf("issue #%d not found in LGTM issues", issueNumber)
 }
 
 // executeLabelTransition は現在のラベルに基づいて適切なラベル遷移を実行する

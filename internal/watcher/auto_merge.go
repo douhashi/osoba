@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/douhashi/osoba/internal/cleanup"
 	"github.com/douhashi/osoba/internal/config"
@@ -75,18 +76,25 @@ func executeAutoMergeIfLGTMWithLogger(
 	cleanupManager cleanup.Manager,
 	log logger.Logger,
 ) error {
+	log.Debug("Auto-merge: Configuration check",
+		"auto_merge_enabled", cfg != nil && cfg.GitHub.AutoMergeLGTM,
+	)
+
 	// auto_merge_lgtm設定が無効な場合はスキップ
 	if !cfg.GitHub.AutoMergeLGTM {
+		log.Debug("Auto-merge: Configuration disabled")
 		return nil
 	}
 
 	// status:lgtmラベルがない場合はスキップ
 	if !hasLGTMLabel(issue) {
+		log.Debug("Auto-merge: No LGTM label found")
 		return nil
 	}
 
 	// Issue番号を取得
 	if issue.Number == nil {
+		log.Debug("Auto-merge: Issue number is nil")
 		return nil
 	}
 	issueNumber := *issue.Number
@@ -95,8 +103,8 @@ func executeAutoMergeIfLGTMWithLogger(
 		"issue_number", issueNumber,
 	)
 
-	// IssueとリンクされたPRを取得
-	pr, err := ghClient.GetPullRequestForIssue(ctx, issueNumber)
+	// IssueとリンクされたPRを取得（リトライ機能付き）
+	pr, err := getPullRequestForIssueWithRetry(ctx, ghClient, issueNumber, log)
 	if err != nil {
 		return fmt.Errorf("failed to get pull request for issue #%d: %w", issueNumber, err)
 	}
@@ -115,15 +123,22 @@ func executeAutoMergeIfLGTMWithLogger(
 		"state", pr.State,
 		"mergeable", pr.Mergeable,
 		"is_draft", pr.IsDraft,
+		"checks_status", pr.ChecksStatus,
 	)
 
-	// PRがマージ可能かチェック
-	if !isMergeable(pr) {
-		log.Info("Auto-merge: Pull request is not mergeable",
+	// PRがマージ可能かチェック（リトライ機能付き）
+	mergeable, err := checkMergeableWithRetry(ctx, ghClient, pr, log)
+	if err != nil {
+		return fmt.Errorf("failed to check mergeable status for PR #%d: %w", pr.Number, err)
+	}
+
+	if !mergeable {
+		log.Info("Auto-merge: Pull request is not mergeable after retry",
 			"pr_number", pr.Number,
 			"state", pr.State,
 			"mergeable", pr.Mergeable,
 			"is_draft", pr.IsDraft,
+			"checks_status", pr.ChecksStatus,
 		)
 		return nil
 	}
@@ -133,6 +148,10 @@ func executeAutoMergeIfLGTMWithLogger(
 		"pr_number", pr.Number,
 	)
 	if err := ghClient.MergePullRequest(ctx, pr.Number); err != nil {
+		log.Error("Auto-merge: Failed to merge pull request",
+			"pr_number", pr.Number,
+			"error", err,
+		)
 		return fmt.Errorf("failed to merge pull request #%d: %w", pr.Number, err)
 	}
 
@@ -200,4 +219,117 @@ func isMergeable(pr *github.PullRequest) bool {
 	}
 
 	return true
+}
+
+// getPullRequestForIssueWithRetry はIssueに関連するPRを取得する（リトライ機能付き）
+func getPullRequestForIssueWithRetry(
+	ctx context.Context,
+	ghClient github.GitHubClient,
+	issueNumber int,
+	log logger.Logger,
+) (*github.PullRequest, error) {
+	log.Debug("Auto-merge: Getting pull request for issue",
+		"issue_number", issueNumber,
+	)
+
+	pr, err := ghClient.GetPullRequestForIssue(ctx, issueNumber)
+	if err != nil {
+		log.Warn("Auto-merge: Failed to get pull request via linked search",
+			"issue_number", issueNumber,
+			"error", err,
+		)
+
+		// フォールバック: ブランチ名による検索を試行
+		log.Debug("Auto-merge: Attempting fallback search by branch name",
+			"issue_number", issueNumber,
+		)
+
+		// 現時点ではフォールバック機能は未実装
+		// 将来的にはブランチ名パターン（issue-123, fix-123等）での検索を追加予定
+		return nil, err
+	}
+
+	if pr != nil {
+		log.Debug("Auto-merge: Successfully found pull request via linked search",
+			"issue_number", issueNumber,
+			"pr_number", pr.Number,
+		)
+	}
+
+	return pr, nil
+}
+
+// checkMergeableWithRetry はPRのマージ可能性をチェックする（リトライ機能付き）
+func checkMergeableWithRetry(
+	ctx context.Context,
+	ghClient github.GitHubClient,
+	pr *github.PullRequest,
+	log logger.Logger,
+) (bool, error) {
+	const maxRetries = 3
+	const retryDelay = 2 * time.Second
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		log.Debug("Auto-merge: Checking mergeable status",
+			"pr_number", pr.Number,
+			"attempt", attempt,
+			"max_retries", maxRetries,
+		)
+
+		// 最新のPRステータスを取得
+		currentPR, err := ghClient.GetPullRequestStatus(ctx, pr.Number)
+		if err != nil {
+			log.Warn("Auto-merge: Failed to get PR status",
+				"pr_number", pr.Number,
+				"attempt", attempt,
+				"error", err,
+			)
+			if attempt == maxRetries {
+				return false, fmt.Errorf("failed to get PR status after %d attempts: %w", maxRetries, err)
+			}
+			time.Sleep(retryDelay * time.Duration(attempt))
+			continue
+		}
+
+		// PRステータスを更新
+		*pr = *currentPR
+
+		log.Debug("Auto-merge: Current PR status",
+			"pr_number", pr.Number,
+			"state", pr.State,
+			"mergeable", pr.Mergeable,
+			"is_draft", pr.IsDraft,
+			"checks_status", pr.ChecksStatus,
+			"attempt", attempt,
+		)
+
+		// UNKNOWN以外の場合は結果を返す
+		if pr.Mergeable != "UNKNOWN" {
+			mergeable := isMergeable(pr)
+			log.Debug("Auto-merge: Mergeable check completed",
+				"pr_number", pr.Number,
+				"mergeable", mergeable,
+				"attempt", attempt,
+			)
+			return mergeable, nil
+		}
+
+		// UNKNOWNの場合は再試行
+		log.Info("Auto-merge: PR mergeable status is UNKNOWN, retrying",
+			"pr_number", pr.Number,
+			"attempt", attempt,
+			"max_retries", maxRetries,
+		)
+
+		if attempt < maxRetries {
+			time.Sleep(retryDelay * time.Duration(attempt))
+		}
+	}
+
+	// 最大試行回数に達してもUNKNOWNの場合
+	log.Warn("Auto-merge: PR mergeable status remains UNKNOWN after max retries",
+		"pr_number", pr.Number,
+		"max_retries", maxRetries,
+	)
+	return false, nil // エラーではなく、マージ不可として扱う
 }

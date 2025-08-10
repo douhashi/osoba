@@ -381,6 +381,227 @@ func TestExecuteAutoMergeIfLGTM(t *testing.T) {
 	}
 }
 
+// TestExecuteAutoMergeWithRetry tests the retry mechanism for mergeable status checks
+func TestExecuteAutoMergeWithRetry(t *testing.T) {
+	tests := []struct {
+		name          string
+		issue         *github.Issue
+		prResponses   []*github.PullRequest // Multiple responses for retry simulation
+		expectRetries int
+		expectMerge   bool
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "UNKNOWN mergeable status retries and succeeds on second attempt",
+			issue: &github.Issue{
+				Number: github.Int(123),
+				Labels: []*github.Label{
+					{Name: github.String("status:lgtm")},
+				},
+			},
+			prResponses: []*github.PullRequest{
+				{
+					Number:    456,
+					State:     "OPEN",
+					Mergeable: "UNKNOWN",
+					IsDraft:   false,
+				},
+				{
+					Number:    456,
+					State:     "OPEN",
+					Mergeable: "MERGEABLE",
+					IsDraft:   false,
+				},
+			},
+			expectRetries: 1,
+			expectMerge:   true,
+			expectError:   false,
+		},
+		{
+			name: "UNKNOWN mergeable status fails after max retries",
+			issue: &github.Issue{
+				Number: github.Int(123),
+				Labels: []*github.Label{
+					{Name: github.String("status:lgtm")},
+				},
+			},
+			prResponses: []*github.PullRequest{
+				{
+					Number:    456,
+					State:     "OPEN",
+					Mergeable: "UNKNOWN",
+					IsDraft:   false,
+				},
+				{
+					Number:    456,
+					State:     "OPEN",
+					Mergeable: "UNKNOWN",
+					IsDraft:   false,
+				},
+				{
+					Number:    456,
+					State:     "OPEN",
+					Mergeable: "UNKNOWN",
+					IsDraft:   false,
+				},
+			},
+			expectRetries: 3,
+			expectMerge:   false,
+			expectError:   false, // Not mergeable is not an error, just skipped
+		},
+		{
+			name: "CONFLICTING status immediately fails without retry",
+			issue: &github.Issue{
+				Number: github.Int(123),
+				Labels: []*github.Label{
+					{Name: github.String("status:lgtm")},
+				},
+			},
+			prResponses: []*github.PullRequest{
+				{
+					Number:    456,
+					State:     "OPEN",
+					Mergeable: "CONFLICTING",
+					IsDraft:   false,
+				},
+			},
+			expectRetries: 1,
+			expectMerge:   false,
+			expectError:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Skip("Test to be implemented with retry mechanism - this is a placeholder for TDD")
+		})
+	}
+}
+
+// TestGetPullRequestForIssueWithFallback tests the fallback mechanism for PR detection
+func TestGetPullRequestForIssueWithFallback(t *testing.T) {
+	tests := []struct {
+		name               string
+		issueNumber        int
+		linkedSearchResult []*github.PullRequest
+		linkedSearchError  error
+		branchSearchResult *github.PullRequest
+		branchSearchError  error
+		expectedPR         *github.PullRequest
+		expectError        bool
+		expectFallback     bool
+	}{
+		{
+			name:        "linked search succeeds",
+			issueNumber: 123,
+			linkedSearchResult: []*github.PullRequest{
+				{
+					Number:    456,
+					State:     "OPEN",
+					Mergeable: "MERGEABLE",
+				},
+			},
+			expectedPR: &github.PullRequest{
+				Number:    456,
+				State:     "OPEN",
+				Mergeable: "MERGEABLE",
+			},
+			expectFallback: false,
+		},
+		{
+			name:              "linked search fails, fallback to branch search succeeds",
+			issueNumber:       123,
+			linkedSearchError: errors.New("no linked PR found"),
+			branchSearchResult: &github.PullRequest{
+				Number:    456,
+				State:     "OPEN",
+				Mergeable: "MERGEABLE",
+			},
+			expectedPR: &github.PullRequest{
+				Number:    456,
+				State:     "OPEN",
+				Mergeable: "MERGEABLE",
+			},
+			expectFallback: true,
+		},
+		{
+			name:              "both searches fail",
+			issueNumber:       123,
+			linkedSearchError: errors.New("no linked PR found"),
+			branchSearchError: errors.New("no branch PR found"),
+			expectedPR:        nil,
+			expectFallback:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Skip("Test to be implemented with fallback mechanism - this is a placeholder for TDD")
+		})
+	}
+}
+
+// TestAutoMergeWithDetailedLogging tests enhanced logging functionality
+func TestAutoMergeWithDetailedLogging(t *testing.T) {
+	tests := []struct {
+		name               string
+		issue              *github.Issue
+		config             *config.Config
+		prResponse         *github.PullRequest
+		expectedLogEntries []string
+	}{
+		{
+			name: "logs configuration status",
+			issue: &github.Issue{
+				Number: github.Int(123),
+				Labels: []*github.Label{
+					{Name: github.String("status:lgtm")},
+				},
+			},
+			config: &config.Config{
+				GitHub: config.GitHubConfig{
+					AutoMergeLGTM: true,
+				},
+			},
+			prResponse: &github.PullRequest{
+				Number:    456,
+				State:     "OPEN",
+				Mergeable: "MERGEABLE",
+			},
+			expectedLogEntries: []string{
+				"Auto-merge: Configuration check",
+				"Auto-merge: Processing LGTM issue",
+				"Auto-merge: Found pull request",
+				"Auto-merge: Merging pull request",
+			},
+		},
+		{
+			name: "logs when configuration is disabled",
+			issue: &github.Issue{
+				Number: github.Int(123),
+				Labels: []*github.Label{
+					{Name: github.String("status:lgtm")},
+				},
+			},
+			config: &config.Config{
+				GitHub: config.GitHubConfig{
+					AutoMergeLGTM: false,
+				},
+			},
+			expectedLogEntries: []string{
+				"Auto-merge: Configuration disabled",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Skip("Test to be implemented with enhanced logging - this is a placeholder for TDD")
+		})
+	}
+}
+
 func TestHasLGTMLabel(t *testing.T) {
 	tests := []struct {
 		name     string
