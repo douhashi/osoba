@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/douhashi/osoba/internal/cleanup"
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/github"
 	gh "github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
@@ -50,6 +52,8 @@ type IssueWatcher struct {
 	labelChangeTracking bool               // ラベル変更追跡が有効かどうか
 	issueLabels         map[int64][]string // Issue IDとラベルのマッピング
 	logger              logger.Logger      // ロガー
+	config              *config.Config     // 設定
+	cleanupManager      cleanup.Manager    // クリーンアップマネージャー
 
 	// ヘルスチェック用のフィールド
 	lastExecutionTime    time.Time
@@ -62,6 +66,11 @@ type IssueWatcher struct {
 
 // NewIssueWatcher は新しいIssueWatcherを作成する
 func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string, labels []string, pollInterval time.Duration, logger logger.Logger) (*IssueWatcher, error) {
+	return NewIssueWatcherWithConfig(client, owner, repo, sessionName, labels, pollInterval, logger, nil, nil)
+}
+
+// NewIssueWatcherWithConfig は設定付きの新しいIssueWatcherを作成する
+func NewIssueWatcherWithConfig(client github.GitHubClient, owner, repo, sessionName string, labels []string, pollInterval time.Duration, logger logger.Logger, cfg *config.Config, cleanupMgr cleanup.Manager) (*IssueWatcher, error) {
 	if owner == "" {
 		return nil, errors.New("owner is required")
 	}
@@ -81,6 +90,11 @@ func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string
 		return nil, errors.New("logger is required")
 	}
 
+	// デフォルトのcleanupManagerを作成（必要に応じて）
+	if cleanupMgr == nil {
+		cleanupMgr = cleanup.NewManager(logger)
+	}
+
 	return &IssueWatcher{
 		client:              client,
 		owner:               owner,
@@ -92,6 +106,8 @@ func NewIssueWatcher(client github.GitHubClient, owner, repo, sessionName string
 		issueLabels:         make(map[int64][]string),
 		startTime:           time.Now(),
 		logger:              logger.WithFields("component", "watcher", "owner", owner, "repo", repo),
+		config:              cfg,
+		cleanupManager:      cleanupMgr,
 	}, nil
 }
 
@@ -165,6 +181,15 @@ func (w *IssueWatcher) StartWithActions(ctx context.Context) {
 			w.logger.Error("Failed to execute label transition for issue",
 				"issueNumber", *issue.Number,
 				"error", err)
+		}
+
+		// ラベル遷移後、自動マージ処理を実行（設定が有効な場合）
+		if w.config != nil && w.config.GitHub.AutoMergeLGTM {
+			if err := executeAutoMergeIfLGTMWithLogger(ctx, issue, w.config, w.client, w.cleanupManager, w.logger); err != nil {
+				w.logger.Error("Failed to execute auto-merge for issue",
+					"issueNumber", *issue.Number,
+					"error", err)
+			}
 		}
 	}
 

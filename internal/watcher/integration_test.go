@@ -297,6 +297,18 @@ func (m *integrationMockGitHubClient) AddLabel(ctx context.Context, owner, repo 
 	return nil
 }
 
+func (m *integrationMockGitHubClient) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*github.PullRequest, error) {
+	return nil, nil
+}
+
+func (m *integrationMockGitHubClient) MergePullRequest(ctx context.Context, prNumber int) error {
+	return nil
+}
+
+func (m *integrationMockGitHubClient) GetPullRequestStatus(ctx context.Context, prNumber int) (*github.PullRequest, error) {
+	return nil, nil
+}
+
 // 既存の統合テスト（mainブランチから）
 func TestStartWithActionsIntegration(t *testing.T) {
 	t.Run("複数のIssueを連続して処理", func(t *testing.T) {
@@ -374,14 +386,14 @@ func TestStartWithActionsIntegration(t *testing.T) {
 			actionMu.Lock()
 			actionCount++
 			actionMu.Unlock()
-			t.Logf("Plan action executed for issue #%d", *issue.Number)
+			// t.Logf is not safe to call from goroutines during parallel test execution
 			return nil
 		}
 		factory.implementationAction.(*mockAction).execute = func(ctx context.Context, issue *github.Issue) error {
 			actionMu.Lock()
 			actionCount++
 			actionMu.Unlock()
-			t.Logf("Implementation action executed for issue #%d", *issue.Number)
+			// t.Logf is not safe to call from goroutines during parallel test execution
 			return nil
 		}
 
