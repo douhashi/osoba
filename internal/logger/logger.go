@@ -120,28 +120,33 @@ func parseLevel(level string) (zapcore.Level, error) {
 
 // Debug はデバッグレベルのログを出力する
 func (l *zapLogger) Debug(msg string, keysAndValues ...interface{}) {
-	l.sugar.Debugw(msg, keysAndValues...)
+	sanitized := SanitizeArgs(keysAndValues...)
+	l.sugar.Debugw(msg, sanitized...)
 }
 
 // Info は情報レベルのログを出力する
 func (l *zapLogger) Info(msg string, keysAndValues ...interface{}) {
-	l.sugar.Infow(msg, keysAndValues...)
+	sanitized := SanitizeArgs(keysAndValues...)
+	l.sugar.Infow(msg, sanitized...)
 }
 
 // Warn は警告レベルのログを出力する
 func (l *zapLogger) Warn(msg string, keysAndValues ...interface{}) {
-	l.sugar.Warnw(msg, keysAndValues...)
+	sanitized := SanitizeArgs(keysAndValues...)
+	l.sugar.Warnw(msg, sanitized...)
 }
 
 // Error はエラーレベルのログを出力する
 func (l *zapLogger) Error(msg string, keysAndValues ...interface{}) {
-	l.sugar.Errorw(msg, keysAndValues...)
+	sanitized := SanitizeArgs(keysAndValues...)
+	l.sugar.Errorw(msg, sanitized...)
 }
 
 // WithFields はフィールドを追加した新しいロガーを返す
 func (l *zapLogger) WithFields(keysAndValues ...interface{}) Logger {
+	sanitized := SanitizeArgs(keysAndValues...)
 	return &zapLogger{
-		sugar: l.sugar.With(keysAndValues...),
+		sugar: l.sugar.With(sanitized...),
 	}
 }
 

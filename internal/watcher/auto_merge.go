@@ -75,6 +75,7 @@ func executeAutoMergeIfLGTMWithLogger(
 	ghClient github.GitHubClient,
 	cleanupManager cleanup.Manager,
 	log logger.Logger,
+	metrics *AutoMergeMetrics,
 ) error {
 	log.Debug("Auto-merge: Configuration check",
 		"auto_merge_enabled", cfg != nil && cfg.GitHub.AutoMergeLGTM,
@@ -106,6 +107,13 @@ func executeAutoMergeIfLGTMWithLogger(
 	// IssueとリンクされたPRを取得（リトライ機能付き）
 	pr, err := getPullRequestForIssueWithRetry(ctx, ghClient, issueNumber, log)
 	if err != nil {
+		log.Error("Auto-merge: Failed to get pull request for issue",
+			"issue_number", issueNumber,
+			"error", err,
+		)
+		if metrics != nil {
+			metrics.RecordFailure(issueNumber, 0, "pr_not_found")
+		}
 		return fmt.Errorf("failed to get pull request for issue #%d: %w", issueNumber, err)
 	}
 
@@ -114,6 +122,9 @@ func executeAutoMergeIfLGTMWithLogger(
 		log.Debug("Auto-merge: No pull request found for issue",
 			"issue_number", issueNumber,
 		)
+		if metrics != nil {
+			metrics.RecordFailure(issueNumber, 0, "pr_not_linked")
+		}
 		return nil
 	}
 
@@ -129,6 +140,13 @@ func executeAutoMergeIfLGTMWithLogger(
 	// PRがマージ可能かチェック（リトライ機能付き）
 	mergeable, err := checkMergeableWithRetry(ctx, ghClient, pr, log)
 	if err != nil {
+		log.Error("Auto-merge: Failed to check mergeable status for PR",
+			"pr_number", pr.Number,
+			"error", err,
+		)
+		if metrics != nil {
+			metrics.RecordFailure(issueNumber, pr.Number, "merge_check_failed")
+		}
 		return fmt.Errorf("failed to check mergeable status for PR #%d: %w", pr.Number, err)
 	}
 
@@ -140,6 +158,22 @@ func executeAutoMergeIfLGTMWithLogger(
 			"is_draft", pr.IsDraft,
 			"checks_status", pr.ChecksStatus,
 		)
+		if metrics != nil {
+			var reason string
+			switch {
+			case pr.State != "OPEN":
+				reason = "pr_closed"
+			case pr.IsDraft:
+				reason = "pr_draft"
+			case pr.Mergeable == "CONFLICTING":
+				reason = "pr_conflicting"
+			case pr.ChecksStatus == "FAILURE":
+				reason = "checks_failed"
+			default:
+				reason = "not_mergeable"
+			}
+			metrics.RecordFailure(issueNumber, pr.Number, reason)
+		}
 		return nil
 	}
 
@@ -152,12 +186,20 @@ func executeAutoMergeIfLGTMWithLogger(
 			"pr_number", pr.Number,
 			"error", err,
 		)
+		if metrics != nil {
+			metrics.RecordFailure(issueNumber, pr.Number, "merge_api_error")
+		}
 		return fmt.Errorf("failed to merge pull request #%d: %w", pr.Number, err)
 	}
 
 	log.Info("Auto-merge: Successfully merged pull request",
 		"pr_number", pr.Number,
 	)
+
+	// メトリクスに成功を記録
+	if metrics != nil {
+		metrics.RecordSuccess(issueNumber, pr.Number)
+	}
 
 	// マージ成功後、クリーンアップを実行
 	// クリーンアップエラーは警告ログのみで処理を継続
