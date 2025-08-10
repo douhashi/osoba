@@ -309,6 +309,17 @@ func (m *integrationMockGitHubClient) GetPullRequestStatus(ctx context.Context, 
 	return nil, nil
 }
 
+func (m *integrationMockGitHubClient) ListAllOpenIssues(ctx context.Context, owner, repo string) ([]*github.Issue, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.returnError {
+		return nil, errors.New("mock error")
+	}
+
+	return m.issues, nil
+}
+
 // 既存の統合テスト（mainブランチから）
 func TestStartWithActionsIntegration(t *testing.T) {
 	t.Run("複数のIssueを連続して処理", func(t *testing.T) {

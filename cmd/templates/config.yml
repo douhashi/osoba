@@ -5,6 +5,9 @@ github:
   # status:lgtmラベルが付いたPRを自動マージする機能の有効/無効
   # デフォルト: true（有効）
   # auto_merge_lgtm: true
+  # 処理中のIssueがない場合に自動的に次のIssueをplanフェーズに移行させる機能の有効/無効
+  # デフォルト: false（無効）
+  # auto_plan_issue: false
 
 tmux:
   session_prefix: "osoba-"

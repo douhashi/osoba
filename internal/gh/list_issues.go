@@ -61,6 +61,38 @@ func (c *Client) ListIssuesByLabels(ctx context.Context, owner, repo string, lab
 	return issues, nil
 }
 
+// ListAllOpenIssues はリポジトリのすべてのオープンなIssueを取得する
+func (c *Client) ListAllOpenIssues(ctx context.Context, owner, repo string) ([]*github.Issue, error) {
+	// ghコマンドを実行してすべてのオープンIssueを取得
+	output, err := c.executor.Execute(ctx, "gh", "issue", "list",
+		"--repo", owner+"/"+repo,
+		"--state", "open", // オープンなIssueのみ
+		"--limit", "100", // 最大100件まで取得
+		"--json", "number,title,state,url,body,createdAt,updatedAt,author,labels")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list open issues: %w", err)
+	}
+
+	// JSON出力をパース
+	var ghIssues []ghIssue
+	if err := json.Unmarshal([]byte(output), &ghIssues); err != nil {
+		return nil, fmt.Errorf("failed to parse issues response: %w", err)
+	}
+
+	// ghIssue から github.Issue に変換
+	results := make([]*github.Issue, 0, len(ghIssues))
+	for _, ghIssue := range ghIssues {
+		results = append(results, convertToIssue(ghIssue))
+	}
+
+	// Issue番号でソート（昇順）
+	sort.Slice(results, func(i, j int) bool {
+		return *results[i].Number < *results[j].Number
+	})
+
+	return results, nil
+}
+
 // convertToIssue は ghIssue を github.Issue に変換する
 func convertToIssue(ghIssue ghIssue) *github.Issue {
 	// ステートを正規化（OPEN -> open, CLOSED -> closed）

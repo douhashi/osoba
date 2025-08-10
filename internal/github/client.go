@@ -287,6 +287,136 @@ func (c *GHClient) AddLabel(ctx context.Context, owner, repo string, issueNumber
 }
 
 // executeGHCommand はghコマンドを実行する
+// ListAllOpenIssues はリポジトリのすべてのオープンなIssueを取得する
+func (c *GHClient) ListAllOpenIssues(ctx context.Context, owner, repo string) ([]*Issue, error) {
+	if owner == "" {
+		return nil, errors.New("owner is required")
+	}
+	if repo == "" {
+		return nil, errors.New("repo is required")
+	}
+
+	// ghコマンドを実行してすべてのオープンIssueを取得
+	output, err := c.executeGHCommand(ctx, "issue", "list",
+		"--repo", owner+"/"+repo,
+		"--state", "open", // オープンなIssueのみ
+		"--limit", "100", // 最大100件まで取得
+		"--json", "number,title,labels,state,body,createdAt,updatedAt,author,url")
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list issues: %w", err)
+	}
+
+	var ghIssues []map[string]interface{}
+	if err := json.Unmarshal(output, &ghIssues); err != nil {
+		return nil, fmt.Errorf("failed to parse issue list: %w", err)
+	}
+
+	issues := make([]*Issue, 0, len(ghIssues))
+	for _, ghIssue := range ghIssues {
+		issue, err := convertMapToIssue(ghIssue)
+		if err != nil {
+			if c.logger != nil {
+				c.logger.Warn("Failed to convert issue", "error", err)
+			}
+			continue
+		}
+		issues = append(issues, issue)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Listed all open issues",
+			"owner", owner,
+			"repo", repo,
+			"count", len(issues))
+	}
+
+	return issues, nil
+}
+
+// convertMapToIssue はmap[string]interfaceを github.Issue に変換する
+func convertMapToIssue(issueMap map[string]interface{}) (*Issue, error) {
+	issue := &Issue{}
+
+	// Number
+	if numberVal, ok := issueMap["number"]; ok {
+		if numberFloat, ok := numberVal.(float64); ok {
+			number := int(numberFloat)
+			issue.Number = &number
+		}
+	}
+
+	// Title
+	if titleVal, ok := issueMap["title"]; ok {
+		if titleStr, ok := titleVal.(string); ok {
+			issue.Title = &titleStr
+		}
+	}
+
+	// State
+	if stateVal, ok := issueMap["state"]; ok {
+		if stateStr, ok := stateVal.(string); ok {
+			state := strings.ToLower(stateStr)
+			issue.State = &state
+		}
+	}
+
+	// HTMLURL
+	if urlVal, ok := issueMap["url"]; ok {
+		if urlStr, ok := urlVal.(string); ok {
+			issue.HTMLURL = &urlStr
+		}
+	}
+
+	// Body
+	if bodyVal, ok := issueMap["body"]; ok {
+		if bodyStr, ok := bodyVal.(string); ok {
+			issue.Body = &bodyStr
+		}
+	}
+
+	// User (author)
+	if authorVal, ok := issueMap["author"]; ok {
+		if authorMap, ok := authorVal.(map[string]interface{}); ok {
+			if loginVal, ok := authorMap["login"]; ok {
+				if loginStr, ok := loginVal.(string); ok {
+					issue.User = &User{Login: &loginStr}
+				}
+			}
+		}
+	}
+
+	// Labels
+	if labelsVal, ok := issueMap["labels"]; ok {
+		if labelsSlice, ok := labelsVal.([]interface{}); ok {
+			issue.Labels = make([]*Label, len(labelsSlice))
+			for i, labelVal := range labelsSlice {
+				if labelMap, ok := labelVal.(map[string]interface{}); ok {
+					label := &Label{}
+					if nameVal, ok := labelMap["name"]; ok {
+						if nameStr, ok := nameVal.(string); ok {
+							label.Name = &nameStr
+						}
+					}
+					if descVal, ok := labelMap["description"]; ok {
+						if descStr, ok := descVal.(string); ok {
+							label.Description = &descStr
+						}
+					}
+					if colorVal, ok := labelMap["color"]; ok {
+						if colorStr, ok := colorVal.(string); ok {
+							label.Color = &colorStr
+						}
+					}
+					issue.Labels[i] = label
+				}
+			}
+		}
+	}
+
+	return issue, nil
+}
+
 func (c *GHClient) executeGHCommand(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "gh", args...)
 	output, err := cmd.Output()
