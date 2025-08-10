@@ -65,6 +65,7 @@ type IssueWatcher struct {
 	failedExecutions     int
 	startTime            time.Time
 	mu                   sync.Mutex // ヘルスチェックフィールドの保護用
+	autoPlanMu           sync.Mutex // auto_plan機能の排他制御用
 }
 
 // NewIssueWatcher は新しいIssueWatcherを作成する
@@ -387,7 +388,7 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 
 	// Issue処理サイクルの最後に自動計画機能を実行
 	if w.config != nil && w.config.GitHub.AutoPlanIssue {
-		if err := executeAutoPlanIfNoActiveIssues(ctx, w.config, w.client, w.owner, w.repo, w.logger); err != nil {
+		if err := w.executeAutoPlanWithMutex(ctx); err != nil {
 			w.logger.Error("Failed to execute auto-plan",
 				"error", err)
 			// エラーが発生してもサイクルは継続する
@@ -703,4 +704,14 @@ func (w *IssueWatcher) executeRequiresChangesTransition(ctx context.Context, iss
 	}
 
 	return lastErr
+}
+
+// executeAutoPlanWithMutex はmutexを使用してauto_plan機能を排他制御付きで実行する
+func (w *IssueWatcher) executeAutoPlanWithMutex(ctx context.Context) error {
+	w.autoPlanMu.Lock()
+	defer w.autoPlanMu.Unlock()
+
+	w.logger.Debug("Auto-plan: Acquired mutex lock for exclusive execution")
+
+	return executeAutoPlanIfNoActiveIssues(ctx, w.config, w.client, w.owner, w.repo, w.logger)
 }

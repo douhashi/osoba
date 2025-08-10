@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/github"
@@ -93,6 +94,14 @@ func (m *MockGitHubClientForAutoPlan) GetPullRequestForIssue(ctx context.Context
 func (m *MockGitHubClientForAutoPlan) MergePullRequest(ctx context.Context, prNumber int) error {
 	args := m.Called(ctx, prNumber)
 	return args.Error(0)
+}
+
+func (m *MockGitHubClientForAutoPlan) GetPullRequestStatus(ctx context.Context, prNumber int) (*github.PullRequest, error) {
+	args := m.Called(ctx, prNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.PullRequest), args.Error(1)
 }
 
 func TestExecuteAutoPlanIfNoActiveIssues(t *testing.T) {
@@ -397,5 +406,148 @@ func TestHasStatusLabel(t *testing.T) {
 		result := hasStatusLabel(issue)
 
 		assert.False(t, result)
+	})
+}
+
+// TestConcurrentAutoPlanExecution は並行実行時の排他制御をテストする
+func TestConcurrentAutoPlanExecution(t *testing.T) {
+	testLogger, _ := logger.New(logger.WithLevel("debug"))
+
+	t.Run("並行実行時にmutexが排他制御する", func(t *testing.T) {
+		mockClient := new(MockGitHubClientForAutoPlan)
+
+		// AddLabel呼び出しの記録用
+		var addLabelCalls []int
+		var callOrder []string
+
+		// status:*ラベル付きIssueなし
+		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo", mock.Anything).
+			Run(func(args mock.Arguments) {
+				callOrder = append(callOrder, "ListIssuesByLabels")
+			}).Return([]*github.Issue{}, nil)
+
+		// 全オープンIssueに未ラベルIssueあり
+		allIssues := []*github.Issue{
+			{
+				Number: github.Int(100),
+				Title:  github.String("Unlabeled Issue 100"),
+				Labels: []*github.Label{},
+			},
+		}
+		mockClient.On("ListAllOpenIssues", mock.Anything, "test-owner", "test-repo").
+			Run(func(args mock.Arguments) {
+				callOrder = append(callOrder, "ListAllOpenIssues")
+			}).Return(allIssues, nil)
+
+		// AddLabel呼び出しの記録用
+		mockClient.On("AddLabel", mock.Anything, "test-owner", "test-repo", mock.AnythingOfType("int"), "status:needs-plan").
+			Run(func(args mock.Arguments) {
+				issueNumber := args.Get(3).(int)
+				addLabelCalls = append(addLabelCalls, issueNumber)
+				callOrder = append(callOrder, "AddLabel")
+			}).Return(nil)
+
+		cfg := &config.Config{
+			GitHub: config.GitHubConfig{
+				AutoPlanIssue: true,
+			},
+		}
+
+		// IssueWatcherを作成（autoPlanMu付き）
+		watcher, err := NewIssueWatcherWithConfig(
+			mockClient,
+			"test-owner",
+			"test-repo",
+			"test-session",
+			[]string{"status:needs-plan"},
+			time.Second,
+			testLogger,
+			cfg,
+			nil,
+		)
+		assert.NoError(t, err)
+
+		// 並行実行を開始
+		const numGoroutines = 3
+		errChan := make(chan error, numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
+			go func() {
+				err := watcher.executeAutoPlanWithMutex(context.Background())
+				errChan <- err
+			}()
+		}
+
+		// すべてのgoroutineの完了を待機
+		for i := 0; i < numGoroutines; i++ {
+			err := <-errChan
+			assert.NoError(t, err)
+		}
+
+		// 複数の呼び出しがあったことを確認（mutexにより順次実行）
+		assert.GreaterOrEqual(t, len(callOrder), 3*3, "各goroutineが順次実行されるべき") // 3つのgoroutine * 最低3回の呼び出し
+
+		// AddLabelが複数回呼ばれた場合（mutex無しの場合）、すべて同じIssueであることを確認
+		for _, issueNumber := range addLabelCalls {
+			assert.Equal(t, 100, issueNumber, "すべてのラベル付与は同じIssue (#100) に対するもの")
+		}
+	})
+
+	t.Run("status:needs-plan存在時は並行実行でも処理されない", func(t *testing.T) {
+		mockClient := new(MockGitHubClientForAutoPlan)
+
+		// status:needs-planラベル付きIssueが既に存在
+		activeIssues := []*github.Issue{
+			{
+				Number: github.Int(99),
+				Title:  github.String("Already needs plan"),
+				Labels: []*github.Label{
+					{Name: github.String("status:needs-plan")},
+				},
+			},
+		}
+		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo", mock.Anything).
+			Return(activeIssues, nil)
+
+		cfg := &config.Config{
+			GitHub: config.GitHubConfig{
+				AutoPlanIssue: true,
+			},
+		}
+
+		// IssueWatcherを作成（autoPlanMu付き）
+		watcher, err := NewIssueWatcherWithConfig(
+			mockClient,
+			"test-owner",
+			"test-repo",
+			"test-session",
+			[]string{"status:needs-plan"},
+			time.Second,
+			testLogger,
+			cfg,
+			nil,
+		)
+		assert.NoError(t, err)
+
+		// 並行実行を開始
+		const numGoroutines = 3
+		errChan := make(chan error, numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
+			go func() {
+				err := watcher.executeAutoPlanWithMutex(context.Background())
+				errChan <- err
+			}()
+		}
+
+		// すべてのgoroutineの完了を待機
+		for i := 0; i < numGoroutines; i++ {
+			err := <-errChan
+			assert.NoError(t, err)
+		}
+
+		// ListAllOpenIssuesやAddLabelは呼ばれないことを確認
+		mockClient.AssertNotCalled(t, "ListAllOpenIssues")
+		mockClient.AssertNotCalled(t, "AddLabel")
 	})
 }
