@@ -221,7 +221,7 @@ func TestInitCmd_EnvironmentChecks(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"[8/8] GitHubラベルの作成           ⚠️  (トークンなし)",
+				"[9/9] GitHubラベルの作成           ⚠️  (トークンなし)",
 			},
 		},
 	}
@@ -371,10 +371,11 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 			wantOutputContains: []string{
 				"🚀 osobaの初期化を開始します",
 				"[1/8] Gitリポジトリの確認          ✅",
-				"[2/8] 必要なツールの確認            ✅",
-				"[6/8] 設定ファイルの作成           ✅",
-				"[7/8] Claude commandsの配置        ✅",
-				"[8/8] GitHubラベルの作成           ✅",
+				"[2/9] 必要なツールの確認            ✅",
+				"[6/9] 設定ファイルの作成           ✅",
+				"[7/9] Claude commandsの配置        ✅",
+				"[8/9] ドキュメントシステムの配置   ✅",
+				"[9/9] GitHubラベルの作成           ✅",
 				"✅ 初期化が完了しました！",
 				"osoba start",
 				"osoba open",
@@ -421,7 +422,7 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"[6/8] 設定ファイルの作成           ✅ (既存)",
+				"[6/9] 設定ファイルの作成           ✅ (既存)",
 			},
 		},
 		{
@@ -462,7 +463,7 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"[6/8] 設定ファイルの作成           ✅",
+				"[6/9] 設定ファイルの作成           ✅",
 			},
 		},
 		{
@@ -497,7 +498,7 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"[8/8] GitHubラベルの作成           ⚠️",
+				"[9/9] GitHubラベルの作成           ⚠️",
 				"⚠️  GitHubラベルの作成に失敗しました",
 				"手動でラベルを作成してください",
 			},
@@ -643,9 +644,9 @@ func TestInitCmd_GitHubCLIChecks(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"[3/8] GitHub CLI (gh)の確認        ✅",
-				"[4/8] GitHub認証の確認             ✅",
-				"[5/8] GitHubリポジトリへのアクセス確認  ✅",
+				"[3/9] GitHub CLI (gh)の確認        ✅",
+				"[4/9] GitHub認証の確認             ✅",
+				"[5/9] GitHubリポジトリへのアクセス確認  ✅",
 			},
 		},
 		{
@@ -703,7 +704,7 @@ func TestInitCmd_GitHubCLIChecks(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"[4/8] GitHub認証の確認             ⚠️",
+				"[4/9] GitHub認証の確認             ⚠️",
 				"⚠️  GitHub認証が設定されていません",
 				"gh auth login",
 			},
@@ -737,7 +738,7 @@ func TestInitCmd_GitHubCLIChecks(t *testing.T) {
 			},
 			wantErr: false,
 			wantOutputContains: []string{
-				"[5/8] GitHubリポジトリへのアクセス確認  ⚠️",
+				"[5/9] GitHubリポジトリへのアクセス確認  ⚠️",
 				"⚠️  現在のリポジトリにアクセスできません",
 			},
 		},
@@ -815,9 +816,10 @@ func TestSetupClaudeCommands(t *testing.T) {
 			wantErr:    false,
 			wantOutput: "✅",
 			filesCreated: map[string]bool{
-				".claude/commands/osoba/plan.md":      true,
-				".claude/commands/osoba/implement.md": true,
-				".claude/commands/osoba/review.md":    true,
+				".claude/commands/osoba/plan.md":        true,
+				".claude/commands/osoba/implement.md":   true,
+				".claude/commands/osoba/review.md":      true,
+				".claude/commands/osoba/add-backlog.md": true,
 			},
 		},
 		{
@@ -838,9 +840,10 @@ func TestSetupClaudeCommands(t *testing.T) {
 			wantErr:    false,
 			wantOutput: "✅ (既存)",
 			filesSkipped: map[string]bool{
-				".claude/commands/osoba/plan.md":      true,
-				".claude/commands/osoba/implement.md": true,
-				".claude/commands/osoba/review.md":    true,
+				".claude/commands/osoba/plan.md":        true,
+				".claude/commands/osoba/implement.md":   true,
+				".claude/commands/osoba/review.md":      true,
+				".claude/commands/osoba/add-backlog.md": true,
 			},
 		},
 		{
@@ -866,8 +869,9 @@ func TestSetupClaudeCommands(t *testing.T) {
 			wantErr:    false,
 			wantOutput: "✅ (一部既存)",
 			filesCreated: map[string]bool{
-				".claude/commands/osoba/implement.md": true,
-				".claude/commands/osoba/review.md":    true,
+				".claude/commands/osoba/implement.md":   true,
+				".claude/commands/osoba/review.md":      true,
+				".claude/commands/osoba/add-backlog.md": true,
 			},
 			filesSkipped: map[string]bool{
 				".claude/commands/osoba/plan.md": true,
@@ -955,6 +959,105 @@ func TestSetupClaudeCommands(t *testing.T) {
 							t.Errorf("file %s: skipped = %v, want %v", file, filesSkipped[file], expected)
 						}
 					}
+				}
+			}
+		})
+	}
+}
+
+func TestSetupDocumentSystem(t *testing.T) {
+	// モック関数を保存しておく
+	origMkdirAll := mkdirAllFunc
+	origWriteFile := writeFileFunc
+	origStat := statFunc
+	defer func() {
+		mkdirAllFunc = origMkdirAll
+		writeFileFunc = origWriteFile
+		statFunc = origStat
+	}()
+
+	tests := []struct {
+		name       string
+		setupMocks func()
+		wantErr    bool
+		wantOutput string
+	}{
+		{
+			name: "正常系: 新規ファイル作成",
+			setupMocks: func() {
+				mkdirAllFunc = func(path string, perm os.FileMode) error {
+					return nil
+				}
+				statFunc = func(name string) (os.FileInfo, error) {
+					// ファイルが存在しない
+					return nil, os.ErrNotExist
+				}
+				writeFileFunc = func(path string, data []byte, perm os.FileMode) error {
+					return nil
+				}
+			},
+			wantErr:    false,
+			wantOutput: "✅",
+		},
+		{
+			name: "正常系: 既存ファイルをスキップ",
+			setupMocks: func() {
+				mkdirAllFunc = func(path string, perm os.FileMode) error {
+					return nil
+				}
+				statFunc = func(name string) (os.FileInfo, error) {
+					// ファイルが存在する
+					return nil, nil
+				}
+				writeFileFunc = func(path string, data []byte, perm os.FileMode) error {
+					t.Errorf("writeFile should not be called for existing file: %s", path)
+					return nil
+				}
+			},
+			wantErr:    false,
+			wantOutput: "✅ (既存)",
+		},
+		{
+			name: "エラー: ディレクトリ作成失敗",
+			setupMocks: func() {
+				mkdirAllFunc = func(path string, perm os.FileMode) error {
+					return fmt.Errorf("permission denied")
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "エラー: ファイル書き込み失敗",
+			setupMocks: func() {
+				mkdirAllFunc = func(path string, perm os.FileMode) error {
+					return nil
+				}
+				statFunc = func(name string) (os.FileInfo, error) {
+					return nil, os.ErrNotExist
+				}
+				writeFileFunc = func(path string, data []byte, perm os.FileMode) error {
+					return fmt.Errorf("disk full")
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+			buf := &bytes.Buffer{}
+			err := setupDocumentSystem(buf)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("setupDocumentSystem() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr {
+				output := strings.TrimSpace(buf.String())
+				if output != tt.wantOutput {
+					t.Errorf("output = %q, want %q", output, tt.wantOutput)
 				}
 			}
 		})

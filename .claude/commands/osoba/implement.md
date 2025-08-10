@@ -14,9 +14,11 @@ In this phase, you will modify or add code based on the implementation plan, run
 
 ### Documents
 
-Refer to the following index for any necessary documentation:
+Refer to the following documentation:
 
-- Development: `@docs/development/INDEX.md`
+- **Coding Standards**: @docs/development/coding-standards.md
+- **Testing Strategy**: @docs/development/testing-strategy.md
+- **Other Development Documents**: @docs/development/INDEX.md
 
 ### Expected state of the Issue
 
@@ -62,7 +64,7 @@ Refer to the following index for any necessary documentation:
 3. Implement in small commits  
 4. Run tests and verify functionality  
 5. Run full test suite before PR creation
-6. Create a PR template as `./tmp/pull-request-<issue number>.md`  
+6. Create a PR template as `./.tmp/pull-request-<issue number>.md`  
 7. Create the Pull Request  
 8. Leave a comment on the Issue  
 9. Update Issue labels (remove "status:implementing", add "status:review-requested")  
@@ -93,17 +95,17 @@ Refer to the following index for any necessary documentation:
    - Confirm: All tests must pass before creating a PR
 
 6. **Create the PR template**
-   - Write `./tmp/pull-request-123.md` based on the template shown below
+   - Write `./.tmp/pull-request-123.md` based on the template shown below
 
 7. **Create the Pull Request**
    - Title example: `feat: Add favorite feature for products (#123)`  
-   - Use `--body-file ./tmp/pull-request-123.md` to populate the PR body  
+   - Use `--body-file ./.tmp/pull-request-123.md` to populate the PR body  
    - Example using `gh`:
 
      ```bash
      gh pr create \\
        --title "feat: Add favorite feature for products (#123)" \\
-       --body-file ./tmp/pull-request-123.md \\
+       --body-file ./.tmp/pull-request-123.md \\
        --base main
      ```
 
