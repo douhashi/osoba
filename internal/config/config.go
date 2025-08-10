@@ -23,9 +23,10 @@ type Config struct {
 
 // GitHubConfig はGitHub関連の設定
 type GitHubConfig struct {
-	PollInterval time.Duration      `mapstructure:"poll_interval"`
-	Labels       LabelConfig        `mapstructure:"labels"`
-	Messages     PhaseMessageConfig `mapstructure:"messages"`
+	PollInterval  time.Duration      `mapstructure:"poll_interval"`
+	Labels        LabelConfig        `mapstructure:"labels"`
+	Messages      PhaseMessageConfig `mapstructure:"messages"`
+	AutoMergeLGTM bool               `mapstructure:"auto_merge_lgtm"` // status:lgtmラベルが付いたPRを自動マージする機能の有効/無効
 }
 
 // LabelConfig は監視対象のラベル設定
@@ -72,7 +73,8 @@ func NewConfig() *Config {
 				Ready:  "status:ready",
 				Review: "status:review-requested",
 			},
-			Messages: NewDefaultPhaseMessageConfig(),
+			Messages:      NewDefaultPhaseMessageConfig(),
+			AutoMergeLGTM: true, // デフォルトで自動マージ機能を有効化
 		},
 		Tmux: TmuxConfig{
 			SessionPrefix: "osoba-",
@@ -110,6 +112,7 @@ func (c *Config) Load(configPath string) error {
 	v.SetDefault("github.messages.plan", "osoba: 計画を作成します")
 	v.SetDefault("github.messages.implement", "osoba: 実装を開始します")
 	v.SetDefault("github.messages.review", "osoba: レビューを開始します")
+	v.SetDefault("github.auto_merge_lgtm", true)
 	v.SetDefault("tmux.session_prefix", "osoba-")
 
 	// ログ設定のデフォルト値

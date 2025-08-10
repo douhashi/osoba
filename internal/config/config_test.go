@@ -282,6 +282,94 @@ func TestConfig_GetLabels(t *testing.T) {
 	}
 }
 
+func TestConfig_AutoMergeLGTM(t *testing.T) {
+	t.Run("正常系: デフォルト値がtrueであることを確認", func(t *testing.T) {
+		cfg := NewConfig()
+		if cfg == nil {
+			t.Fatal("NewConfig() returned nil")
+		}
+
+		// デフォルト値がtrueであることを確認
+		if !cfg.GitHub.AutoMergeLGTM {
+			t.Errorf("default AutoMergeLGTM = %v, want true", cfg.GitHub.AutoMergeLGTM)
+		}
+	})
+
+	t.Run("正常系: 設定ファイルでfalseに設定した場合の読み込み", func(t *testing.T) {
+		// テスト用の設定ファイルを作成
+		content := `
+github:
+  poll_interval: 10s
+  auto_merge_lgtm: false
+`
+		err := os.WriteFile("test_auto_merge_false.yml", []byte(content), 0644)
+		if err != nil {
+			t.Fatalf("failed to create test config file: %v", err)
+		}
+		defer os.Remove("test_auto_merge_false.yml")
+
+		cfg := NewConfig()
+		err = cfg.Load("test_auto_merge_false.yml")
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		// falseが読み込まれることを確認
+		if cfg.GitHub.AutoMergeLGTM {
+			t.Errorf("AutoMergeLGTM = %v, want false", cfg.GitHub.AutoMergeLGTM)
+		}
+	})
+
+	t.Run("正常系: 設定ファイルでtrueに設定した場合の読み込み", func(t *testing.T) {
+		// テスト用の設定ファイルを作成
+		content := `
+github:
+  poll_interval: 10s
+  auto_merge_lgtm: true
+`
+		err := os.WriteFile("test_auto_merge_true.yml", []byte(content), 0644)
+		if err != nil {
+			t.Fatalf("failed to create test config file: %v", err)
+		}
+		defer os.Remove("test_auto_merge_true.yml")
+
+		cfg := NewConfig()
+		err = cfg.Load("test_auto_merge_true.yml")
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		// trueが読み込まれることを確認
+		if !cfg.GitHub.AutoMergeLGTM {
+			t.Errorf("AutoMergeLGTM = %v, want true", cfg.GitHub.AutoMergeLGTM)
+		}
+	})
+
+	t.Run("正常系: 設定ファイルに項目がない場合はデフォルト値を使用", func(t *testing.T) {
+		// テスト用の設定ファイルを作成（auto_merge_lgtmフィールドなし）
+		content := `
+github:
+  poll_interval: 10s
+`
+		err := os.WriteFile("test_auto_merge_default.yml", []byte(content), 0644)
+		if err != nil {
+			t.Fatalf("failed to create test config file: %v", err)
+		}
+		defer os.Remove("test_auto_merge_default.yml")
+
+		cfg := NewConfig()
+		err = cfg.Load("test_auto_merge_default.yml")
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		// デフォルト値（true）が使用されることを確認
+		if !cfg.GitHub.AutoMergeLGTM {
+			t.Errorf("AutoMergeLGTM = %v, want true (default)", cfg.GitHub.AutoMergeLGTM)
+		}
+	})
+}
+
 func TestConfig_LoadOrDefault(t *testing.T) {
 	t.Run("正常系: ファイルが存在しない場合はデフォルト値を使う", func(t *testing.T) {
 		cfg := NewConfig()
