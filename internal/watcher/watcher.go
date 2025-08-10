@@ -13,6 +13,7 @@ import (
 	"github.com/douhashi/osoba/internal/github"
 	gh "github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
+	"github.com/douhashi/osoba/internal/tmux"
 )
 
 // IssueCallback はIssue検出時に呼ばれるコールバック関数
@@ -45,6 +46,7 @@ type IssueWatcher struct {
 	client              github.GitHubClient
 	owner               string
 	repo                string
+	sessionName         string // tmuxセッション名
 	labels              []string
 	pollInterval        time.Duration
 	actionManager       ActionManagerInterface
@@ -99,6 +101,7 @@ func NewIssueWatcherWithConfig(client github.GitHubClient, owner, repo, sessionN
 		client:              client,
 		owner:               owner,
 		repo:                repo,
+		sessionName:         sessionName,
 		labels:              labels,
 		pollInterval:        pollInterval,
 		actionManager:       NewActionManager(sessionName),
@@ -464,7 +467,16 @@ func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Iss
 		return fmt.Errorf("invalid issue: nil issue or issue number")
 	}
 
-	// 現在のラベルを確認して適切な遷移を実行
+	currentLabels := getLabels(issue)
+
+	// status:requires-changesの特別な処理を最初に確認
+	for _, label := range currentLabels {
+		if label == "status:requires-changes" {
+			return w.executeRequiresChangesTransition(ctx, issue)
+		}
+	}
+
+	// 通常のラベル遷移
 	transitions := []struct {
 		from string
 		to   string
@@ -474,7 +486,6 @@ func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Iss
 		{"status:review-requested", "status:reviewing"},
 	}
 
-	currentLabels := getLabels(issue)
 	for _, transition := range transitions {
 		// 現在のラベルが遷移元ラベルを含んでいるか確認
 		hasFromLabel := false
@@ -543,4 +554,84 @@ func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Iss
 	}
 
 	return nil
+}
+
+// executeRequiresChangesTransition はstatus:requires-changesラベルの特別な遷移処理を実行する
+func (w *IssueWatcher) executeRequiresChangesTransition(ctx context.Context, issue *gh.Issue) error {
+	if issue == nil || issue.Number == nil {
+		return fmt.Errorf("invalid issue: nil issue or issue number")
+	}
+
+	issueNumber := *issue.Number
+
+	w.logger.Info("Executing requires-changes transition",
+		"issueNumber", issueNumber,
+		"from", "status:requires-changes",
+		"to", "status:ready")
+
+	// tmuxウィンドウの削除（sessionNameが設定されている場合のみ）
+	if w.sessionName != "" {
+		w.logger.Info("Cleaning up tmux windows for issue",
+			"issueNumber", issueNumber,
+			"sessionName", w.sessionName)
+
+		// tmuxパッケージのインポートが必要
+		if err := tmux.KillWindowsForIssue(w.sessionName, issueNumber); err != nil {
+			// tmuxウィンドウ削除エラーは警告ログに記録し、処理は継続
+			w.logger.Warn("Failed to kill tmux windows, continuing with label transition",
+				"issueNumber", issueNumber,
+				"sessionName", w.sessionName,
+				"error", err)
+		} else {
+			w.logger.Info("Successfully cleaned up tmux windows",
+				"issueNumber", issueNumber,
+				"sessionName", w.sessionName)
+		}
+	}
+
+	// ラベル遷移の実行
+	const maxRetries = 3
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		// status:requires-changesラベルを削除
+		if err := w.client.RemoveLabel(ctx, w.owner, w.repo, issueNumber, "status:requires-changes"); err != nil {
+			lastErr = fmt.Errorf("failed to remove label status:requires-changes (attempt %d/%d): %w", attempt, maxRetries, err)
+			w.logger.Warn("Failed to remove label, retrying",
+				"issueNumber", issueNumber,
+				"label", "status:requires-changes",
+				"attempt", attempt,
+				"error", err)
+
+			if attempt < maxRetries {
+				time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
+				continue
+			}
+			return lastErr
+		}
+
+		// status:readyラベルを追加
+		if err := w.client.AddLabel(ctx, w.owner, w.repo, issueNumber, "status:ready"); err != nil {
+			lastErr = fmt.Errorf("failed to add label status:ready (attempt %d/%d): %w", attempt, maxRetries, err)
+			w.logger.Warn("Failed to add label, retrying",
+				"issueNumber", issueNumber,
+				"label", "status:ready",
+				"attempt", attempt,
+				"error", err)
+
+			if attempt < maxRetries {
+				time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
+				continue
+			}
+			return lastErr
+		}
+
+		// 成功した場合
+		w.logger.Info("Successfully transitioned requires-changes to ready",
+			"issueNumber", issueNumber,
+			"attempt", attempt)
+		return nil
+	}
+
+	return lastErr
 }
