@@ -34,6 +34,11 @@ func TestNewConfig(t *testing.T) {
 			t.Error("Claude plan phase not found")
 		}
 
+		// auto_plan_issueのデフォルト値確認
+		if cfg.GitHub.AutoPlanIssue != false {
+			t.Errorf("default auto_plan_issue = %v, want false", cfg.GitHub.AutoPlanIssue)
+		}
+
 		// すべてのフェーズで --dangerously-skip-permissions が設定されていることを確認
 		phases := []string{"plan", "implement", "review"}
 		for _, phase := range phases {
@@ -70,6 +75,7 @@ func TestConfig_Load(t *testing.T) {
 			configContent: `
 github:
   poll_interval: 10s
+  auto_plan_issue: true
   labels:
     plan: "status:needs-plan"
     ready: "status:ready"
@@ -89,6 +95,9 @@ claude:
 			checkFunc: func(cfg *Config, t *testing.T) {
 				if cfg.GitHub.PollInterval != 10*time.Second {
 					t.Errorf("poll interval = %v, want 10s", cfg.GitHub.PollInterval)
+				}
+				if cfg.GitHub.AutoPlanIssue != true {
+					t.Errorf("auto_plan_issue = %v, want true", cfg.GitHub.AutoPlanIssue)
 				}
 				if cfg.GitHub.Labels.Plan != "status:needs-plan" {
 					t.Errorf("plan label = %v, want status:needs-plan", cfg.GitHub.Labels.Plan)
@@ -913,4 +922,89 @@ func TestLogConfig_CreateLogger(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAutoPlanIssueConfig は auto_plan_issue 設定に関するテスト
+func TestAutoPlanIssueConfig(t *testing.T) {
+	t.Run("正常系: auto_plan_issueがtrueに設定される", func(t *testing.T) {
+		configContent := `
+github:
+  poll_interval: 5s
+  auto_plan_issue: true
+  auto_merge_lgtm: false
+tmux:
+  session_prefix: "osoba-"
+`
+		configFile := "test_auto_plan_issue.yml"
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("failed to create test config file: %v", err)
+		}
+		defer os.Remove(configFile)
+
+		cfg := NewConfig()
+		err = cfg.Load(configFile)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.GitHub.AutoPlanIssue != true {
+			t.Errorf("auto_plan_issue = %v, want true", cfg.GitHub.AutoPlanIssue)
+		}
+		if cfg.GitHub.AutoMergeLGTM != false {
+			t.Errorf("auto_merge_lgtm = %v, want false", cfg.GitHub.AutoMergeLGTM)
+		}
+	})
+
+	t.Run("正常系: auto_plan_issueがfalseに設定される", func(t *testing.T) {
+		configContent := `
+github:
+  poll_interval: 5s
+  auto_plan_issue: false
+  auto_merge_lgtm: true
+`
+		configFile := "test_auto_plan_issue_false.yml"
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("failed to create test config file: %v", err)
+		}
+		defer os.Remove(configFile)
+
+		cfg := NewConfig()
+		err = cfg.Load(configFile)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.GitHub.AutoPlanIssue != false {
+			t.Errorf("auto_plan_issue = %v, want false", cfg.GitHub.AutoPlanIssue)
+		}
+		if cfg.GitHub.AutoMergeLGTM != true {
+			t.Errorf("auto_merge_lgtm = %v, want true", cfg.GitHub.AutoMergeLGTM)
+		}
+	})
+
+	t.Run("正常系: auto_plan_issue未設定時はデフォルトfalse", func(t *testing.T) {
+		configContent := `
+github:
+  poll_interval: 5s
+  auto_merge_lgtm: true
+`
+		configFile := "test_auto_plan_issue_default.yml"
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("failed to create test config file: %v", err)
+		}
+		defer os.Remove(configFile)
+
+		cfg := NewConfig()
+		err = cfg.Load(configFile)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.GitHub.AutoPlanIssue != false {
+			t.Errorf("auto_plan_issue = %v, want false (default)", cfg.GitHub.AutoPlanIssue)
+		}
+	})
 }

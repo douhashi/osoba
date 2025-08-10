@@ -100,5 +100,10 @@ func (c *Client) AddLabel(ctx context.Context, owner, repo string, issueNumber i
 	return nil
 }
 
+// AddLabelToIssue はAddLabelのエイリアス（テスト互換性のため）
+func (c *Client) AddLabelToIssue(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	return c.AddLabel(ctx, owner, repo, issueNumber, label)
+}
+
 // GitHubClientインターフェースを実装していることをコンパイル時に確認
 var _ internalGitHub.GitHubClient = (*Client)(nil)

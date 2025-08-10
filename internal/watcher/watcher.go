@@ -351,6 +351,15 @@ func (w *IssueWatcher) checkIssues(ctx context.Context, callback IssueCallback) 
 			}
 		}
 	}
+
+	// Issue処理サイクルの最後に自動計画機能を実行
+	if w.config != nil && w.config.GitHub.AutoPlanIssue {
+		if err := executeAutoPlanIfNoActiveIssues(ctx, w.config, w.client, w.owner, w.repo, w.logger); err != nil {
+			w.logger.Error("Failed to execute auto-plan",
+				"error", err)
+			// エラーが発生してもサイクルは継続する
+		}
+	}
 }
 
 // GetRateLimit はGitHub APIのレート制限情報を取得する
