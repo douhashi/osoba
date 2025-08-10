@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/github"
 	gh "github.com/douhashi/osoba/internal/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -67,6 +68,27 @@ func (m *MockGitHubClient) RemoveLabel(ctx context.Context, owner, repo string, 
 func (m *MockGitHubClient) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
 	args := m.Called(ctx, owner, repo, issueNumber, label)
 	return args.Error(0)
+}
+
+func (m *MockGitHubClient) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*github.PullRequest, error) {
+	args := m.Called(ctx, issueNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.PullRequest), args.Error(1)
+}
+
+func (m *MockGitHubClient) MergePullRequest(ctx context.Context, prNumber int) error {
+	args := m.Called(ctx, prNumber)
+	return args.Error(0)
+}
+
+func (m *MockGitHubClient) GetPullRequestStatus(ctx context.Context, prNumber int) (*github.PullRequest, error) {
+	args := m.Called(ctx, prNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.PullRequest), args.Error(1)
 }
 
 func TestExecuteLabelTransition(t *testing.T) {

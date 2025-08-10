@@ -111,5 +111,29 @@ func (m *MockGitHubClient) AddLabel(ctx context.Context, owner, repo string, iss
 	return args.Error(0)
 }
 
+// GetPullRequestForIssue mocks the GetPullRequestForIssue method
+func (m *MockGitHubClient) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*github.PullRequest, error) {
+	args := m.Called(ctx, issueNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.PullRequest), args.Error(1)
+}
+
+// MergePullRequest mocks the MergePullRequest method
+func (m *MockGitHubClient) MergePullRequest(ctx context.Context, prNumber int) error {
+	args := m.Called(ctx, prNumber)
+	return args.Error(0)
+}
+
+// GetPullRequestStatus mocks the GetPullRequestStatus method
+func (m *MockGitHubClient) GetPullRequestStatus(ctx context.Context, prNumber int) (*github.PullRequest, error) {
+	args := m.Called(ctx, prNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.PullRequest), args.Error(1)
+}
+
 // Ensure MockGitHubClient implements github.GitHubClient interface
 var _ github.GitHubClient = (*MockGitHubClient)(nil)
