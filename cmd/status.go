@@ -133,6 +133,11 @@ func runStatusCmd(cmd *cobra.Command) error {
 		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHub Issue取得エラー: %v\n", err)
 	}
 
+	fmt.Fprintln(cmd.OutOrStdout())
+
+	// 自動マージメトリクスを表示
+	displayAutoMergeMetrics(cmd, cfg)
+
 	return nil
 }
 
@@ -421,4 +426,38 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%d時間", hours)
 	}
 	return fmt.Sprintf("%d時間%d分", hours, minutes)
+}
+
+// displayAutoMergeMetrics は自動マージメトリクスを表示する
+func displayAutoMergeMetrics(cmd *cobra.Command, cfg *config.Config) {
+	fmt.Fprintln(cmd.OutOrStdout(), "🔀 自動マージメトリクス:")
+
+	// 自動マージ機能が無効な場合
+	if !cfg.GitHub.AutoMergeLGTM {
+		fmt.Fprintln(cmd.OutOrStdout(), "   自動マージ機能が無効です")
+		return
+	}
+
+	// リポジトリ識別子を取得
+	repoIdentifier, err := getRepoIdentifier()
+	if err != nil {
+		fmt.Fprintln(cmd.OutOrStdout(), "   ⚠️  リポジトリ情報の取得に失敗しました")
+		return
+	}
+
+	// バックグラウンドプロセスが実行中かチェック
+	pm := paths.NewPathManager("")
+	pidFile := pm.PIDFile(repoIdentifier)
+
+	dm := daemon.NewDaemonManager()
+	status, err := dm.Status(pidFile)
+	if err != nil || !status.Running {
+		fmt.Fprintln(cmd.OutOrStdout(), "   バックグラウンドプロセスが実行されていないため、メトリクスが利用できません")
+		return
+	}
+
+	// メトリクス情報をファイルから取得（実装は将来的に追加予定）
+	// 現在は実行中であることのみ表示
+	fmt.Fprintln(cmd.OutOrStdout(), "   自動マージ機能が有効で、バックグラウンドプロセスが実行中です")
+	fmt.Fprintln(cmd.OutOrStdout(), "   詳細なメトリクス表示は今後のバージョンで追加予定です")
 }

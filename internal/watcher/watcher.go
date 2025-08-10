@@ -56,6 +56,7 @@ type IssueWatcher struct {
 	logger              logger.Logger      // ロガー
 	config              *config.Config     // 設定
 	cleanupManager      cleanup.Manager    // クリーンアップマネージャー
+	autoMergeMetrics    *AutoMergeMetrics  // 自動マージメトリクス
 
 	// ヘルスチェック用のフィールド
 	lastExecutionTime    time.Time
@@ -111,6 +112,7 @@ func NewIssueWatcherWithConfig(client github.GitHubClient, owner, repo, sessionN
 		logger:              logger.WithFields("component", "watcher", "owner", owner, "repo", repo),
 		config:              cfg,
 		cleanupManager:      cleanupMgr,
+		autoMergeMetrics:    NewAutoMergeMetrics(),
 	}, nil
 }
 
@@ -135,6 +137,24 @@ func (w *IssueWatcher) SetPollIntervalForTest(interval time.Duration) {
 // GetActionManager はActionManagerを取得する
 func (w *IssueWatcher) GetActionManager() ActionManagerInterface {
 	return w.actionManager
+}
+
+// GetAutoMergeMetrics は自動マージメトリクスのスナップショットを取得する
+func (w *IssueWatcher) GetAutoMergeMetrics() AutoMergeMetricsSnapshot {
+	if w.autoMergeMetrics == nil {
+		// メトリクスが初期化されていない場合は空のスナップショットを返す
+		return AutoMergeMetricsSnapshot{
+			TotalAttempts:    0,
+			SuccessfulMerges: 0,
+			FailedMerges:     0,
+			FailureReasons:   make(map[string]int64),
+			StartTime:        time.Time{},
+			LastAttemptTime:  time.Time{},
+			SuccessRate:      0.0,
+			UptimeDuration:   0,
+		}
+	}
+	return w.autoMergeMetrics.GetSnapshot()
 }
 
 // GetPollInterval は現在のポーリング間隔を取得する
@@ -201,7 +221,7 @@ func (w *IssueWatcher) StartWithActions(ctx context.Context) {
 				updatedIssue = issue
 			}
 
-			if err := executeAutoMergeIfLGTMWithLogger(ctx, updatedIssue, w.config, w.client, w.cleanupManager, w.logger); err != nil {
+			if err := executeAutoMergeIfLGTMWithLogger(ctx, updatedIssue, w.config, w.client, w.cleanupManager, w.logger, w.autoMergeMetrics); err != nil {
 				w.logger.Error("Failed to execute auto-merge for issue",
 					"issueNumber", *issue.Number,
 					"error", err)
