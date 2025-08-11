@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -258,6 +259,12 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	// ActionManagerにActionFactoryを設定
 	issueWatcher.GetActionManager().SetActionFactory(actionFactory)
 
+	// PR監視を作成（status:lgtmラベル付きPRを監視）
+	prWatcher, err := watcher.NewPRWatcherWithConfig(githubClient, owner, repoName, []string{"status:lgtm"}, cfg.GitHub.PRPollInterval, appLogger, cfg, nil)
+	if err != nil {
+		return fmt.Errorf("PR監視の作成に失敗: %w", err)
+	}
+
 	// シグナルハンドリング
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -271,8 +278,29 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 		cancel()
 	}()
 
+	// Issue監視とPR監視を並行で開始
+	var wg sync.WaitGroup
+
 	// Issue監視を開始（StartWithActionsを使用）
-	issueWatcher.StartWithActions(ctx)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		appLogger.Info("Issue監視を開始します")
+		issueWatcher.StartWithActions(ctx)
+		appLogger.Info("Issue監視を終了しました")
+	}()
+
+	// PR監視を開始（自動マージ付き）
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		appLogger.Info("PR監視を開始します")
+		prWatcher.StartWithAutoMerge(ctx)
+		appLogger.Info("PR監視を終了しました")
+	}()
+
+	// 両方の監視が終了するまで待機
+	wg.Wait()
 	return nil
 }
 

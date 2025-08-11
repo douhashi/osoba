@@ -9,6 +9,7 @@ type GitHubClient interface {
 	GetRepository(ctx context.Context, owner, repo string) (*Repository, error)
 	ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*Issue, error)
 	ListAllOpenIssues(ctx context.Context, owner, repo string) ([]*Issue, error)
+	ListPullRequestsByLabels(ctx context.Context, owner, repo string, labels []string) ([]*PullRequest, error)
 	GetRateLimit(ctx context.Context) (*RateLimits, error)
 	TransitionIssueLabel(ctx context.Context, owner, repo string, issueNumber int) (bool, error)
 	TransitionIssueLabelWithInfo(ctx context.Context, owner, repo string, issueNumber int) (bool, *TransitionInfo, error)

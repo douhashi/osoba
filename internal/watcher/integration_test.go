@@ -333,6 +333,18 @@ func (m *integrationMockGitHubClient) ListAllOpenIssues(ctx context.Context, own
 	return m.issues, nil
 }
 
+func (m *integrationMockGitHubClient) ListPullRequestsByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.PullRequest, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.returnError {
+		return nil, errors.New("mock error")
+	}
+
+	// 空のリストを返す（integration testでは使わない）
+	return []*github.PullRequest{}, nil
+}
+
 // 既存の統合テスト（mainブランチから）
 func TestStartWithActionsIntegration(t *testing.T) {
 	t.Run("複数のIssueを連続して処理", func(t *testing.T) {

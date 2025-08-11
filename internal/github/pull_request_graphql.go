@@ -134,3 +134,154 @@ func (c *GHClient) GetPullRequestForIssueViaGraphQL(ctx context.Context, issueNu
 
 	return nil, nil
 }
+
+// ListPullRequestsByLabelsViaGraphQL はGraphQL APIを使用してラベル付きPRを取得
+func (c *GHClient) ListPullRequestsByLabelsViaGraphQL(ctx context.Context, owner, repo string, labels []string) ([]*PullRequest, error) {
+	// ラベル条件を作成
+	labelFilter := ""
+	for i, label := range labels {
+		if i > 0 {
+			labelFilter += " "
+		}
+		labelFilter += fmt.Sprintf("label:\"%s\"", label)
+	}
+
+	query := fmt.Sprintf(`
+	{
+		repository(owner: "%s", name: "%s") {
+			pullRequests(first: 50, states: OPEN, labels: ["%s"]) {
+				nodes {
+					number
+					title
+					state
+					isDraft
+					mergeable
+					headRefName
+					labels(first: 20) {
+						nodes {
+							name
+						}
+					}
+					statusCheckRollup {
+						state
+					}
+				}
+			}
+		}
+	}`, owner, repo, labels[0]) // 単一ラベルで検索（複数ラベルのAND条件は別途実装）
+
+	args := []string{
+		"api", "graphql",
+		"-f", fmt.Sprintf("query=%s", query),
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Executing GraphQL query for PR labels",
+			"labels", labels,
+		)
+	}
+
+	output, err := c.executeGHCommand(ctx, args...)
+	if err != nil {
+		if c.logger != nil {
+			c.logger.Error("GraphQL PR labels query failed",
+				"labels", labels,
+				"error", err,
+			)
+		}
+		return nil, fmt.Errorf("GraphQL PR labels query failed: %w", err)
+	}
+
+	// レスポンスをパース
+	var response struct {
+		Data struct {
+			Repository struct {
+				PullRequests struct {
+					Nodes []struct {
+						Number      int    `json:"number"`
+						Title       string `json:"title"`
+						State       string `json:"state"`
+						IsDraft     bool   `json:"isDraft"`
+						Mergeable   string `json:"mergeable"`
+						HeadRefName string `json:"headRefName"`
+						Labels      struct {
+							Nodes []struct {
+								Name string `json:"name"`
+							} `json:"nodes"`
+						} `json:"labels"`
+						StatusCheckRollup struct {
+							State string `json:"state"`
+						} `json:"statusCheckRollup"`
+					} `json:"nodes"`
+				} `json:"pullRequests"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(output, &response); err != nil {
+		if c.logger != nil {
+			c.logger.Error("Failed to parse GraphQL PR labels response",
+				"error", err,
+				"raw_output", string(output),
+			)
+		}
+		return nil, fmt.Errorf("failed to parse GraphQL PR labels response: %w", err)
+	}
+
+	var prs []*PullRequest
+
+	for _, prNode := range response.Data.Repository.PullRequests.Nodes {
+		// PRのラベルを取得
+		prLabels := make([]string, 0, len(prNode.Labels.Nodes))
+		for _, labelNode := range prNode.Labels.Nodes {
+			prLabels = append(prLabels, labelNode.Name)
+		}
+
+		// すべての要求ラベルがPRに含まれているかチェック
+		hasAllLabels := true
+		for _, reqLabel := range labels {
+			found := false
+			for _, prLabel := range prLabels {
+				if prLabel == reqLabel {
+					found = true
+					break
+				}
+			}
+			if !found {
+				hasAllLabels = false
+				break
+			}
+		}
+
+		// すべてのラベルが含まれている場合のみ追加
+		if hasAllLabels {
+			pr := &PullRequest{
+				Number:       prNode.Number,
+				Title:        prNode.Title,
+				State:        prNode.State,
+				Mergeable:    prNode.Mergeable,
+				IsDraft:      prNode.IsDraft,
+				HeadRefName:  prNode.HeadRefName,
+				ChecksStatus: prNode.StatusCheckRollup.State,
+			}
+			prs = append(prs, pr)
+
+			if c.logger != nil {
+				c.logger.Debug("Found PR with matching labels",
+					"pr_number", pr.Number,
+					"pr_labels", prLabels,
+					"requested_labels", labels,
+				)
+			}
+		}
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("GraphQL PR labels search completed",
+			"labels", labels,
+			"found_prs", len(prs),
+		)
+	}
+
+	return prs, nil
+}
