@@ -196,6 +196,10 @@ func (c *Config) Validate() error {
 	if c.GitHub.PollInterval < 1*time.Second {
 		return errors.New("poll interval must be at least 1 second")
 	}
+	// PRPollIntervalが未設定（0）の場合はPollIntervalと同じ値を使用
+	if c.GitHub.PRPollInterval == 0 {
+		c.GitHub.PRPollInterval = c.GitHub.PollInterval
+	}
 	if c.GitHub.PRPollInterval < 1*time.Second {
 		return errors.New("PR poll interval must be at least 1 second")
 	}

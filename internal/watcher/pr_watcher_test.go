@@ -257,7 +257,7 @@ func TestPRWatcher_checkPRs(t *testing.T) {
 	}
 
 	// モックの設定
-	mockClient.On("ListPullRequestsByLabels", context.Background(), "owner", "repo", []string{"status:lgtm"}).
+	mockClient.On("ListPullRequestsByLabels", mock.Anything, "owner", "repo", []string{"status:lgtm"}).
 		Return(testPRs, nil)
 
 	watcher, err := NewPRWatcher(mockClient, "owner", "repo", []string{"status:lgtm"}, 20*time.Second, logger)
@@ -384,7 +384,7 @@ func TestPRWatcher_GetRateLimit(t *testing.T) {
 		},
 	}
 
-	mockClient.On("GetRateLimit", context.Background()).Return(expectedRateLimit, nil)
+	mockClient.On("GetRateLimit", mock.Anything).Return(expectedRateLimit, nil)
 
 	watcher, err := NewPRWatcher(mockClient, "owner", "repo", []string{"status:lgtm"}, 20*time.Second, logger)
 	require.NoError(t, err)
