@@ -97,7 +97,7 @@ func (c *GHClient) ListIssuesByLabels(ctx context.Context, owner, repo string, l
 		"issue", "list",
 		"--repo", fmt.Sprintf("%s/%s", owner, repo),
 		"--state", "open",
-		"--json", "number,title,labels,state,body,user,assignees,createdAt,updatedAt,closedAt,milestone,comments,url",
+		"--json", "number,title,labels,state,body,author,assignees,createdAt,updatedAt,closedAt,milestone,comments,url",
 	}
 
 	// ラベルが指定されている場合、OR条件として追加
