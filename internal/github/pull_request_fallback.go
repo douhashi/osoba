@@ -42,7 +42,7 @@ func (c *GHClient) SearchPullRequestByBranch(ctx context.Context, branchName str
 
 	var prs []pullRequestWithStatus
 	if err := json.Unmarshal(output, &prs); err != nil {
-		return nil, fmt.Errorf("failed to parse pull request response: %w", err)
+		return nil, fmt.Errorf("failed to parse pull request response (fallback): %w", err)
 	}
 
 	if len(prs) == 0 {
@@ -62,7 +62,7 @@ func (c *GHClient) SearchPullRequestByBranch(ctx context.Context, branchName str
 		Mergeable:    prs[0].Mergeable,
 		IsDraft:      prs[0].IsDraft,
 		HeadRefName:  prs[0].HeadRefName,
-		ChecksStatus: prs[0].StatusCheckRollup.State,
+		ChecksStatus: prs[0].getChecksStatus(),
 	}
 
 	if c.logger != nil {

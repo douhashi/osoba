@@ -12,7 +12,6 @@ import (
 
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/daemon"
-	"github.com/douhashi/osoba/internal/gh"
 	githubClient "github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/paths"
@@ -121,8 +120,7 @@ func runStatusCmd(cmd *cobra.Command) error {
 	}
 
 	// GitHub クライアントを作成（ghコマンドのみ使用）
-	executor := gh.NewRealCommandExecutor()
-	client, err := gh.NewClient(executor)
+	client, err := githubClient.NewClient("")
 	if err != nil {
 		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  GitHub クライアント作成エラー: %v\n", err)
 		return nil

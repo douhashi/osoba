@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-
-	internalGitHub "github.com/douhashi/osoba/internal/github"
 )
 
 // Client はghコマンドを使用してGitHub操作を行うクライアント
@@ -104,6 +102,3 @@ func (c *Client) AddLabel(ctx context.Context, owner, repo string, issueNumber i
 func (c *Client) AddLabelToIssue(ctx context.Context, owner, repo string, issueNumber int, label string) error {
 	return c.AddLabel(ctx, owner, repo, issueNumber, label)
 }
-
-// GitHubClientインターフェースを実装していることをコンパイル時に確認
-var _ internalGitHub.GitHubClient = (*Client)(nil)

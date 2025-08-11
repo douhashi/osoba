@@ -21,15 +21,58 @@ type PullRequest struct {
 
 // pullRequestWithStatus はghコマンドのJSON出力用の構造体
 type pullRequestWithStatus struct {
-	Number            int    `json:"number"`
-	Title             string `json:"title"`
-	State             string `json:"state"`
-	Mergeable         string `json:"mergeable"`
-	IsDraft           bool   `json:"isDraft"`
-	HeadRefName       string `json:"headRefName"`
-	StatusCheckRollup struct {
+	Number            int             `json:"number"`
+	Title             string          `json:"title"`
+	State             string          `json:"state"`
+	Mergeable         string          `json:"mergeable"`
+	IsDraft           bool            `json:"isDraft"`
+	HeadRefName       string          `json:"headRefName"`
+	StatusCheckRollup json.RawMessage `json:"statusCheckRollup"` // 配列またはオブジェクトの両方に対応
+}
+
+// getChecksStatus はstatusCheckRollupから状態を取得する
+func (pr *pullRequestWithStatus) getChecksStatus() string {
+	if len(pr.StatusCheckRollup) == 0 {
+		return ""
+	}
+
+	// まずオブジェクトとしてパース
+	var obj struct {
 		State string `json:"state"`
-	} `json:"statusCheckRollup"`
+	}
+	if err := json.Unmarshal(pr.StatusCheckRollup, &obj); err == nil && obj.State != "" {
+		return obj.State
+	}
+
+	// 配列としてパース（gh pr listの場合）
+	var arr []struct {
+		Status     string `json:"status"`
+		Conclusion string `json:"conclusion"`
+	}
+	if err := json.Unmarshal(pr.StatusCheckRollup, &arr); err == nil {
+		// すべてのチェックの状態を確認
+		allSuccess := true
+		anyPending := false
+		for _, check := range arr {
+			if check.Status == "IN_PROGRESS" || check.Status == "QUEUED" {
+				anyPending = true
+			}
+			if check.Status == "COMPLETED" && check.Conclusion != "SUCCESS" {
+				allSuccess = false
+			}
+		}
+		if anyPending {
+			return "PENDING"
+		}
+		if allSuccess && len(arr) > 0 {
+			return "SUCCESS"
+		}
+		if !allSuccess {
+			return "FAILURE"
+		}
+	}
+
+	return ""
 }
 
 // GetPullRequestForIssue はIssue番号に関連付けられたPRを取得する
@@ -99,7 +142,7 @@ func (c *GHClient) GetPullRequestForIssue(ctx context.Context, issueNumber int) 
 				"error", err,
 			)
 		}
-		return nil, fmt.Errorf("failed to parse pull request response: %w", err)
+		return nil, fmt.Errorf("failed to parse pull request response (GetPullRequestForIssue): %w", err)
 	}
 
 	// Issue番号が記載されているPRを探す
@@ -126,7 +169,7 @@ func (c *GHClient) GetPullRequestForIssue(ctx context.Context, issueNumber int) 
 				Mergeable:    pr.Mergeable,
 				IsDraft:      pr.IsDraft,
 				HeadRefName:  pr.HeadRefName,
-				ChecksStatus: pr.StatusCheckRollup.State,
+				ChecksStatus: pr.getChecksStatus(),
 			}
 			return result, nil
 		}
@@ -189,7 +232,7 @@ func (c *GHClient) GetPullRequestStatus(ctx context.Context, prNumber int) (*Pul
 
 	var prStatus pullRequestWithStatus
 	if err := json.Unmarshal(output, &prStatus); err != nil {
-		return nil, fmt.Errorf("failed to parse pull request response: %w", err)
+		return nil, fmt.Errorf("failed to parse pull request response (GetPullRequestStatus): %w", err)
 	}
 
 	pr := &PullRequest{
@@ -199,7 +242,7 @@ func (c *GHClient) GetPullRequestStatus(ctx context.Context, prNumber int) (*Pul
 		Mergeable:    prStatus.Mergeable,
 		IsDraft:      prStatus.IsDraft,
 		HeadRefName:  prStatus.HeadRefName,
-		ChecksStatus: prStatus.StatusCheckRollup.State,
+		ChecksStatus: prStatus.getChecksStatus(),
 	}
 
 	if c.logger != nil {
