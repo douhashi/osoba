@@ -270,15 +270,20 @@ func getPullRequestForIssueWithRetry(
 	issueNumber int,
 	log logger.Logger,
 ) (*github.PullRequest, error) {
+	startTime := time.Now()
 	log.Debug("Auto-merge: Getting pull request for issue",
 		"issue_number", issueNumber,
+		"start_time", startTime.Format(time.RFC3339),
 	)
 
 	pr, err := ghClient.GetPullRequestForIssue(ctx, issueNumber)
+	elapsedTime := time.Since(startTime)
+
 	if err != nil {
 		log.Warn("Auto-merge: Failed to get pull request via linked search",
 			"issue_number", issueNumber,
 			"error", err,
+			"elapsed_time_ms", elapsedTime.Milliseconds(),
 		)
 
 		// フォールバック: ブランチ名による検索を試行
@@ -286,15 +291,30 @@ func getPullRequestForIssueWithRetry(
 			"issue_number", issueNumber,
 		)
 
-		// 現時点ではフォールバック機能は未実装
-		// 将来的にはブランチ名パターン（issue-123, fix-123等）での検索を追加予定
-		return nil, err
+		// フォールバック機能の実装
+		pr, err = searchPullRequestByBranchName(ctx, ghClient, issueNumber, log)
+		if err != nil {
+			log.Error("Auto-merge: Fallback search also failed",
+				"issue_number", issueNumber,
+				"error", err,
+			)
+			return nil, err
+		}
+
+		if pr != nil {
+			log.Info("Auto-merge: Found pull request via fallback search",
+				"issue_number", issueNumber,
+				"pr_number", pr.Number,
+				"branch_name", pr.HeadRefName,
+			)
+		}
 	}
 
 	if pr != nil {
-		log.Debug("Auto-merge: Successfully found pull request via linked search",
+		log.Debug("Auto-merge: Successfully found pull request",
 			"issue_number", issueNumber,
 			"pr_number", pr.Number,
+			"elapsed_time_ms", elapsedTime.Milliseconds(),
 		)
 	}
 
@@ -374,4 +394,60 @@ func checkMergeableWithRetry(
 		"max_retries", maxRetries,
 	)
 	return false, nil // エラーではなく、マージ不可として扱う
+}
+
+// searchPullRequestByBranchName はブランチ名パターンでPRを検索するフォールバック機能
+func searchPullRequestByBranchName(
+	ctx context.Context,
+	ghClient github.GitHubClient,
+	issueNumber int,
+	log logger.Logger,
+) (*github.PullRequest, error) {
+	// ブランチ名パターンを定義
+	branchPatterns := []string{
+		fmt.Sprintf("issue-%d", issueNumber),
+		fmt.Sprintf("fix-%d", issueNumber),
+		fmt.Sprintf("feature-%d", issueNumber),
+		fmt.Sprintf("issue/%d", issueNumber),
+		fmt.Sprintf("fix/%d", issueNumber),
+		fmt.Sprintf("feature/%d", issueNumber),
+		fmt.Sprintf("osoba-issue-%d", issueNumber),
+	}
+
+	for _, pattern := range branchPatterns {
+		log.Debug("Auto-merge: Searching PR by branch name",
+			"issue_number", issueNumber,
+			"branch_pattern", pattern,
+		)
+
+		// ghClientにSearchPullRequestByBranchメソッドが必要
+		// ここではnilを返して、後で実装する
+		if searcher, ok := ghClient.(interface {
+			SearchPullRequestByBranch(ctx context.Context, branchName string) (*github.PullRequest, error)
+		}); ok {
+			pr, err := searcher.SearchPullRequestByBranch(ctx, pattern)
+			if err != nil {
+				log.Debug("Auto-merge: Branch search failed",
+					"branch_pattern", pattern,
+					"error", err,
+				)
+				continue
+			}
+			if pr != nil {
+				log.Info("Auto-merge: Found PR by branch name",
+					"issue_number", issueNumber,
+					"branch_name", pattern,
+					"pr_number", pr.Number,
+				)
+				return pr, nil
+			}
+		}
+	}
+
+	log.Debug("Auto-merge: No PR found by branch name patterns",
+		"issue_number", issueNumber,
+		"patterns_tried", len(branchPatterns),
+	)
+
+	return nil, fmt.Errorf("no pull request found for issue #%d", issueNumber)
 }

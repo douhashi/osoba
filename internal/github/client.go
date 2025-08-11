@@ -17,6 +17,8 @@ import (
 type GHClient struct {
 	logger       logger.Logger
 	labelManager LabelManagerInterface
+	owner        string
+	repo         string
 }
 
 // NewClient は新しいGitHub APIクライアントを作成する（ghコマンドベース）
@@ -24,9 +26,14 @@ func NewClient(token string) (*GHClient, error) {
 	// ghコマンドは環境変数やconfigでトークンを管理するため、ここでは不要
 	labelManager := NewGHLabelManager(nil, 3, 1*time.Second)
 
-	return &GHClient{
+	client := &GHClient{
 		labelManager: labelManager,
-	}, nil
+	}
+
+	// リポジトリ情報を取得
+	client.initRepoInfo(context.Background())
+
+	return client, nil
 }
 
 // NewClientWithLogger はログ機能付きの新しいGitHub APIクライアントを作成する（ghコマンドベース）
@@ -37,10 +44,15 @@ func NewClientWithLogger(token string, logger logger.Logger) (*GHClient, error) 
 
 	labelManager := NewGHLabelManager(logger, 3, 1*time.Second)
 
-	return &GHClient{
+	client := &GHClient{
 		logger:       logger,
 		labelManager: labelManager,
-	}, nil
+	}
+
+	// リポジトリ情報を取得
+	client.initRepoInfo(context.Background())
+
+	return client, nil
 }
 
 // NewClientWithLabelManager はテスト用のクライアントコンストラクタ

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // PullRequest はプルリクエストの情報を表す
@@ -33,48 +34,113 @@ type pullRequestWithStatus struct {
 
 // GetPullRequestForIssue はIssue番号に関連付けられたPRを取得する
 func (c *GHClient) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*PullRequest, error) {
-	// gh pr list --search "linked:<issue-number>" --json number,title,state,mergeable,isDraft,headRefName,statusCheckRollup
+	if c.logger != nil {
+		c.logger.Debug("Starting PR search for issue",
+			"issue_number", issueNumber,
+		)
+	}
+
+	// 方法1: GraphQL APIを使用（最も確実）
+	if c.owner != "" && c.repo != "" {
+		pr, err := c.GetPullRequestForIssueViaGraphQL(ctx, issueNumber)
+		if err == nil && pr != nil {
+			if c.logger != nil {
+				c.logger.Info("Found PR via GraphQL",
+					"issue_number", issueNumber,
+					"pr_number", pr.Number,
+				)
+			}
+			return pr, nil
+		}
+	}
+
+	// 方法2: 単純な番号検索
 	args := []string{
 		"pr", "list",
-		"--search", fmt.Sprintf("linked:%d", issueNumber),
-		"--json", "number,title,state,mergeable,isDraft,headRefName,statusCheckRollup",
+		"--search", fmt.Sprintf("%d", issueNumber),
+		"--json", "number,title,state,mergeable,isDraft,headRefName,statusCheckRollup,body",
+		"--state", "open",
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Executing gh command for PR search",
+			"issue_number", issueNumber,
+			"search_query", fmt.Sprintf("linked:%d", issueNumber),
+		)
 	}
 
 	output, err := c.executeGHCommand(ctx, args...)
 	if err != nil {
+		if c.logger != nil {
+			c.logger.Error("Failed to execute gh command",
+				"issue_number", issueNumber,
+				"error", err,
+			)
+		}
 		return nil, fmt.Errorf("failed to list pull requests: %w", err)
 	}
 
-	var prs []pullRequestWithStatus
-	if err := json.Unmarshal(output, &prs); err != nil {
-		return nil, fmt.Errorf("failed to parse pull request response: %w", err)
-	}
-
-	if len(prs) == 0 {
-		return nil, nil // PRが存在しない
-	}
-
-	// 最初のPRを返す（通常、1つのIssueに対して1つのPR）
-	pr := &PullRequest{
-		Number:       prs[0].Number,
-		Title:        prs[0].Title,
-		State:        prs[0].State,
-		Mergeable:    prs[0].Mergeable,
-		IsDraft:      prs[0].IsDraft,
-		HeadRefName:  prs[0].HeadRefName,
-		ChecksStatus: prs[0].StatusCheckRollup.State,
-	}
-
 	if c.logger != nil {
-		c.logger.Debug("Found pull request for issue",
+		c.logger.Debug("Raw gh command output",
 			"issue_number", issueNumber,
-			"pr_number", pr.Number,
-			"state", pr.State,
-			"mergeable", pr.Mergeable,
+			"output", string(output),
 		)
 	}
 
-	return pr, nil
+	var prs []struct {
+		pullRequestWithStatus
+		Body string `json:"body"`
+	}
+	if err := json.Unmarshal(output, &prs); err != nil {
+		if c.logger != nil {
+			c.logger.Error("Failed to parse PR response",
+				"issue_number", issueNumber,
+				"raw_output", string(output),
+				"error", err,
+			)
+		}
+		return nil, fmt.Errorf("failed to parse pull request response: %w", err)
+	}
+
+	// Issue番号が記載されているPRを探す
+	for _, pr := range prs {
+		// PR本文にIssue番号への言及があるか確認
+		if strings.Contains(pr.Body, fmt.Sprintf("#%d", issueNumber)) ||
+			strings.Contains(pr.Body, fmt.Sprintf("fixes #%d", issueNumber)) ||
+			strings.Contains(pr.Body, fmt.Sprintf("Fixes #%d", issueNumber)) ||
+			strings.Contains(pr.Body, fmt.Sprintf("closes #%d", issueNumber)) ||
+			strings.Contains(pr.Body, fmt.Sprintf("Closes #%d", issueNumber)) {
+
+			if c.logger != nil {
+				c.logger.Debug("Found PR with issue reference in body",
+					"issue_number", issueNumber,
+					"pr_number", pr.Number,
+				)
+			}
+
+			// 最初のPRを返す
+			result := &PullRequest{
+				Number:       pr.Number,
+				Title:        pr.Title,
+				State:        pr.State,
+				Mergeable:    pr.Mergeable,
+				IsDraft:      pr.IsDraft,
+				HeadRefName:  pr.HeadRefName,
+				ChecksStatus: pr.StatusCheckRollup.State,
+			}
+			return result, nil
+		}
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("No pull requests found with issue reference",
+			"issue_number", issueNumber,
+			"searched_prs", len(prs),
+		)
+	}
+
+	return nil, nil // PRが存在しない
+
 }
 
 // MergePullRequest は指定されたPRをマージする
