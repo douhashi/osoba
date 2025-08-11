@@ -77,26 +77,19 @@ Be sure to run the version *without* `--comments` first to understand the requir
 
 ### 6. Update Labels
 
-After posting the review result, update the Issue labels based on the verdict:
+After posting the review result, update the labels based on the verdict:
 
 #### If Approved (LGTM):
-1. Remove `status:reviewing` label:
+1. Keep `status:reviewing` label on the Issue (Issue lifecycle ends here)
+2. Add `status:lgtm` label to the Pull Request:
    ```bash
-   gh issue edit <issue number> --remove-label "status:reviewing"
-   ```
-2. Add `status:lgtm` label:
-   ```bash
-   gh issue edit <issue number> --add-label "status:lgtm"
+   gh pr edit <PR number> --add-label "status:lgtm"
    ```
 
 #### If Requires Changes:
-1. Remove `status:reviewing` label:
+1. Update Issue labels (remove `status:reviewing` and add `status:requires-changes`):
    ```bash
-   gh issue edit <issue number> --remove-label "status:reviewing"
-   ```
-2. Add `status:requires-changes` label:
-   ```bash
-   gh issue edit <issue number> --add-label "status:requires-changes"
+   gh issue edit <issue number> --remove-label "status:reviewing" --add-label "status:requires-changes"
    ```
 
 ## Basic Rules
