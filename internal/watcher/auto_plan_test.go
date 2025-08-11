@@ -551,3 +551,155 @@ func TestConcurrentAutoPlanExecution(t *testing.T) {
 		mockClient.AssertNotCalled(t, "AddLabel")
 	})
 }
+
+// TestExecuteAutoPlanWithOptimisticLock は楽観的ロック機能のテスト
+func TestExecuteAutoPlanWithOptimisticLock(t *testing.T) {
+	testLogger, _ := logger.New(logger.WithLevel("debug"))
+
+	t.Run("正常系: 楽観的ロックによる競合検出と成功", func(t *testing.T) {
+		mockClient := new(MockGitHubClientForAutoPlan)
+
+		// 最初のチェック: status:*ラベル付きIssueなし
+		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			Return([]*github.Issue{}, nil).Once()
+
+		// オープンIssueにラベルなしIssueが存在
+		allIssues := []*github.Issue{
+			{
+				Number: github.Int(3),
+				Title:  github.String("Test Issue 3"),
+				Labels: []*github.Label{}, // ラベルなし
+			},
+		}
+		mockClient.On("ListAllOpenIssues", mock.Anything, "test-owner", "test-repo").
+			Return(allIssues, nil)
+
+		// 楽観的ロック: ラベル付与前の再確認（まだアクティブIssueなし）
+		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			Return([]*github.Issue{}, nil).Once()
+
+		// ラベル付与
+		mockClient.On("AddLabel", mock.Anything, "test-owner", "test-repo", 3, "status:needs-plan").
+			Return(nil)
+
+		cfg := &config.Config{
+			GitHub: config.GitHubConfig{
+				AutoPlanIssue: true,
+			},
+		}
+
+		err := executeAutoPlanWithOptimisticLock(context.Background(), cfg, mockClient, "test-owner", "test-repo", testLogger)
+
+		assert.NoError(t, err)
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("競合検出: ラベル付与前に他のプロセスが先にラベル付与済み", func(t *testing.T) {
+		mockClient := new(MockGitHubClientForAutoPlan)
+
+		// 最初のチェック: status:*ラベル付きIssueなし
+		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			Return([]*github.Issue{}, nil).Once()
+
+		// オープンIssueにラベルなしIssueが存在
+		allIssues := []*github.Issue{
+			{
+				Number: github.Int(5),
+				Title:  github.String("Test Issue 5"),
+				Labels: []*github.Label{}, // ラベルなし
+			},
+		}
+		mockClient.On("ListAllOpenIssues", mock.Anything, "test-owner", "test-repo").
+			Return(allIssues, nil)
+
+		// 楽観的ロック: 再確認時に他のプロセスが先にラベル付与済み
+		competingIssue := []*github.Issue{
+			{
+				Number: github.Int(5),
+				Title:  github.String("Test Issue 5"),
+				Labels: []*github.Label{
+					{Name: github.String("status:needs-plan")}, // 他のプロセスが付与済み
+				},
+			},
+		}
+		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			Return(competingIssue, nil).Once()
+
+		// AddLabelは呼ばれない（競合検出でスキップ）
+
+		cfg := &config.Config{
+			GitHub: config.GitHubConfig{
+				AutoPlanIssue: true,
+			},
+		}
+
+		err := executeAutoPlanWithOptimisticLock(context.Background(), cfg, mockClient, "test-owner", "test-repo", testLogger)
+
+		// 競合検出は正常な動作なのでエラーではない
+		assert.NoError(t, err)
+		mockClient.AssertNotCalled(t, "AddLabel")
+	})
+
+	t.Run("異常系: GitHub API呼び出し失敗時のリトライ", func(t *testing.T) {
+		mockClient := new(MockGitHubClientForAutoPlan)
+
+		// 最初の呼び出しは失敗
+		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			Return(nil, errors.New("API error")).Once()
+
+		// リトライ後は成功
+		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			Return([]*github.Issue{}, nil).Once()
+
+		allIssues := []*github.Issue{
+			{
+				Number: github.Int(1),
+				Title:  github.String("Test Issue 1"),
+				Labels: []*github.Label{},
+			},
+		}
+		mockClient.On("ListAllOpenIssues", mock.Anything, "test-owner", "test-repo").
+			Return(allIssues, nil)
+
+		// 楽観的ロック再確認
+		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			Return([]*github.Issue{}, nil).Once()
+
+		mockClient.On("AddLabel", mock.Anything, "test-owner", "test-repo", 1, "status:needs-plan").
+			Return(nil)
+
+		cfg := &config.Config{
+			GitHub: config.GitHubConfig{
+				AutoPlanIssue: true,
+			},
+		}
+
+		err := executeAutoPlanWithOptimisticLockWithRetry(context.Background(), cfg, mockClient, "test-owner", "test-repo", testLogger)
+
+		assert.NoError(t, err)
+		mockClient.AssertExpectations(t)
+	})
+}
+
+// TestRaceConditionError は新しい競合状態エラーのテスト
+func TestRaceConditionError(t *testing.T) {
+	t.Run("RaceConditionError構造体のテスト", func(t *testing.T) {
+		err := &RaceConditionError{
+			Type:        "optimistic_lock_failure",
+			Message:     "race condition detected during label assignment",
+			IssueNumber: github.Int(123),
+			Timestamp:   time.Now(),
+		}
+
+		assert.Contains(t, err.Error(), "race condition detected")
+		assert.Contains(t, err.Error(), "#123")
+		assert.NotNil(t, err.Timestamp)
+	})
+}

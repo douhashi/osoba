@@ -713,5 +713,6 @@ func (w *IssueWatcher) executeAutoPlanWithMutex(ctx context.Context) error {
 
 	w.logger.Debug("Auto-plan: Acquired mutex lock for exclusive execution")
 
-	return executeAutoPlanIfNoActiveIssues(ctx, w.config, w.client, w.owner, w.repo, w.logger)
+	// 楽観的ロック機能付きのリトライ機構を使用
+	return executeAutoPlanWithOptimisticLockWithRetry(ctx, w.config, w.client, w.owner, w.repo, w.logger)
 }
