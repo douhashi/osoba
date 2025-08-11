@@ -205,7 +205,7 @@ func convertToPullRequest(pr *pullRequestWithStatus) *PullRequest {
 		Mergeable:    pr.Mergeable,
 		IsDraft:      pr.IsDraft,
 		HeadRefName:  pr.HeadRefName,
-		ChecksStatus: pr.StatusCheckRollup.State,
+		ChecksStatus: pr.getChecksStatus(),
 	}
 }
 

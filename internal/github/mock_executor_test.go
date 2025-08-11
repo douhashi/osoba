@@ -54,7 +54,7 @@ func (c *Client) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*
 		Mergeable:    prs[0].Mergeable,
 		IsDraft:      prs[0].IsDraft,
 		HeadRefName:  prs[0].HeadRefName,
-		ChecksStatus: prs[0].StatusCheckRollup.State,
+		ChecksStatus: prs[0].getChecksStatus(),
 	}
 
 	return pr, nil
@@ -104,7 +104,7 @@ func (c *Client) GetPullRequestStatus(ctx context.Context, prNumber int) (*PullR
 		Mergeable:    prStatus.Mergeable,
 		IsDraft:      prStatus.IsDraft,
 		HeadRefName:  prStatus.HeadRefName,
-		ChecksStatus: prStatus.StatusCheckRollup.State,
+		ChecksStatus: prStatus.getChecksStatus(),
 	}
 
 	return pr, nil
