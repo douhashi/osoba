@@ -112,6 +112,11 @@ func (m *MockGitHubClientForAutoPlan) ListPullRequestsByLabels(ctx context.Conte
 	return args.Get(0).([]*github.PullRequest), args.Error(1)
 }
 
+func (m *MockGitHubClientForAutoPlan) GetClosingIssueNumber(ctx context.Context, prNumber int) (int, error) {
+	args := m.Called(ctx, prNumber)
+	return args.Int(0), args.Error(1)
+}
+
 func TestExecuteAutoPlanIfNoActiveIssues(t *testing.T) {
 	testLogger, _ := logger.New(logger.WithLevel("debug"))
 

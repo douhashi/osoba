@@ -153,7 +153,7 @@ func (w *PRWatcher) StartWithAutoMerge(ctx context.Context) {
 	callback := func(pr *github.PullRequest) {
 		// 自動マージ処理を実行
 		if w.config != nil && w.config.GitHub.AutoMergeLGTM {
-			if err := executeAutoMergeForPR(ctx, pr, w.config, w.client, w.cleanupManager, w.logger, w.autoMergeMetrics); err != nil {
+			if err := executeAutoMergeForPRWithLogger(ctx, pr, w.config, w.client, w.cleanupManager, w.logger, w.autoMergeMetrics); err != nil {
 				w.logger.Error("Failed to execute auto-merge for PR",
 					"prNumber", pr.Number,
 					"error", err)

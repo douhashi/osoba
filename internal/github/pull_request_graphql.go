@@ -314,3 +314,99 @@ func (c *GHClient) ListPullRequestsByLabelsViaGraphQL(ctx context.Context, owner
 
 	return prs, nil
 }
+
+// GetClosingIssueNumber はPRに関連付けられたIssue番号を取得
+// PRがfixes #123のような形式でIssueをクローズする場合、そのIssue番号を返す
+// 関連するIssueがない場合は0を返す
+func (c *GHClient) GetClosingIssueNumber(ctx context.Context, prNumber int) (int, error) {
+	query := fmt.Sprintf(`
+	{
+		repository(owner: "%s", name: "%s") {
+			pullRequest(number: %d) {
+				closingIssuesReferences(first: 1) {
+					nodes {
+						number
+					}
+				}
+			}
+		}
+	}`, c.owner, c.repo, prNumber)
+
+	args := []string{
+		"api", "graphql",
+		"-f", fmt.Sprintf("query=%s", query),
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Executing GraphQL query for closing issue",
+			"pr_number", prNumber,
+		)
+	}
+
+	output, err := c.executeGHCommand(ctx, args...)
+	if err != nil {
+		if c.logger != nil {
+			c.logger.Error("GraphQL query for closing issue failed",
+				"pr_number", prNumber,
+				"error", err,
+			)
+		}
+		return 0, fmt.Errorf("GraphQL query for closing issue failed: %w", err)
+	}
+
+	// レスポンスをパース
+	var response struct {
+		Data struct {
+			Repository struct {
+				PullRequest *struct {
+					ClosingIssuesReferences struct {
+						Nodes []struct {
+							Number int `json:"number"`
+						} `json:"nodes"`
+					} `json:"closingIssuesReferences"`
+				} `json:"pullRequest"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(output, &response); err != nil {
+		if c.logger != nil {
+			c.logger.Error("Failed to parse closing issue response",
+				"pr_number", prNumber,
+				"error", err,
+				"raw_output", string(output),
+			)
+		}
+		return 0, fmt.Errorf("failed to parse closing issue response: %w", err)
+	}
+
+	// PRが存在しない場合
+	if response.Data.Repository.PullRequest == nil {
+		if c.logger != nil {
+			c.logger.Debug("PR not found",
+				"pr_number", prNumber,
+			)
+		}
+		return 0, nil
+	}
+
+	// closingIssuesReferencesが存在し、最初のIssue番号を取得
+	if len(response.Data.Repository.PullRequest.ClosingIssuesReferences.Nodes) > 0 {
+		issueNumber := response.Data.Repository.PullRequest.ClosingIssuesReferences.Nodes[0].Number
+		if c.logger != nil {
+			c.logger.Debug("Found closing issue for PR",
+				"pr_number", prNumber,
+				"issue_number", issueNumber,
+			)
+		}
+		return issueNumber, nil
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("No closing issue found for PR",
+			"pr_number", prNumber,
+		)
+	}
+
+	return 0, nil
+}

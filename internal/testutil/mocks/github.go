@@ -152,5 +152,11 @@ func (m *MockGitHubClient) ListAllOpenIssues(ctx context.Context, owner, repo st
 	return args.Get(0).([]*github.Issue), args.Error(1)
 }
 
+// GetClosingIssueNumber mocks the GetClosingIssueNumber method
+func (m *MockGitHubClient) GetClosingIssueNumber(ctx context.Context, prNumber int) (int, error) {
+	args := m.Called(ctx, prNumber)
+	return args.Int(0), args.Error(1)
+}
+
 // Ensure MockGitHubClient implements github.GitHubClient interface
 var _ github.GitHubClient = (*MockGitHubClient)(nil)

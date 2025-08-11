@@ -107,6 +107,11 @@ func (m *MockGitHubClient) ListPullRequestsByLabels(ctx context.Context, owner, 
 	return args.Get(0).([]*github.PullRequest), args.Error(1)
 }
 
+func (m *MockGitHubClient) GetClosingIssueNumber(ctx context.Context, prNumber int) (int, error) {
+	args := m.Called(ctx, prNumber)
+	return args.Int(0), args.Error(1)
+}
+
 func TestExecuteLabelTransition(t *testing.T) {
 	tests := []struct {
 		name          string

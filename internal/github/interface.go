@@ -20,4 +20,5 @@ type GitHubClient interface {
 	GetPullRequestForIssue(ctx context.Context, issueNumber int) (*PullRequest, error)
 	MergePullRequest(ctx context.Context, prNumber int) error
 	GetPullRequestStatus(ctx context.Context, prNumber int) (*PullRequest, error)
+	GetClosingIssueNumber(ctx context.Context, prNumber int) (int, error)
 }
