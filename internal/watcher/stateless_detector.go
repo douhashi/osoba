@@ -12,6 +12,7 @@ const (
 	TriggerLabelNeedsPlan       = "status:needs-plan"
 	TriggerLabelReady           = "status:ready"
 	TriggerLabelReviewRequested = "status:review-requested"
+	TriggerLabelRequiresChanges = "status:requires-changes"
 )
 
 // 実行中ラベルの定数定義
@@ -22,12 +23,13 @@ const (
 )
 
 // getTriggerLabelPriority はトリガーラベルの優先順位順に返す
-// 優先順位: needs-plan > ready > review-requested
+// 優先順位: needs-plan > ready > review-requested > requires-changes
 func getTriggerLabelPriority() []string {
 	return []string{
 		TriggerLabelNeedsPlan,
 		TriggerLabelReady,
 		TriggerLabelReviewRequested,
+		TriggerLabelRequiresChanges,
 	}
 }
 
@@ -37,6 +39,7 @@ func GetTriggerLabelMapping() map[string]string {
 		TriggerLabelNeedsPlan:       ExecutionLabelPlanning,
 		TriggerLabelReady:           ExecutionLabelImplementing,
 		TriggerLabelReviewRequested: ExecutionLabelReviewing,
+		TriggerLabelRequiresChanges: "", // requires-changesには対応する実行中ラベルがない（直接readyに遷移）
 	}
 }
 
