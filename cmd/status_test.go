@@ -337,7 +337,7 @@ tmux:
 			name:                 "設定ファイルが存在しない場合のデフォルト値",
 			configPath:           "/nonexistent/path/osoba.yml", // 存在しないパスを明示的に指定
 			configFlag:           "/nonexistent/path/osoba.yml",
-			expectedPollInterval: "5s",     // デフォルト値
+			expectedPollInterval: "20s",    // デフォルト値
 			expectedPrefix:       "osoba-", // デフォルト値
 		},
 	}
