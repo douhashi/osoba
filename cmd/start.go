@@ -14,8 +14,8 @@ import (
 	"github.com/douhashi/osoba/internal/claude"
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/daemon"
-	"github.com/douhashi/osoba/internal/gh"
 	"github.com/douhashi/osoba/internal/git"
+	githubPkg "github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/paths"
 	"github.com/douhashi/osoba/internal/tmux"
@@ -171,17 +171,17 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	repoName := repoInfo.Repo
 	owner := repoInfo.Owner
 
-	// GitHubクライアントを作成（ghコマンドのみ使用）
-	executor := gh.NewRealCommandExecutor()
-	ghClient, err := gh.NewClient(executor)
+	// ロガーを作成
+	appLogger, err := logger.New(logger.WithLevel("info"))
 	if err != nil {
-		return fmt.Errorf("ghクライアントの作成に失敗: %w", err)
+		return fmt.Errorf("ロガーの作成に失敗: %w", err)
 	}
-	// 前提条件を検証
-	if err := ghClient.ValidatePrerequisites(context.Background()); err != nil {
-		return fmt.Errorf("ghコマンドの前提条件を満たしていません: %w", err)
+
+	// GitHubクライアントを作成（ghコマンドのみ使用）
+	githubClient, err := githubPkg.NewClientWithLogger("", appLogger)
+	if err != nil {
+		return fmt.Errorf("GitHubクライアントの作成に失敗: %w", err)
 	}
-	githubClient := ghClient
 	fmt.Fprintln(cmd.OutOrStdout(), "  GitHub接続: ghコマンドを使用")
 
 	// tmuxがインストールされているか確認
@@ -206,12 +206,6 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 		fmt.Fprintf(cmd.OutOrStderr(), "警告: ラベルの確認/作成に失敗しました: %v\n", err)
 	} else {
 		fmt.Fprintln(cmd.OutOrStdout(), "ラベルの確認が完了しました")
-	}
-
-	// ロガーを作成
-	appLogger, err := logger.New(logger.WithLevel("info"))
-	if err != nil {
-		return fmt.Errorf("ロガーの作成に失敗: %w", err)
 	}
 
 	// Git関連のコンポーネントを作成

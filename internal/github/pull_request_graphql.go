@@ -75,7 +75,7 @@ func (c *GHClient) GetPullRequestForIssueViaGraphQL(ctx context.Context, issueNu
 								IsDraft           bool   `json:"isDraft"`
 								Mergeable         string `json:"mergeable"`
 								HeadRefName       string `json:"headRefName"`
-								StatusCheckRollup struct {
+								StatusCheckRollup *struct {
 									State string `json:"state"`
 								} `json:"statusCheckRollup"`
 							} `json:"source"`
@@ -102,6 +102,11 @@ func (c *GHClient) GetPullRequestForIssueViaGraphQL(ctx context.Context, issueNu
 		if node.TypeName == "CrossReferencedEvent" && node.Source.TypeName == "PullRequest" {
 			// オープンなPRのみを対象にする
 			if node.Source.State == "OPEN" {
+				checksStatus := ""
+				if node.Source.StatusCheckRollup != nil {
+					checksStatus = node.Source.StatusCheckRollup.State
+				}
+
 				pr := &PullRequest{
 					Number:       node.Source.Number,
 					Title:        node.Source.Title,
@@ -109,7 +114,7 @@ func (c *GHClient) GetPullRequestForIssueViaGraphQL(ctx context.Context, issueNu
 					Mergeable:    node.Source.Mergeable,
 					IsDraft:      node.Source.IsDraft,
 					HeadRefName:  node.Source.HeadRefName,
-					ChecksStatus: node.Source.StatusCheckRollup.State,
+					ChecksStatus: checksStatus,
 				}
 
 				if c.logger != nil {
@@ -192,6 +197,13 @@ func (c *GHClient) ListPullRequestsByLabelsViaGraphQL(ctx context.Context, owner
 		return nil, fmt.Errorf("GraphQL PR labels query failed: %w", err)
 	}
 
+	// デバッグ用にraw outputをログ出力
+	if c.logger != nil {
+		c.logger.Debug("GraphQL raw output",
+			"output", string(output),
+		)
+	}
+
 	// レスポンスをパース
 	var response struct {
 		Data struct {
@@ -209,7 +221,7 @@ func (c *GHClient) ListPullRequestsByLabelsViaGraphQL(ctx context.Context, owner
 								Name string `json:"name"`
 							} `json:"nodes"`
 						} `json:"labels"`
-						StatusCheckRollup struct {
+						StatusCheckRollup *struct {
 							State string `json:"state"`
 						} `json:"statusCheckRollup"`
 					} `json:"nodes"`
@@ -220,12 +232,24 @@ func (c *GHClient) ListPullRequestsByLabelsViaGraphQL(ctx context.Context, owner
 
 	if err := json.Unmarshal(output, &response); err != nil {
 		if c.logger != nil {
-			c.logger.Error("Failed to parse GraphQL PR labels response",
+			// デバッグ用に詳細な情報を出力
+			c.logger.Error("Failed to parse pull request response",
 				"error", err,
 				"raw_output", string(output),
+				"output_length", len(output),
 			)
+			// 最初の500文字だけ別途出力
+			if len(output) > 0 {
+				maxLen := 500
+				if len(output) < maxLen {
+					maxLen = len(output)
+				}
+				c.logger.Error("Raw output preview",
+					"preview", string(output[:maxLen]),
+				)
+			}
 		}
-		return nil, fmt.Errorf("failed to parse GraphQL PR labels response: %w", err)
+		return nil, fmt.Errorf("failed to parse pull request response (GraphQL): %w", err)
 	}
 
 	var prs []*PullRequest
@@ -255,6 +279,11 @@ func (c *GHClient) ListPullRequestsByLabelsViaGraphQL(ctx context.Context, owner
 
 		// すべてのラベルが含まれている場合のみ追加
 		if hasAllLabels {
+			checksStatus := ""
+			if prNode.StatusCheckRollup != nil {
+				checksStatus = prNode.StatusCheckRollup.State
+			}
+
 			pr := &PullRequest{
 				Number:       prNode.Number,
 				Title:        prNode.Title,
@@ -262,7 +291,7 @@ func (c *GHClient) ListPullRequestsByLabelsViaGraphQL(ctx context.Context, owner
 				Mergeable:    prNode.Mergeable,
 				IsDraft:      prNode.IsDraft,
 				HeadRefName:  prNode.HeadRefName,
-				ChecksStatus: prNode.StatusCheckRollup.State,
+				ChecksStatus: checksStatus,
 			}
 			prs = append(prs, pr)
 
