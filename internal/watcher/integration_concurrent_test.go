@@ -77,14 +77,11 @@ func TestConcurrentLabelProcessing(t *testing.T) {
 		}).
 		Return(nil)
 
-	// ラベル操作のモック
-	mockClient.On("RemoveLabel", mock.Anything, "owner", "repo", mock.AnythingOfType("int"), mock.AnythingOfType("string")).
+	// ラベル操作のモック - TransitionLabelsを使用
+	mockClient.On("TransitionLabels", mock.Anything, "owner", "repo", mock.AnythingOfType("int"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).
 		Run(func(args mock.Arguments) {
 			atomic.AddInt32(&labelTransitionCount, 1)
 		}).
-		Return(nil)
-
-	mockClient.On("AddLabel", mock.Anything, "owner", "repo", mock.AnythingOfType("int"), mock.AnythingOfType("string")).
 		Return(nil)
 
 	// 2つのwatcherを作成
@@ -202,15 +199,12 @@ func TestRapidLabelChanges(t *testing.T) {
 		}).
 		Return(nil)
 
-	// ラベル操作のモック
+	// ラベル操作のモック - TransitionLabelsを使用
 	var transitionCount int32
-	mockClient.On("RemoveLabel", mock.Anything, "owner", "repo", mock.AnythingOfType("int"), mock.AnythingOfType("string")).
+	mockClient.On("TransitionLabels", mock.Anything, "owner", "repo", mock.AnythingOfType("int"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).
 		Run(func(args mock.Arguments) {
 			atomic.AddInt32(&transitionCount, 1)
 		}).
-		Return(nil)
-
-	mockClient.On("AddLabel", mock.Anything, "owner", "repo", mock.AnythingOfType("int"), mock.AnythingOfType("string")).
 		Return(nil)
 
 	// watcherを作成
@@ -272,23 +266,20 @@ func TestNetworkErrorRecovery(t *testing.T) {
 	mockActionManager.On("ExecuteAction", mock.Anything, mock.AnythingOfType("*github.Issue")).
 		Return(nil)
 
-	// RemoveLabelで一時的にエラーを返す（リトライのテスト）
+	// TransitionLabelsで一時的にエラーを返す（リトライのテスト）
 	// 最初の呼び出しはエラー
-	mockClient.On("RemoveLabel", mock.Anything, "owner", "repo", 1, "status:needs-plan").
+	mockClient.On("TransitionLabels", mock.Anything, "owner", "repo", 1, "status:needs-plan", "status:planning").
 		Return(assert.AnError).Once().
 		Run(func(args mock.Arguments) {
 			atomic.AddInt32(&removeLabelCallCount, 1)
 		})
 
 	// 2回目以降は成功
-	mockClient.On("RemoveLabel", mock.Anything, "owner", "repo", 1, "status:needs-plan").
+	mockClient.On("TransitionLabels", mock.Anything, "owner", "repo", 1, "status:needs-plan", "status:planning").
 		Return(nil).
 		Run(func(args mock.Arguments) {
 			atomic.AddInt32(&removeLabelCallCount, 1)
 		})
-
-	mockClient.On("AddLabel", mock.Anything, "owner", "repo", 1, "status:planning").
-		Return(nil)
 
 	// watcherを作成
 	watcher, err := NewIssueWatcher(mockClient, "owner", "repo", "session1",

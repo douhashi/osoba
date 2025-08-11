@@ -102,9 +102,7 @@ func TestIssueProcessingWithLabelTransition(t *testing.T) {
 
 			// ラベル遷移のモック設定
 			if tt.expectLabelTransition {
-				mockClient.On("RemoveLabel", mock.Anything, "owner", "repo", *tt.issue.Number, tt.expectedRemoveLabel).
-					Return(nil)
-				mockClient.On("AddLabel", mock.Anything, "owner", "repo", *tt.issue.Number, tt.expectedAddLabel).
+				mockClient.On("TransitionLabels", mock.Anything, "owner", "repo", *tt.issue.Number, tt.expectedRemoveLabel, tt.expectedAddLabel).
 					Return(nil)
 			}
 
