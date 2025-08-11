@@ -15,6 +15,7 @@ type ActionFactory interface {
 	CreatePlanAction() ActionExecutor
 	CreateImplementationAction() ActionExecutor
 	CreateReviewAction() ActionExecutor
+	CreateNoOpAction() ActionExecutor
 }
 
 // DefaultActionFactory はpane管理方式を使用するActionFactory実装
@@ -106,4 +107,9 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 		f.claudeConfig,
 		f.logger.WithFields("component", "ReviewAction"),
 	)
+}
+
+// CreateNoOpAction は何もしないアクションを作成する（status:requires-changes用）
+func (f *DefaultActionFactory) CreateNoOpAction() ActionExecutor {
+	return NewNoOpAction(f.logger.WithFields("component", "NoOpAction"))
 }

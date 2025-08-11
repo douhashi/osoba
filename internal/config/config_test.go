@@ -270,16 +270,17 @@ func TestConfig_GetLabels(t *testing.T) {
 	cfg := &Config{
 		GitHub: GitHubConfig{
 			Labels: LabelConfig{
-				Plan:   "status:needs-plan",
-				Ready:  "status:ready",
-				Review: "status:review-requested",
+				Plan:            "status:needs-plan",
+				Ready:           "status:ready",
+				Review:          "status:review-requested",
+				RequiresChanges: "status:requires-changes",
 			},
 		},
 	}
 
 	labels := cfg.GetLabels()
 
-	expected := []string{"status:needs-plan", "status:ready", "status:review-requested"}
+	expected := []string{"status:needs-plan", "status:ready", "status:review-requested", "status:requires-changes"}
 	if len(labels) != len(expected) {
 		t.Fatalf("GetLabels() returned %d labels, want %d", len(labels), len(expected))
 	}
