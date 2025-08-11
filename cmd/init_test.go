@@ -508,9 +508,18 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// 作業ディレクトリを変更
-			origWd, _ := os.Getwd()
-			os.Chdir(tempRepo)
-			defer os.Chdir(origWd)
+			origWd, err := os.Getwd()
+			if err != nil {
+				t.Fatalf("Failed to get current directory: %v", err)
+			}
+			if err := os.Chdir(tempRepo); err != nil {
+				t.Fatalf("Failed to change to temp directory: %v", err)
+			}
+			defer func() {
+				if err := os.Chdir(origWd); err != nil {
+					t.Errorf("Failed to restore original directory: %v", err)
+				}
+			}()
 
 			if tt.setupMocks != nil {
 				tt.setupMocks()
@@ -523,7 +532,7 @@ func TestInitCmd_SetupOperations(t *testing.T) {
 			rootCmd.SetErr(buf)
 			rootCmd.SetArgs([]string{"init"})
 
-			err := rootCmd.Execute()
+			err = rootCmd.Execute()
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Execute() error = %v, wantErr %v", err, tt.wantErr)

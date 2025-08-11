@@ -49,3 +49,6 @@ tmp/
 
 # direnv
 .envrc
+
+# テストで誤って生成される可能性のあるファイル
+cmd/.osoba.yml

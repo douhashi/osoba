@@ -227,7 +227,7 @@ flowchart LR
 ```yaml
 # .osoba.yml
 github:
-  poll_interval: 10s
+  poll_interval: 20s  # デフォルト: 20s
   auto_merge_lgtm: true     # status:lgtmラベル時の自動マージ（デフォルト: true）
   auto_plan_issue: false    # 新規Issue作成時の自動計画（デフォルト: false）
 

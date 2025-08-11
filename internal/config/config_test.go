@@ -17,8 +17,8 @@ func TestNewConfig(t *testing.T) {
 		}
 
 		// デフォルト値の確認
-		if cfg.GitHub.PollInterval != 5*time.Second {
-			t.Errorf("default poll interval = %v, want 5s", cfg.GitHub.PollInterval)
+		if cfg.GitHub.PollInterval != 20*time.Second {
+			t.Errorf("default poll interval = %v, want 20s", cfg.GitHub.PollInterval)
 		}
 		if cfg.Tmux.SessionPrefix != "osoba-" {
 			t.Errorf("default session prefix = %v, want osoba-", cfg.Tmux.SessionPrefix)
@@ -391,8 +391,8 @@ func TestConfig_LoadOrDefault(t *testing.T) {
 		}
 
 		// デフォルト値が設定されていることを確認
-		if cfg.GitHub.PollInterval != 5*time.Second {
-			t.Errorf("poll interval = %v, want 5s", cfg.GitHub.PollInterval)
+		if cfg.GitHub.PollInterval != 20*time.Second {
+			t.Errorf("poll interval = %v, want 20s", cfg.GitHub.PollInterval)
 		}
 	})
 

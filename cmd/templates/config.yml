@@ -1,7 +1,8 @@
 # 最小限の設定ファイルサンプル
 
 github:
-  poll_interval: 10s
+  # Issue/PR監視間隔（デフォルト: 20s）
+  poll_interval: 20s
   # status:lgtmラベルが付いたPRを自動マージする機能の有効/無効
   # デフォルト: true（有効）
   # auto_merge_lgtm: true
