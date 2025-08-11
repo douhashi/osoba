@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/douhashi/osoba/internal/logger"
+	"github.com/douhashi/osoba/internal/tmux"
 )
 
 // Manager はクリーンアップ処理のインターフェース
@@ -28,7 +29,7 @@ func NewManager(logger logger.Logger) Manager {
 // CleanupIssueResources はIssueに関連するリソースをクリーンアップする
 func (m *DefaultManager) CleanupIssueResources(ctx context.Context, issueNumber int) error {
 	// tmuxウィンドウ名
-	windowName := fmt.Sprintf("issue-%d", issueNumber)
+	windowName := tmux.GetWindowNameForIssue(issueNumber)
 
 	// tmuxウィンドウをクローズ
 	if err := m.closeTmuxWindow(ctx, windowName); err != nil {
