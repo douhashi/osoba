@@ -69,7 +69,7 @@ func NewDefaultPhaseMessageConfig() PhaseMessageConfig {
 func NewConfig() *Config {
 	return &Config{
 		GitHub: GitHubConfig{
-			PollInterval: 5 * time.Second,
+			PollInterval: 20 * time.Second,
 			Labels: LabelConfig{
 				Plan:            "status:needs-plan",
 				Ready:           "status:ready",
@@ -109,7 +109,7 @@ func (c *Config) Load(configPath string) error {
 	v.BindEnv("log.format", "OSOBA_LOG_FORMAT")
 
 	// デフォルト値の設定
-	v.SetDefault("github.poll_interval", 5*time.Second)
+	v.SetDefault("github.poll_interval", 20*time.Second)
 	v.SetDefault("github.labels.plan", "status:needs-plan")
 	v.SetDefault("github.labels.ready", "status:ready")
 	v.SetDefault("github.labels.review", "status:review-requested")
