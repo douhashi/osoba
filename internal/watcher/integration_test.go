@@ -310,6 +310,25 @@ func (m *integrationMockGitHubClient) AddLabel(ctx context.Context, owner, repo 
 	return nil
 }
 
+func (m *integrationMockGitHubClient) TransitionLabels(ctx context.Context, owner, repo string, issueNumber int, removeLabel, addLabel string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 削除と追加を記録
+	m.labelCalls = append(m.labelCalls, mockLabelCall{
+		issueNumber: issueNumber,
+		label:       removeLabel,
+		operation:   "remove",
+	})
+	m.labelCalls = append(m.labelCalls, mockLabelCall{
+		issueNumber: issueNumber,
+		label:       addLabel,
+		operation:   "add",
+	})
+
+	return nil
+}
+
 func (m *integrationMockGitHubClient) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*github.PullRequest, error) {
 	return nil, nil
 }

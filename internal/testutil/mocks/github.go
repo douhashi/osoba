@@ -158,5 +158,11 @@ func (m *MockGitHubClient) GetClosingIssueNumber(ctx context.Context, prNumber i
 	return args.Int(0), args.Error(1)
 }
 
+// TransitionLabels mocks the TransitionLabels method
+func (m *MockGitHubClient) TransitionLabels(ctx context.Context, owner, repo string, issueNumber int, removeLabel, addLabel string) error {
+	args := m.Called(ctx, owner, repo, issueNumber, removeLabel, addLabel)
+	return args.Error(0)
+}
+
 // Ensure MockGitHubClient implements github.GitHubClient interface
 var _ github.GitHubClient = (*MockGitHubClient)(nil)

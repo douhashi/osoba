@@ -70,6 +70,11 @@ func (m *MockGitHubClient) AddLabel(ctx context.Context, owner, repo string, iss
 	return args.Error(0)
 }
 
+func (m *MockGitHubClient) TransitionLabels(ctx context.Context, owner, repo string, issueNumber int, removeLabel, addLabel string) error {
+	args := m.Called(ctx, owner, repo, issueNumber, removeLabel, addLabel)
+	return args.Error(0)
+}
+
 func (m *MockGitHubClient) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*github.PullRequest, error) {
 	args := m.Called(ctx, issueNumber)
 	if args.Get(0) == nil {
@@ -128,8 +133,7 @@ func TestExecuteLabelTransition(t *testing.T) {
 				},
 			},
 			setupMock: func(m *MockGitHubClient) {
-				m.On("RemoveLabel", mock.Anything, "owner", "repo", 123, "status:needs-plan").Return(nil)
-				m.On("AddLabel", mock.Anything, "owner", "repo", 123, "status:planning").Return(nil)
+				m.On("TransitionLabels", mock.Anything, "owner", "repo", 123, "status:needs-plan", "status:planning").Return(nil)
 			},
 		},
 		{
@@ -141,8 +145,7 @@ func TestExecuteLabelTransition(t *testing.T) {
 				},
 			},
 			setupMock: func(m *MockGitHubClient) {
-				m.On("RemoveLabel", mock.Anything, "owner", "repo", 456, "status:ready").Return(nil)
-				m.On("AddLabel", mock.Anything, "owner", "repo", 456, "status:implementing").Return(nil)
+				m.On("TransitionLabels", mock.Anything, "owner", "repo", 456, "status:ready", "status:implementing").Return(nil)
 			},
 		},
 		{
@@ -154,8 +157,7 @@ func TestExecuteLabelTransition(t *testing.T) {
 				},
 			},
 			setupMock: func(m *MockGitHubClient) {
-				m.On("RemoveLabel", mock.Anything, "owner", "repo", 789, "status:review-requested").Return(nil)
-				m.On("AddLabel", mock.Anything, "owner", "repo", 789, "status:reviewing").Return(nil)
+				m.On("TransitionLabels", mock.Anything, "owner", "repo", 789, "status:review-requested", "status:reviewing").Return(nil)
 			},
 		},
 		{
@@ -198,25 +200,11 @@ func TestExecuteLabelTransition(t *testing.T) {
 			},
 			setupMock: func(m *MockGitHubClient) {
 				// リトライメカニズムのため、3回呼ばれることを期待
-				m.On("RemoveLabel", mock.Anything, "owner", "repo", 123, "status:needs-plan").Return(errors.New("API error")).Times(3)
+				m.On("TransitionLabels", mock.Anything, "owner", "repo", 123, "status:needs-plan", "status:planning").Return(errors.New("API error")).Times(3)
 			},
-			expectedError: "failed to remove label status:needs-plan (attempt 3/3): API error",
+			expectedError: "failed to transition labels from status:needs-plan to status:planning (attempt 3/3): API error",
 		},
-		{
-			name: "add label fails",
-			issue: &gh.Issue{
-				Number: intPtr(123),
-				Labels: []*gh.Label{
-					{Name: stringPtr("status:needs-plan")},
-				},
-			},
-			setupMock: func(m *MockGitHubClient) {
-				m.On("RemoveLabel", mock.Anything, "owner", "repo", 123, "status:needs-plan").Return(nil)
-				// リトライメカニズムのため、3回呼ばれることを期待
-				m.On("AddLabel", mock.Anything, "owner", "repo", 123, "status:planning").Return(errors.New("API error")).Times(3)
-			},
-			expectedError: "failed to add label status:planning (attempt 3/3): API error",
-		},
+		// add label failsのケースは、TransitionLabelsの場合不要になる（原子的操作のため）
 	}
 
 	for _, tt := range tests {

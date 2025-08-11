@@ -196,6 +196,11 @@ func (w *IssueWatcher) Start(ctx context.Context, callback IssueCallback) {
 // StartWithActions はIssue監視を開始し、ラベルに基づいてアクションを実行する
 func (w *IssueWatcher) StartWithActions(ctx context.Context) {
 	callback := func(issue *gh.Issue) {
+		w.logger.Debug("Callback invoked for issue",
+			"issueNumber", *issue.Number,
+			"title", safeString(issue.Title),
+			"labels", getLabels(issue))
+
 		// ActionManagerを使用してアクションを実行
 		if err := w.actionManager.ExecuteAction(ctx, issue); err != nil {
 			w.logger.Error("Failed to execute action for issue",
@@ -611,34 +616,14 @@ func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Iss
 			var failureReason string
 
 			for attempt := 1; attempt <= maxRetries; attempt++ {
-				// ラベルを削除
-				if err := w.client.RemoveLabel(ctx, w.owner, w.repo, *issue.Number, transition.from); err != nil {
-					lastErr = fmt.Errorf("failed to remove label %s (attempt %d/%d): %w", transition.from, attempt, maxRetries, err)
-					failureReason = fmt.Sprintf("remove_label_error_%s", transition.from)
-					w.logger.Warn("Failed to remove label, retrying",
+				// 原子的にラベルを遷移（削除と追加を同時に実行）
+				if err := w.client.TransitionLabels(ctx, w.owner, w.repo, *issue.Number, transition.from, transition.to); err != nil {
+					lastErr = fmt.Errorf("failed to transition labels from %s to %s (attempt %d/%d): %w", transition.from, transition.to, attempt, maxRetries, err)
+					failureReason = fmt.Sprintf("transition_error_%s_to_%s", transition.from, transition.to)
+					w.logger.Warn("Failed to transition labels, retrying",
 						"issueNumber", *issue.Number,
-						"label", transition.from,
-						"attempt", attempt,
-						"error", err)
-
-					if attempt < maxRetries {
-						time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
-						continue
-					}
-					// 最終的に失敗した場合、メトリクスに記録
-					if w.labelTransitionMetrics != nil {
-						w.labelTransitionMetrics.RecordFailure(int(*issue.Number), transitionType, failureReason)
-					}
-					return lastErr
-				}
-
-				// 新しいラベルを追加
-				if err := w.client.AddLabel(ctx, w.owner, w.repo, *issue.Number, transition.to); err != nil {
-					lastErr = fmt.Errorf("failed to add label %s (attempt %d/%d): %w", transition.to, attempt, maxRetries, err)
-					failureReason = fmt.Sprintf("add_label_error_%s", transition.to)
-					w.logger.Warn("Failed to add label, retrying",
-						"issueNumber", *issue.Number,
-						"label", transition.to,
+						"from", transition.from,
+						"to", transition.to,
 						"attempt", attempt,
 						"error", err)
 
@@ -717,34 +702,14 @@ func (w *IssueWatcher) executeRequiresChangesTransition(ctx context.Context, iss
 	var failureReason string
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		// status:requires-changesラベルを削除
-		if err := w.client.RemoveLabel(ctx, w.owner, w.repo, issueNumber, "status:requires-changes"); err != nil {
-			lastErr = fmt.Errorf("failed to remove label status:requires-changes (attempt %d/%d): %w", attempt, maxRetries, err)
-			failureReason = "remove_label_error_status:requires-changes"
-			w.logger.Warn("Failed to remove label, retrying",
+		// 原子的にラベルを遷移（requires-changes → ready）
+		if err := w.client.TransitionLabels(ctx, w.owner, w.repo, issueNumber, "status:requires-changes", "status:ready"); err != nil {
+			lastErr = fmt.Errorf("failed to transition labels from status:requires-changes to status:ready (attempt %d/%d): %w", attempt, maxRetries, err)
+			failureReason = "transition_error_status:requires-changes_to_status:ready"
+			w.logger.Warn("Failed to transition labels, retrying",
 				"issueNumber", issueNumber,
-				"label", "status:requires-changes",
-				"attempt", attempt,
-				"error", err)
-
-			if attempt < maxRetries {
-				time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
-				continue
-			}
-			// 最終的に失敗した場合、メトリクスに記録
-			if w.labelTransitionMetrics != nil {
-				w.labelTransitionMetrics.RecordFailure(issueNumber, transitionType, failureReason)
-			}
-			return lastErr
-		}
-
-		// status:readyラベルを追加
-		if err := w.client.AddLabel(ctx, w.owner, w.repo, issueNumber, "status:ready"); err != nil {
-			lastErr = fmt.Errorf("failed to add label status:ready (attempt %d/%d): %w", attempt, maxRetries, err)
-			failureReason = "add_label_error_status:ready"
-			w.logger.Warn("Failed to add label, retrying",
-				"issueNumber", issueNumber,
-				"label", "status:ready",
+				"from", "status:requires-changes",
+				"to", "status:ready",
 				"attempt", attempt,
 				"error", err)
 

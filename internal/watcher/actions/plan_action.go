@@ -56,6 +56,7 @@ func (a *PlanAction) Execute(ctx context.Context, issue *github.Issue) error {
 	}
 
 	issueNumber := int64(*issue.Number)
+	a.logger.Info("[DEBUG] PlanAction.Execute called", "issue_number", issueNumber)
 	a.logger.Info("Executing plan action", "issue_number", issueNumber)
 
 	// ワークスペースの準備

@@ -1,0 +1,15 @@
+Issue監視モードを開始します
+設定ファイル: .osoba.yml (デフォルト)
+
+設定値:
+  ポーリング間隔: 10s
+  GitHub認証: 有効 (取得元: gh auth token)
+  GitHub接続: ghコマンドを使用
+tmuxセッション 'osoba-osoba' を確認中...
+tmuxセッション 'osoba-osoba' が利用可能です
+必要なラベルを確認中...
+ラベルの確認が完了しました
+2025-08-12T03:10:05.174+0900	info	cmd/start.go:282	Issue監視を開始します
+2025-08-12T03:10:05.174+0900	info	watcher/watcher.go:175	Starting issue watcher	{"component": "watcher", "owner": "douhashi", "repo": "osoba", "labels": ["status:needs-plan", "status:ready", "status:review-requested", "status:requires-changes"], "interval": 10}
+2025-08-12T03:10:05.177+0900	info	cmd/start.go:291	PR監視を開始します
+2025-08-12T03:10:05.177+0900	info	watcher/pr_watcher.go:130	Starting PR watcher	{"component": "pr_watcher", "owner": "douhashi", "repo": "osoba", "labels": ["status:lgtm"], "interval": 20}

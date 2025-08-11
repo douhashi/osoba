@@ -39,8 +39,7 @@ func TestExecuteLabelTransition_RequiresChanges(t *testing.T) {
 			sessionName: "osoba",
 			setupMock: func(githubMock *MockGitHubClient) {
 				// ラベルの遷移
-				githubMock.On("RemoveLabel", mock.Anything, "owner", "repo", 206, "status:requires-changes").Return(nil)
-				githubMock.On("AddLabel", mock.Anything, "owner", "repo", 206, "status:ready").Return(nil)
+				githubMock.On("TransitionLabels", mock.Anything, "owner", "repo", 206, "status:requires-changes", "status:ready").Return(nil)
 			},
 		},
 		{
@@ -55,8 +54,7 @@ func TestExecuteLabelTransition_RequiresChanges(t *testing.T) {
 			setupMock: func(githubMock *MockGitHubClient) {
 				// sessionNameが空の場合、tmux削除はスキップされる
 				// ラベルの遷移は実行される
-				githubMock.On("RemoveLabel", mock.Anything, "owner", "repo", 208, "status:requires-changes").Return(nil)
-				githubMock.On("AddLabel", mock.Anything, "owner", "repo", 208, "status:ready").Return(nil)
+				githubMock.On("TransitionLabels", mock.Anything, "owner", "repo", 208, "status:requires-changes", "status:ready").Return(nil)
 			},
 		},
 		{

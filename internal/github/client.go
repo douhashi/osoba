@@ -86,6 +86,13 @@ func (c *GHClient) GetRepository(ctx context.Context, owner, repo string) (*Repo
 
 // ListIssuesByLabels は指定されたラベルのいずれかを持つIssueを取得する（OR条件）
 func (c *GHClient) ListIssuesByLabels(ctx context.Context, owner, repo string, labels []string) ([]*Issue, error) {
+	if c.logger != nil {
+		c.logger.Debug("ListIssuesByLabels called",
+			"owner", owner,
+			"repo", repo,
+			"labels", labels)
+	}
+
 	if owner == "" {
 		return nil, errors.New("owner is required")
 	}
@@ -93,16 +100,13 @@ func (c *GHClient) ListIssuesByLabels(ctx context.Context, owner, repo string, l
 		return nil, errors.New("repo is required")
 	}
 
+	// 全てのオープンIssueを取得して、クライアント側でフィルタリング（OR条件）
 	args := []string{
 		"issue", "list",
 		"--repo", fmt.Sprintf("%s/%s", owner, repo),
 		"--state", "open",
 		"--json", "number,title,labels,state,body,author,assignees,createdAt,updatedAt,closedAt,milestone,comments,url",
-	}
-
-	// ラベルが指定されている場合、OR条件として追加
-	if len(labels) > 0 {
-		args = append(args, "--label", strings.Join(labels, ","))
+		"--limit", "100", // 最大100件まで取得
 	}
 
 	output, err := c.executeGHCommand(ctx, args...)
@@ -115,7 +119,7 @@ func (c *GHClient) ListIssuesByLabels(ctx context.Context, owner, repo string, l
 		return nil, fmt.Errorf("failed to parse issues response: %w", err)
 	}
 
-	issues := make([]*Issue, 0, len(ghIssues))
+	issues := make([]*Issue, 0)
 	for _, ghIssue := range ghIssues {
 		issue, err := convertMapToIssue(ghIssue)
 		if err != nil {
@@ -124,12 +128,33 @@ func (c *GHClient) ListIssuesByLabels(ctx context.Context, owner, repo string, l
 			}
 			continue
 		}
+
+		// ラベルが指定されている場合は、OR条件でフィルタリング
+		if len(labels) > 0 {
+			hasMatchingLabel := false
+			for _, label := range labels {
+				if hasLabel(issue, label) {
+					hasMatchingLabel = true
+					break
+				}
+			}
+			if !hasMatchingLabel {
+				continue
+			}
+		}
+
 		// ghコマンドの出力からHTMLURLを設定
 		if issue.HTMLURL == nil && issue.Number != nil {
 			url := fmt.Sprintf("https://github.com/%s/%s/issues/%d", owner, repo, *issue.Number)
 			issue.HTMLURL = String(url)
 		}
 		issues = append(issues, issue)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("ListIssuesByLabels result",
+			"count", len(issues),
+			"labels", labels)
 	}
 
 	return issues, nil
@@ -253,6 +278,15 @@ func (c *GHClient) CreateIssueComment(ctx context.Context, owner, repo string, i
 
 // RemoveLabel はIssueからラベルを削除する
 func (c *GHClient) RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	if c.logger != nil {
+		c.logger.Debug("RemoveLabel called",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+			"label", label,
+		)
+	}
+
 	if owner == "" {
 		return errors.New("owner is required")
 	}
@@ -264,6 +298,15 @@ func (c *GHClient) RemoveLabel(ctx context.Context, owner, repo string, issueNum
 	}
 
 	if _, err := c.executeGHCommand(ctx, "issue", "edit", fmt.Sprintf("%d", issueNumber), "--repo", fmt.Sprintf("%s/%s", owner, repo), "--remove-label", label); err != nil {
+		if c.logger != nil {
+			c.logger.Error("Failed to remove label",
+				"owner", owner,
+				"repo", repo,
+				"issue", issueNumber,
+				"label", label,
+				"error", err,
+			)
+		}
 		return fmt.Errorf("failed to remove label %s from issue #%d: %w", label, issueNumber, err)
 	}
 
@@ -281,6 +324,15 @@ func (c *GHClient) RemoveLabel(ctx context.Context, owner, repo string, issueNum
 
 // AddLabel はIssueにラベルを追加する
 func (c *GHClient) AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error {
+	if c.logger != nil {
+		c.logger.Debug("AddLabel called",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+			"label", label,
+		)
+	}
+
 	if owner == "" {
 		return errors.New("owner is required")
 	}
@@ -292,6 +344,15 @@ func (c *GHClient) AddLabel(ctx context.Context, owner, repo string, issueNumber
 	}
 
 	if _, err := c.executeGHCommand(ctx, "issue", "edit", fmt.Sprintf("%d", issueNumber), "--repo", fmt.Sprintf("%s/%s", owner, repo), "--add-label", label); err != nil {
+		if c.logger != nil {
+			c.logger.Error("Failed to add label",
+				"owner", owner,
+				"repo", repo,
+				"issue", issueNumber,
+				"label", label,
+				"error", err,
+			)
+		}
 		return fmt.Errorf("failed to add label %s to issue #%d: %w", label, issueNumber, err)
 	}
 
@@ -439,12 +500,107 @@ func convertMapToIssue(issueMap map[string]interface{}) (*Issue, error) {
 }
 
 func (c *GHClient) executeGHCommand(ctx context.Context, args ...string) ([]byte, error) {
+	if c.logger != nil {
+		c.logger.Debug("Executing gh command",
+			"args", args,
+		)
+	}
+
 	cmd := exec.CommandContext(ctx, "gh", args...)
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
+		if c.logger != nil {
+			c.logger.Error("gh command failed",
+				"args", args,
+				"error", err,
+				"output", string(output),
+			)
+		}
+		// エラーの場合でも、出力がある場合はそれを含める
+		if len(output) > 0 {
+			return nil, fmt.Errorf("gh command failed: %w, output: %s", err, string(output))
+		}
 		return nil, fmt.Errorf("gh command failed: %w", err)
 	}
+
+	if c.logger != nil {
+		c.logger.Debug("gh command completed",
+			"args", args,
+			"output_size", len(output),
+		)
+	}
+
 	return output, nil
+}
+
+// hasLabel はIssueが指定されたラベルを持っているかを確認する
+func hasLabel(issue *Issue, labelName string) bool {
+	if issue == nil || issue.Labels == nil {
+		return false
+	}
+
+	for _, label := range issue.Labels {
+		if label.Name != nil && *label.Name == labelName {
+			return true
+		}
+	}
+	return false
+}
+
+// TransitionLabels は原子的にラベルを削除して追加する
+func (c *GHClient) TransitionLabels(ctx context.Context, owner, repo string, issueNumber int, removeLabel, addLabel string) error {
+	if c.logger != nil {
+		c.logger.Debug("TransitionLabels called",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+			"removeLabel", removeLabel,
+			"addLabel", addLabel,
+		)
+	}
+
+	if owner == "" {
+		return errors.New("owner is required")
+	}
+	if repo == "" {
+		return errors.New("repo is required")
+	}
+	if removeLabel == "" {
+		return errors.New("removeLabel is required")
+	}
+	if addLabel == "" {
+		return errors.New("addLabel is required")
+	}
+
+	// 1つのコマンドで削除と追加を同時に実行（原子的操作）
+	if _, err := c.executeGHCommand(ctx, "issue", "edit", fmt.Sprintf("%d", issueNumber),
+		"--repo", fmt.Sprintf("%s/%s", owner, repo),
+		"--remove-label", removeLabel,
+		"--add-label", addLabel); err != nil {
+		if c.logger != nil {
+			c.logger.Error("Failed to transition labels",
+				"owner", owner,
+				"repo", repo,
+				"issue", issueNumber,
+				"removeLabel", removeLabel,
+				"addLabel", addLabel,
+				"error", err,
+			)
+		}
+		return fmt.Errorf("failed to transition labels from %s to %s on issue #%d: %w", removeLabel, addLabel, issueNumber, err)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Successfully transitioned labels",
+			"owner", owner,
+			"repo", repo,
+			"issue", issueNumber,
+			"removeLabel", removeLabel,
+			"addLabel", addLabel,
+		)
+	}
+
+	return nil
 }
 
 // Ensure GHClient implements GitHubClient interface

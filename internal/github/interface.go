@@ -17,6 +17,7 @@ type GitHubClient interface {
 	CreateIssueComment(ctx context.Context, owner, repo string, issueNumber int, comment string) error
 	RemoveLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error
 	AddLabel(ctx context.Context, owner, repo string, issueNumber int, label string) error
+	TransitionLabels(ctx context.Context, owner, repo string, issueNumber int, removeLabel, addLabel string) error
 	GetPullRequestForIssue(ctx context.Context, issueNumber int) (*PullRequest, error)
 	MergePullRequest(ctx context.Context, prNumber int) error
 	GetPullRequestStatus(ctx context.Context, prNumber int) (*PullRequest, error)
