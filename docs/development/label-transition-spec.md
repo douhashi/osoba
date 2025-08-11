@@ -48,6 +48,8 @@ if err := w.executeLabelTransition(ctx, issue); err != nil {
 |-------------|-------------|------------|
 | `status:review-requested` | `status:reviewing` | Issue に `status:review-requested` ラベルが存在する |
 
+**Note**: レビュー承認時（LGTM）の場合、Issueは`status:reviewing`ラベルを維持し、PRに`status:lgtm`ラベルが付与されます。
+
 ### 4. 再実装フェーズ (Re-implementation Phase)
 
 | 遷移元ラベル | 遷移先ラベル | トリガー条件 | 追加処理 |
@@ -133,6 +135,32 @@ label_transitions:
     to: "status:implementing"
     phase: "implementation"
 ```
+
+## IssueとPRのライフサイクル分離
+
+### Issue のライフサイクル
+
+Issueは開発タスクの管理単位として、以下のライフサイクルを持ちます：
+
+1. `status:needs-plan` → `status:planning` → `status:ready`
+2. `status:ready` → `status:implementing` → `status:review-requested`
+3. `status:review-requested` → `status:reviewing`
+4. レビュー結果により：
+   - 承認時: `status:reviewing` で終了（PRにマージ判断が移る）
+   - 修正要求時: `status:requires-changes` → `status:ready`（再実装へ）
+
+### PR のライフサイクル
+
+PRは実装結果の管理単位として、以下のラベルを持ちます：
+
+- `status:lgtm`: レビュー承認済み、マージ可能
+- 将来的に他のPR専用ラベルを追加可能
+
+### 自動マージ機能への影響
+
+**現在の実装**: 自動マージ機能（`internal/watcher/auto_merge.go`）はIssueの`status:lgtm`ラベルを検知してPRをマージします。
+
+**今後の改善案**: PRの`status:lgtm`ラベルを直接検知するように改善することで、より明確なライフサイクル管理が可能になります。この改善は別Issueで対応予定です。
 
 ## 関連ドキュメント
 
