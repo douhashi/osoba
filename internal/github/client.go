@@ -110,17 +110,26 @@ func (c *GHClient) ListIssuesByLabels(ctx context.Context, owner, repo string, l
 		return nil, fmt.Errorf("failed to list issues: %w", err)
 	}
 
-	var issues []*Issue
-	if err := json.Unmarshal(output, &issues); err != nil {
+	var ghIssues []map[string]interface{}
+	if err := json.Unmarshal(output, &ghIssues); err != nil {
 		return nil, fmt.Errorf("failed to parse issues response: %w", err)
 	}
 
-	// ghコマンドの出力からHTMLURLを設定
-	for _, issue := range issues {
+	issues := make([]*Issue, 0, len(ghIssues))
+	for _, ghIssue := range ghIssues {
+		issue, err := convertMapToIssue(ghIssue)
+		if err != nil {
+			if c.logger != nil {
+				c.logger.Warn("Failed to convert issue", "error", err)
+			}
+			continue
+		}
+		// ghコマンドの出力からHTMLURLを設定
 		if issue.HTMLURL == nil && issue.Number != nil {
 			url := fmt.Sprintf("https://github.com/%s/%s/issues/%d", owner, repo, *issue.Number)
 			issue.HTMLURL = String(url)
 		}
+		issues = append(issues, issue)
 	}
 
 	return issues, nil
