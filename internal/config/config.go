@@ -32,9 +32,10 @@ type GitHubConfig struct {
 
 // LabelConfig は監視対象のラベル設定
 type LabelConfig struct {
-	Plan   string `mapstructure:"plan"`
-	Ready  string `mapstructure:"ready"`
-	Review string `mapstructure:"review"`
+	Plan            string `mapstructure:"plan"`
+	Ready           string `mapstructure:"ready"`
+	Review          string `mapstructure:"review"`
+	RequiresChanges string `mapstructure:"requires_changes"`
 }
 
 // PhaseMessageConfig はフェーズ開始時のコメントメッセージ設定
@@ -70,9 +71,10 @@ func NewConfig() *Config {
 		GitHub: GitHubConfig{
 			PollInterval: 5 * time.Second,
 			Labels: LabelConfig{
-				Plan:   "status:needs-plan",
-				Ready:  "status:ready",
-				Review: "status:review-requested",
+				Plan:            "status:needs-plan",
+				Ready:           "status:ready",
+				Review:          "status:review-requested",
+				RequiresChanges: "status:requires-changes",
 			},
 			Messages:      NewDefaultPhaseMessageConfig(),
 			AutoMergeLGTM: true,  // デフォルトで自動マージ機能を有効化
@@ -111,6 +113,7 @@ func (c *Config) Load(configPath string) error {
 	v.SetDefault("github.labels.plan", "status:needs-plan")
 	v.SetDefault("github.labels.ready", "status:ready")
 	v.SetDefault("github.labels.review", "status:review-requested")
+	v.SetDefault("github.labels.requires_changes", "status:requires-changes")
 	v.SetDefault("github.messages.plan", "osoba: 計画を作成します")
 	v.SetDefault("github.messages.implement", "osoba: 実装を開始します")
 	v.SetDefault("github.messages.review", "osoba: レビューを開始します")
@@ -201,6 +204,9 @@ func (c *Config) Validate() error {
 	if c.GitHub.Labels.Review == "" {
 		c.GitHub.Labels.Review = "status:review-requested"
 	}
+	if c.GitHub.Labels.RequiresChanges == "" {
+		c.GitHub.Labels.RequiresChanges = "status:requires-changes"
+	}
 
 	// tmux設定のバリデーション
 	if c.Tmux.SessionPrefix == "" {
@@ -280,6 +286,7 @@ func (c *Config) GetLabels() []string {
 		c.GitHub.Labels.Plan,
 		c.GitHub.Labels.Ready,
 		c.GitHub.Labels.Review,
+		c.GitHub.Labels.RequiresChanges,
 	}
 }
 
@@ -319,6 +326,22 @@ func GetGitHubToken(cfg *Config) (token string, source string) {
 	}
 
 	return "", ""
+}
+
+// SetDefaults は空フィールドにデフォルト値を設定する
+func (c *Config) SetDefaults() {
+	if c.GitHub.Labels.Plan == "" {
+		c.GitHub.Labels.Plan = "status:needs-plan"
+	}
+	if c.GitHub.Labels.Ready == "" {
+		c.GitHub.Labels.Ready = "status:ready"
+	}
+	if c.GitHub.Labels.Review == "" {
+		c.GitHub.Labels.Review = "status:review-requested"
+	}
+	if c.GitHub.Labels.RequiresChanges == "" {
+		c.GitHub.Labels.RequiresChanges = "status:requires-changes"
+	}
 }
 
 // CreateLogger はログ設定からロガーを作成する

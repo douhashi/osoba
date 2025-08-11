@@ -19,6 +19,7 @@ github:
     plan: "status:needs-plan"
     ready: "status:ready"
     review: "status:review-requested"
+    requires_changes: "status:requires-changes"
 
 # tmux設定
 tmux:
