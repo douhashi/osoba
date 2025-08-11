@@ -102,9 +102,7 @@ func TestIssueProcessingWithLabelTransition(t *testing.T) {
 
 			// ラベル遷移のモック設定
 			if tt.expectLabelTransition {
-				mockClient.On("RemoveLabel", mock.Anything, "owner", "repo", *tt.issue.Number, tt.expectedRemoveLabel).
-					Return(nil)
-				mockClient.On("AddLabel", mock.Anything, "owner", "repo", *tt.issue.Number, tt.expectedAddLabel).
+				mockClient.On("TransitionLabels", mock.Anything, "owner", "repo", *tt.issue.Number, tt.expectedRemoveLabel, tt.expectedAddLabel).
 					Return(nil)
 			}
 
@@ -304,6 +302,25 @@ func (m *integrationMockGitHubClient) AddLabel(ctx context.Context, owner, repo 
 	m.labelCalls = append(m.labelCalls, mockLabelCall{
 		issueNumber: issueNumber,
 		label:       label,
+		operation:   "add",
+	})
+
+	return nil
+}
+
+func (m *integrationMockGitHubClient) TransitionLabels(ctx context.Context, owner, repo string, issueNumber int, removeLabel, addLabel string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 削除と追加を記録
+	m.labelCalls = append(m.labelCalls, mockLabelCall{
+		issueNumber: issueNumber,
+		label:       removeLabel,
+		operation:   "remove",
+	})
+	m.labelCalls = append(m.labelCalls, mockLabelCall{
+		issueNumber: issueNumber,
+		label:       addLabel,
 		operation:   "add",
 	})
 

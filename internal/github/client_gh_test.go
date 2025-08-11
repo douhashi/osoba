@@ -111,7 +111,7 @@ func TestGHClient_ListIssuesByLabels(t *testing.T) {
 			"--repo", "owner/test-repo",
 			"--label", "bug,enhancement",
 			"--state", "open",
-			"--json", "number,title,labels,state,body,user,assignees,createdAt,updatedAt,closedAt,milestone,comments,url",
+			"--json", "number,title,labels,state,body,author,assignees,createdAt,updatedAt,closedAt,milestone,comments,url",
 		}).Return(issuesJSON, nil)
 
 		issues, err := client.Listgithub.IssuesBygithub.Labels(context.Background(), "owner", "test-repo", []string{"bug", "enhancement"})
@@ -134,7 +134,7 @@ func TestGHClient_ListIssuesByLabels(t *testing.T) {
 			"issue", "list",
 			"--repo", "owner/test-repo",
 			"--state", "open",
-			"--json", "number,title,labels,state,body,user,assignees,createdAt,updatedAt,closedAt,milestone,comments,url",
+			"--json", "number,title,labels,state,body,author,assignees,createdAt,updatedAt,closedAt,milestone,comments,url",
 		}).Return([]byte("[]"), nil)
 
 		issues, err := client.Listgithub.IssuesBygithub.Labels(context.Background(), "owner", "test-repo", []string{})

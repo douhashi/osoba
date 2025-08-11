@@ -1,7 +1,11 @@
 # 最小限の設定ファイルサンプル
 
+log:
+  level: debug
+
 github:
   poll_interval: 10s
+  auto_plan_issue: true
 
 tmux:
   session_prefix: "osoba-"

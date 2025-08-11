@@ -39,8 +39,7 @@ func TestExecuteLabelTransition_RequiresChanges(t *testing.T) {
 			sessionName: "osoba",
 			setupMock: func(githubMock *MockGitHubClient) {
 				// ラベルの遷移
-				githubMock.On("RemoveLabel", mock.Anything, "owner", "repo", 206, "status:requires-changes").Return(nil)
-				githubMock.On("AddLabel", mock.Anything, "owner", "repo", 206, "status:ready").Return(nil)
+				githubMock.On("TransitionLabels", mock.Anything, "owner", "repo", 206, "status:requires-changes", "status:ready").Return(nil)
 			},
 		},
 		{
@@ -55,8 +54,7 @@ func TestExecuteLabelTransition_RequiresChanges(t *testing.T) {
 			setupMock: func(githubMock *MockGitHubClient) {
 				// sessionNameが空の場合、tmux削除はスキップされる
 				// ラベルの遷移は実行される
-				githubMock.On("RemoveLabel", mock.Anything, "owner", "repo", 208, "status:requires-changes").Return(nil)
-				githubMock.On("AddLabel", mock.Anything, "owner", "repo", 208, "status:ready").Return(nil)
+				githubMock.On("TransitionLabels", mock.Anything, "owner", "repo", 208, "status:requires-changes", "status:ready").Return(nil)
 			},
 		},
 		{
@@ -69,10 +67,10 @@ func TestExecuteLabelTransition_RequiresChanges(t *testing.T) {
 			},
 			sessionName: "osoba",
 			setupMock: func(githubMock *MockGitHubClient) {
-				// ラベル削除が失敗（リトライ3回）
-				githubMock.On("RemoveLabel", mock.Anything, "owner", "repo", 209, "status:requires-changes").Return(errors.New("API error")).Times(3)
+				// ラベル遷移が失敗（リトライ3回）
+				githubMock.On("TransitionLabels", mock.Anything, "owner", "repo", 209, "status:requires-changes", "status:ready").Return(errors.New("API error")).Times(3)
 			},
-			expectedError: "failed to remove label status:requires-changes (attempt 3/3): API error",
+			expectedError: "failed to transition labels from status:requires-changes to status:ready (attempt 3/3): API error",
 		},
 		{
 			name: "requires-changes transition with label addition failure",
@@ -84,12 +82,11 @@ func TestExecuteLabelTransition_RequiresChanges(t *testing.T) {
 			},
 			sessionName: "osoba",
 			setupMock: func(githubMock *MockGitHubClient) {
-				// ラベル削除は成功
-				githubMock.On("RemoveLabel", mock.Anything, "owner", "repo", 210, "status:requires-changes").Return(nil)
-				// ラベル追加が失敗（リトライ3回）
-				githubMock.On("AddLabel", mock.Anything, "owner", "repo", 210, "status:ready").Return(errors.New("API error")).Times(3)
+				// TransitionLabelsは原子的操作なので、別々のエラーケースは不要
+				// ラベル遷移が失敗（リトライ3回）
+				githubMock.On("TransitionLabels", mock.Anything, "owner", "repo", 210, "status:requires-changes", "status:ready").Return(errors.New("API error")).Times(3)
 			},
-			expectedError: "failed to add label status:ready (attempt 3/3): API error",
+			expectedError: "failed to transition labels from status:requires-changes to status:ready (attempt 3/3): API error",
 		},
 	}
 
@@ -141,8 +138,7 @@ func TestExecuteLabelTransition_MixedTransitions(t *testing.T) {
 			sessionName: "osoba",
 			setupMock: func(githubMock *MockGitHubClient) {
 				// requires-changesの遷移のみが実行される
-				githubMock.On("RemoveLabel", mock.Anything, "owner", "repo", 211, "status:requires-changes").Return(nil)
-				githubMock.On("AddLabel", mock.Anything, "owner", "repo", 211, "status:ready").Return(nil)
+				githubMock.On("TransitionLabels", mock.Anything, "owner", "repo", 211, "status:requires-changes", "status:ready").Return(nil)
 			},
 		},
 	}

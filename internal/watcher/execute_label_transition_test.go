@@ -28,6 +28,11 @@ func (m *mockGitHubClientForTransition) AddLabel(ctx context.Context, owner, rep
 	return args.Error(0)
 }
 
+func (m *mockGitHubClientForTransition) TransitionLabels(ctx context.Context, owner, repo string, issueNumber int, removeLabel, addLabel string) error {
+	args := m.Called(ctx, owner, repo, issueNumber, removeLabel, addLabel)
+	return args.Error(0)
+}
+
 func TestExecuteLabelTransition_Enhanced(t *testing.T) {
 	ctx := context.Background()
 	log, _ := logger.New(logger.WithLevel("debug"))
@@ -60,8 +65,7 @@ func TestExecuteLabelTransition_Enhanced(t *testing.T) {
 			name:  "needs-planからplanningへの正常な遷移",
 			issue: createTestIssueWithLabels([]string{"status:needs-plan", "bug"}),
 			setupMock: func(m *mockGitHubClientForTransition) {
-				m.On("RemoveLabel", ctx, "owner", "repo", 1, "status:needs-plan").Return(nil)
-				m.On("AddLabel", ctx, "owner", "repo", 1, "status:planning").Return(nil)
+				m.On("TransitionLabels", ctx, "owner", "repo", 1, "status:needs-plan", "status:planning").Return(nil)
 			},
 			expectedError: "",
 		},
@@ -69,8 +73,7 @@ func TestExecuteLabelTransition_Enhanced(t *testing.T) {
 			name:  "readyからimplementingへの正常な遷移",
 			issue: createTestIssueWithLabels([]string{"status:ready", "enhancement"}),
 			setupMock: func(m *mockGitHubClientForTransition) {
-				m.On("RemoveLabel", ctx, "owner", "repo", 1, "status:ready").Return(nil)
-				m.On("AddLabel", ctx, "owner", "repo", 1, "status:implementing").Return(nil)
+				m.On("TransitionLabels", ctx, "owner", "repo", 1, "status:ready", "status:implementing").Return(nil)
 			},
 			expectedError: "",
 		},
@@ -78,8 +81,7 @@ func TestExecuteLabelTransition_Enhanced(t *testing.T) {
 			name:  "review-requestedからreviewingへの正常な遷移",
 			issue: createTestIssueWithLabels([]string{"status:review-requested"}),
 			setupMock: func(m *mockGitHubClientForTransition) {
-				m.On("RemoveLabel", ctx, "owner", "repo", 1, "status:review-requested").Return(nil)
-				m.On("AddLabel", ctx, "owner", "repo", 1, "status:reviewing").Return(nil)
+				m.On("TransitionLabels", ctx, "owner", "repo", 1, "status:review-requested", "status:reviewing").Return(nil)
 			},
 			expectedError: "",
 		},
@@ -95,11 +97,10 @@ func TestExecuteLabelTransition_Enhanced(t *testing.T) {
 			name:  "ラベル削除で1回失敗後に成功",
 			issue: createTestIssueWithLabels([]string{"status:needs-plan"}),
 			setupMock: func(m *mockGitHubClientForTransition) {
-				m.On("RemoveLabel", ctx, "owner", "repo", 1, "status:needs-plan").
+				m.On("TransitionLabels", ctx, "owner", "repo", 1, "status:needs-plan", "status:planning").
 					Return(errors.New("temporary error")).Once()
-				m.On("RemoveLabel", ctx, "owner", "repo", 1, "status:needs-plan").
+				m.On("TransitionLabels", ctx, "owner", "repo", 1, "status:needs-plan", "status:planning").
 					Return(nil).Once()
-				m.On("AddLabel", ctx, "owner", "repo", 1, "status:planning").Return(nil)
 			},
 			expectedError: "",
 		},
@@ -107,33 +108,12 @@ func TestExecuteLabelTransition_Enhanced(t *testing.T) {
 			name:  "ラベル削除で3回失敗",
 			issue: createTestIssueWithLabels([]string{"status:needs-plan"}),
 			setupMock: func(m *mockGitHubClientForTransition) {
-				m.On("RemoveLabel", ctx, "owner", "repo", 1, "status:needs-plan").
+				m.On("TransitionLabels", ctx, "owner", "repo", 1, "status:needs-plan", "status:planning").
 					Return(errors.New("persistent error"))
 			},
-			expectedError: "failed to remove label status:needs-plan (attempt 3/3): persistent error",
+			expectedError: "failed to transition labels from status:needs-plan to status:planning (attempt 3/3): persistent error",
 		},
-		{
-			name:  "ラベル追加で1回失敗後に成功",
-			issue: createTestIssueWithLabels([]string{"status:ready"}),
-			setupMock: func(m *mockGitHubClientForTransition) {
-				m.On("RemoveLabel", ctx, "owner", "repo", 1, "status:ready").Return(nil)
-				m.On("AddLabel", ctx, "owner", "repo", 1, "status:implementing").
-					Return(errors.New("temporary error")).Once()
-				m.On("AddLabel", ctx, "owner", "repo", 1, "status:implementing").
-					Return(nil).Once()
-			},
-			expectedError: "",
-		},
-		{
-			name:  "ラベル追加で3回失敗",
-			issue: createTestIssueWithLabels([]string{"status:ready"}),
-			setupMock: func(m *mockGitHubClientForTransition) {
-				m.On("RemoveLabel", ctx, "owner", "repo", 1, "status:ready").Return(nil)
-				m.On("AddLabel", ctx, "owner", "repo", 1, "status:implementing").
-					Return(errors.New("persistent error"))
-			},
-			expectedError: "failed to add label status:implementing (attempt 3/3): persistent error",
-		},
+		// TransitionLabelsは原子的操作なので、個別のラベル追加失敗ケースは不要
 	}
 
 	for _, tt := range tests {
@@ -175,13 +155,12 @@ func TestExecuteLabelTransition_RetryTiming(t *testing.T) {
 	issue := createTestIssueWithLabels([]string{"status:needs-plan"})
 
 	// 2回失敗して3回目で成功
-	mockClient.On("RemoveLabel", ctx, "owner", "repo", 1, "status:needs-plan").
+	mockClient.On("TransitionLabels", ctx, "owner", "repo", 1, "status:needs-plan", "status:planning").
 		Return(errors.New("error 1")).Once()
-	mockClient.On("RemoveLabel", ctx, "owner", "repo", 1, "status:needs-plan").
+	mockClient.On("TransitionLabels", ctx, "owner", "repo", 1, "status:needs-plan", "status:planning").
 		Return(errors.New("error 2")).Once()
-	mockClient.On("RemoveLabel", ctx, "owner", "repo", 1, "status:needs-plan").
+	mockClient.On("TransitionLabels", ctx, "owner", "repo", 1, "status:needs-plan", "status:planning").
 		Return(nil).Once()
-	mockClient.On("AddLabel", ctx, "owner", "repo", 1, "status:planning").Return(nil)
 
 	watcher := &IssueWatcher{
 		client: mockClient,

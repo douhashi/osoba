@@ -74,6 +74,10 @@ func (m *MockGitHubClientForAutoMerge) AddLabel(ctx context.Context, owner, repo
 	args := m.Called(ctx, owner, repo, issueNumber, label)
 	return args.Error(0)
 }
+func (m *MockGitHubClientForAutoMerge) TransitionLabels(ctx context.Context, owner, repo string, issueNumber int, removeLabel, addLabel string) error {
+	args := m.Called(ctx, owner, repo, issueNumber, removeLabel, addLabel)
+	return args.Error(0)
+}
 
 func (m *MockGitHubClientForAutoMerge) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*github.PullRequest, error) {
 	args := m.Called(ctx, issueNumber)

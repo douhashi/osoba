@@ -171,8 +171,12 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	repoName := repoInfo.Repo
 	owner := repoInfo.Owner
 
-	// ロガーを作成
-	appLogger, err := logger.New(logger.WithLevel("info"))
+	// ロガーを作成（設定ファイルからログレベルを取得）
+	logLevel := cfg.Log.Level
+	if logLevel == "" {
+		logLevel = "info"
+	}
+	appLogger, err := logger.New(logger.WithLevel(logLevel))
 	if err != nil {
 		return fmt.Errorf("ロガーの作成に失敗: %w", err)
 	}
