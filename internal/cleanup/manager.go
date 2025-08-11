@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"strconv"
 
 	"github.com/douhashi/osoba/internal/logger"
 )
@@ -29,7 +28,7 @@ func NewManager(logger logger.Logger) Manager {
 // CleanupIssueResources はIssueに関連するリソースをクリーンアップする
 func (m *DefaultManager) CleanupIssueResources(ctx context.Context, issueNumber int) error {
 	// tmuxウィンドウ名
-	windowName := strconv.Itoa(issueNumber)
+	windowName := fmt.Sprintf("issue-%d", issueNumber)
 
 	// tmuxウィンドウをクローズ
 	if err := m.closeTmuxWindow(ctx, windowName); err != nil {
@@ -77,8 +76,8 @@ func (m *DefaultManager) closeTmuxWindow(ctx context.Context, windowName string)
 
 // removeWorktree はgit worktreeを削除する
 func (m *DefaultManager) removeWorktree(ctx context.Context, issueNumber int) error {
-	// worktreeのパス（例: .git/osoba/123）
-	worktreePath := fmt.Sprintf(".git/osoba/%d", issueNumber)
+	// worktreeのパス（例: .git/osoba/worktrees/issue-123）
+	worktreePath := fmt.Sprintf(".git/osoba/worktrees/issue-%d", issueNumber)
 
 	// git worktree remove <path> --force
 	cmd := exec.CommandContext(ctx, "git", "worktree", "remove", worktreePath, "--force")

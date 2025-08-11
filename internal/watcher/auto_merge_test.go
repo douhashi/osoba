@@ -112,6 +112,11 @@ func (m *MockGitHubClientForAutoMerge) ListPullRequestsByLabels(ctx context.Cont
 	return args.Get(0).([]*github.PullRequest), args.Error(1)
 }
 
+func (m *MockGitHubClientForAutoMerge) GetClosingIssueNumber(ctx context.Context, prNumber int) (int, error) {
+	args := m.Called(ctx, prNumber)
+	return args.Int(0), args.Error(1)
+}
+
 // MockCleanupManager はCleanupManagerのモック
 type MockCleanupManager struct {
 	mock.Mock
@@ -158,7 +163,7 @@ func TestExecuteAutoMergeIfLGTM(t *testing.T) {
 				Mergeable: "MERGEABLE",
 			},
 			expectMerge:   true,
-			expectCleanup: true,
+			expectCleanup: true, // executeAutoMergeIfLGTMはIssue番号をそのまま使用してクリーンアップする
 			expectError:   false,
 		},
 		{
@@ -606,6 +611,177 @@ func TestAutoMergeWithDetailedLogging(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Skip("Test to be implemented with enhanced logging - this is a placeholder for TDD")
+		})
+	}
+}
+
+func TestExecuteAutoMergeForPR(t *testing.T) {
+	tests := []struct {
+		name               string
+		pr                 *github.PullRequest
+		closingIssueNumber int
+		closingIssueError  error
+		mergeError         error
+		cleanupError       error
+		expectMerge        bool
+		expectCleanup      bool
+		expectError        bool
+		errorContains      string
+	}{
+		{
+			name: "正常系: PRマージ成功 & Issue番号取得成功 & クリーンアップ成功",
+			pr: &github.PullRequest{
+				Number:    456,
+				State:     "OPEN",
+				Mergeable: "MERGEABLE",
+			},
+			closingIssueNumber: 123,
+			closingIssueError:  nil,
+			mergeError:         nil,
+			cleanupError:       nil,
+			expectMerge:        true,
+			expectCleanup:      true,
+			expectError:        false,
+		},
+		{
+			name: "正常系: PRマージ成功 & Issue番号なし & クリーンアップスキップ",
+			pr: &github.PullRequest{
+				Number:    456,
+				State:     "OPEN",
+				Mergeable: "MERGEABLE",
+			},
+			closingIssueNumber: 0, // Issue番号なし
+			closingIssueError:  nil,
+			mergeError:         nil,
+			expectMerge:        true,
+			expectCleanup:      false,
+			expectError:        false,
+		},
+		{
+			name: "正常系: PRマージ成功 & Issue番号取得エラー & クリーンアップスキップ",
+			pr: &github.PullRequest{
+				Number:    456,
+				State:     "OPEN",
+				Mergeable: "MERGEABLE",
+			},
+			closingIssueNumber: 0,
+			closingIssueError:  errors.New("GraphQL error"),
+			mergeError:         nil,
+			expectMerge:        true,
+			expectCleanup:      false,
+			expectError:        false, // Issue番号取得エラーは無視される
+		},
+		{
+			name: "正常系: PRマージ成功 & クリーンアップエラー",
+			pr: &github.PullRequest{
+				Number:    456,
+				State:     "OPEN",
+				Mergeable: "MERGEABLE",
+			},
+			closingIssueNumber: 123,
+			closingIssueError:  nil,
+			mergeError:         nil,
+			cleanupError:       errors.New("cleanup failed"),
+			expectMerge:        true,
+			expectCleanup:      true,
+			expectError:        false, // クリーンアップエラーは無視される
+		},
+		{
+			name: "異常系: PRマージ失敗",
+			pr: &github.PullRequest{
+				Number:    456,
+				State:     "OPEN",
+				Mergeable: "MERGEABLE",
+			},
+			mergeError:    errors.New("merge conflict"),
+			expectMerge:   true,
+			expectCleanup: false, // マージ失敗時はクリーンアップしない
+			expectError:   true,
+			errorContains: "failed to merge PR",
+		},
+		{
+			name: "正常系: PRがマージ不可",
+			pr: &github.PullRequest{
+				Number:    456,
+				State:     "OPEN",
+				Mergeable: "CONFLICTING",
+			},
+			expectMerge:   false,
+			expectCleanup: false,
+			expectError:   false,
+		},
+		{
+			name: "正常系: PRがドラフト",
+			pr: &github.PullRequest{
+				Number:    456,
+				State:     "OPEN",
+				Mergeable: "MERGEABLE",
+				IsDraft:   true,
+			},
+			expectMerge:   false,
+			expectCleanup: false,
+			expectError:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockGH := new(MockGitHubClientForAutoMerge)
+			mockCleanup := new(MockCleanupManager)
+
+			// モックの設定
+			if tt.expectMerge && isMergeable(tt.pr) {
+				mockGH.On("MergePullRequest", mock.Anything, tt.pr.Number).
+					Return(tt.mergeError)
+
+				// マージ成功時のみIssue番号取得とクリーンアップを試みる
+				if tt.mergeError == nil {
+					mockGH.On("GetClosingIssueNumber", mock.Anything, tt.pr.Number).
+						Return(tt.closingIssueNumber, tt.closingIssueError)
+
+					if tt.expectCleanup && tt.closingIssueNumber > 0 && tt.closingIssueError == nil {
+						mockCleanup.On("CleanupIssueResources", mock.Anything, tt.closingIssueNumber).
+							Return(tt.cleanupError)
+					}
+				}
+			}
+
+			// 実行
+			err := executeAutoMergeForPR(
+				context.Background(),
+				tt.pr,
+				mockGH,
+				mockCleanup,
+			)
+
+			// 検証
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+
+			// モックの呼び出し回数を検証
+			if tt.expectMerge && isMergeable(tt.pr) {
+				mockGH.AssertCalled(t, "MergePullRequest", mock.Anything, tt.pr.Number)
+			} else {
+				mockGH.AssertNotCalled(t, "MergePullRequest", mock.Anything, mock.Anything)
+			}
+
+			if tt.expectMerge && tt.mergeError == nil && isMergeable(tt.pr) {
+				mockGH.AssertCalled(t, "GetClosingIssueNumber", mock.Anything, tt.pr.Number)
+			} else {
+				mockGH.AssertNotCalled(t, "GetClosingIssueNumber", mock.Anything, mock.Anything)
+			}
+
+			if tt.expectCleanup {
+				mockCleanup.AssertCalled(t, "CleanupIssueResources", mock.Anything, tt.closingIssueNumber)
+			} else {
+				mockCleanup.AssertNotCalled(t, "CleanupIssueResources", mock.Anything, mock.Anything)
+			}
 		})
 	}
 }

@@ -345,6 +345,18 @@ func (m *integrationMockGitHubClient) ListPullRequestsByLabels(ctx context.Conte
 	return []*github.PullRequest{}, nil
 }
 
+func (m *integrationMockGitHubClient) GetClosingIssueNumber(ctx context.Context, prNumber int) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.returnError {
+		return 0, errors.New("mock error")
+	}
+
+	// 簡単のため、0を返す（Issue番号なし）
+	return 0, nil
+}
+
 // 既存の統合テスト（mainブランチから）
 func TestStartWithActionsIntegration(t *testing.T) {
 	t.Run("複数のIssueを連続して処理", func(t *testing.T) {

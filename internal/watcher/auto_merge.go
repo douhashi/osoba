@@ -456,6 +456,47 @@ func searchPullRequestByBranchName(
 func executeAutoMergeForPR(
 	ctx context.Context,
 	pr *github.PullRequest,
+	ghClient github.GitHubClient,
+	cleanupManager cleanup.Manager,
+) error {
+	if pr == nil || pr.Number == 0 {
+		return fmt.Errorf("invalid PR: nil PR or PR number")
+	}
+
+	// PRがマージ可能かチェック
+	if !isMergeable(pr) {
+		return nil
+	}
+
+	// PRをマージ
+	if err := ghClient.MergePullRequest(ctx, pr.Number); err != nil {
+		return fmt.Errorf("failed to merge PR #%d: %w", pr.Number, err)
+	}
+
+	// マージ成功後、PRに関連するIssue番号を取得
+	issueNumber, err := ghClient.GetClosingIssueNumber(ctx, pr.Number)
+	if err != nil {
+		// Issue番号取得エラーは警告ログのみで処理を継続
+		// ロガーが利用可能な場合のみログ出力（この関数ではロガーなし）
+		return nil
+	}
+
+	// Issue番号が取得できた場合のみクリーンアップを実行
+	if issueNumber > 0 {
+		// クリーンアップエラーは警告ログのみで処理を継続
+		if err := cleanupManager.CleanupIssueResources(ctx, issueNumber); err != nil {
+			// エラーはログに記録するが、処理は継続
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// executeAutoMergeForPRWithLogger はログ付きのPR自動マージ処理
+func executeAutoMergeForPRWithLogger(
+	ctx context.Context,
+	pr *github.PullRequest,
 	cfg *config.Config,
 	ghClient github.GitHubClient,
 	cleanupManager cleanup.Manager,
@@ -549,10 +590,44 @@ func executeAutoMergeForPR(
 		metrics.RecordSuccess(0, pr.Number)
 	}
 
-	// マージ成功後、クリーンアップはスキップ（PRベースではIssue番号が不明のため）
-	log.Debug("Auto-merge for PR: Skipping cleanup (PR-based merge)",
+	// マージ成功後、PRに関連するIssue番号を取得
+	log.Debug("Auto-merge for PR: Getting closing issue number",
 		"pr_number", pr.Number,
 	)
+	issueNumber, err := ghClient.GetClosingIssueNumber(ctx, pr.Number)
+	if err != nil {
+		// Issue番号取得エラーは警告ログのみで処理を継続
+		log.Warn("Auto-merge for PR: Failed to get closing issue number",
+			"pr_number", pr.Number,
+			"error", err,
+		)
+		return nil
+	}
+
+	// Issue番号が取得できた場合のみクリーンアップを実行
+	if issueNumber > 0 {
+		log.Info("Auto-merge for PR: Cleaning up resources for issue",
+			"pr_number", pr.Number,
+			"issue_number", issueNumber,
+		)
+		if err := cleanupManager.CleanupIssueResources(ctx, issueNumber); err != nil {
+			log.Warn("Auto-merge for PR: Failed to cleanup resources",
+				"pr_number", pr.Number,
+				"issue_number", issueNumber,
+				"error", err,
+			)
+			// エラーはログに記録するが、処理は継続
+			return nil
+		}
+		log.Info("Auto-merge for PR: Successfully cleaned up resources",
+			"pr_number", pr.Number,
+			"issue_number", issueNumber,
+		)
+	} else {
+		log.Debug("Auto-merge for PR: No closing issue found, skipping cleanup",
+			"pr_number", pr.Number,
+		)
+	}
 
 	return nil
 }
