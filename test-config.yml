@@ -1,9 +1,0 @@
-github:
-  owner: douhashi
-  repo: osoba
-  auto_merge_lgtm: true
-  poll_interval: 10s
-
-logging:
-  level: debug
-EOF < /dev/null
