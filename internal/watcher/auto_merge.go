@@ -451,3 +451,108 @@ func searchPullRequestByBranchName(
 
 	return nil, fmt.Errorf("no pull request found for issue #%d", issueNumber)
 }
+
+// executeAutoMergeForPR はPR単体に対して自動マージ処理を実行する
+func executeAutoMergeForPR(
+	ctx context.Context,
+	pr *github.PullRequest,
+	cfg *config.Config,
+	ghClient github.GitHubClient,
+	cleanupManager cleanup.Manager,
+	log logger.Logger,
+	metrics *AutoMergeMetrics,
+) error {
+	if pr == nil || pr.Number == 0 {
+		return fmt.Errorf("invalid PR: nil PR or PR number")
+	}
+
+	log.Debug("Auto-merge for PR: Configuration check",
+		"auto_merge_enabled", cfg != nil && cfg.GitHub.AutoMergeLGTM,
+		"pr_number", pr.Number,
+	)
+
+	// auto_merge_lgtm設定が無効な場合はスキップ
+	if !cfg.GitHub.AutoMergeLGTM {
+		log.Debug("Auto-merge for PR: Configuration disabled")
+		return nil
+	}
+
+	log.Info("Auto-merge for PR: Processing PR",
+		"pr_number", pr.Number,
+		"state", pr.State,
+		"mergeable", pr.Mergeable,
+		"is_draft", pr.IsDraft,
+		"checks_status", pr.ChecksStatus,
+	)
+
+	// PRがマージ可能かチェック（リトライ機能付き）
+	mergeable, err := checkMergeableWithRetry(ctx, ghClient, pr, log)
+	if err != nil {
+		log.Error("Auto-merge for PR: Failed to check mergeable status",
+			"pr_number", pr.Number,
+			"error", err,
+		)
+		if metrics != nil {
+			metrics.RecordFailure(0, pr.Number, "merge_check_failed")
+		}
+		return fmt.Errorf("failed to check mergeable status for PR #%d: %w", pr.Number, err)
+	}
+
+	if !mergeable {
+		log.Info("Auto-merge for PR: Pull request is not mergeable",
+			"pr_number", pr.Number,
+			"state", pr.State,
+			"mergeable", pr.Mergeable,
+			"is_draft", pr.IsDraft,
+			"checks_status", pr.ChecksStatus,
+		)
+		if metrics != nil {
+			var reason string
+			switch {
+			case pr.State != "OPEN":
+				reason = "pr_closed"
+			case pr.IsDraft:
+				reason = "pr_draft"
+			case pr.Mergeable == "CONFLICTING":
+				reason = "pr_conflicting"
+			case pr.ChecksStatus == "FAILURE":
+				reason = "checks_failed"
+			default:
+				reason = "not_mergeable"
+			}
+			metrics.RecordFailure(0, pr.Number, reason)
+		}
+		return nil
+	}
+
+	// PRをマージ
+	log.Info("Auto-merge for PR: Merging pull request",
+		"pr_number", pr.Number,
+	)
+	if err := ghClient.MergePullRequest(ctx, pr.Number); err != nil {
+		log.Error("Auto-merge for PR: Failed to merge pull request",
+			"pr_number", pr.Number,
+			"error", err,
+		)
+		if metrics != nil {
+			metrics.RecordFailure(0, pr.Number, "merge_api_error")
+		}
+		return fmt.Errorf("failed to merge pull request #%d: %w", pr.Number, err)
+	}
+
+	log.Info("Auto-merge for PR: Successfully merged pull request",
+		"pr_number", pr.Number,
+	)
+
+	// メトリクスに成功を記録
+	if metrics != nil {
+		metrics.RecordSuccess(0, pr.Number)
+	}
+
+	// マージ成功後、クリーンアップはスキップ（PRベースではIssue番号が不明のため）
+	log.Debug("Auto-merge for PR: Skipping cleanup (PR-based merge)",
+		"pr_number", pr.Number,
+	)
+
+	return nil
+}

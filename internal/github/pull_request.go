@@ -213,3 +213,21 @@ func (c *GHClient) GetPullRequestStatus(ctx context.Context, prNumber int) (*Pul
 
 	return pr, nil
 }
+
+// ListPullRequestsByLabels は指定されたラベルを持つPRをリストする
+func (c *GHClient) ListPullRequestsByLabels(ctx context.Context, owner, repo string, labels []string) ([]*PullRequest, error) {
+	if c.logger != nil {
+		c.logger.Debug("Listing pull requests by labels",
+			"owner", owner,
+			"repo", repo,
+			"labels", labels,
+		)
+	}
+
+	if len(labels) == 0 {
+		return []*PullRequest{}, nil
+	}
+
+	// GraphQL APIを使用してラベル付きPRを検索
+	return c.ListPullRequestsByLabelsViaGraphQL(ctx, owner, repo, labels)
+}

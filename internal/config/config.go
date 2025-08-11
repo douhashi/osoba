@@ -23,11 +23,12 @@ type Config struct {
 
 // GitHubConfig はGitHub関連の設定
 type GitHubConfig struct {
-	PollInterval  time.Duration      `mapstructure:"poll_interval"`
-	Labels        LabelConfig        `mapstructure:"labels"`
-	Messages      PhaseMessageConfig `mapstructure:"messages"`
-	AutoMergeLGTM bool               `mapstructure:"auto_merge_lgtm"` // status:lgtmラベルが付いたPRを自動マージする機能の有効/無効
-	AutoPlanIssue bool               `mapstructure:"auto_plan_issue"` // 処理中のIssueがない場合に自動的に次のIssueをplanフェーズに移行させる機能の有効/無効
+	PollInterval   time.Duration      `mapstructure:"poll_interval"`
+	PRPollInterval time.Duration      `mapstructure:"pr_poll_interval"` // PR監視専用のポーリング間隔
+	Labels         LabelConfig        `mapstructure:"labels"`
+	Messages       PhaseMessageConfig `mapstructure:"messages"`
+	AutoMergeLGTM  bool               `mapstructure:"auto_merge_lgtm"` // status:lgtmラベルが付いたPRを自動マージする機能の有効/無効
+	AutoPlanIssue  bool               `mapstructure:"auto_plan_issue"` // 処理中のIssueがない場合に自動的に次のIssueをplanフェーズに移行させる機能の有効/無効
 }
 
 // LabelConfig は監視対象のラベル設定
@@ -69,7 +70,8 @@ func NewDefaultPhaseMessageConfig() PhaseMessageConfig {
 func NewConfig() *Config {
 	return &Config{
 		GitHub: GitHubConfig{
-			PollInterval: 20 * time.Second,
+			PollInterval:   20 * time.Second,
+			PRPollInterval: 20 * time.Second, // PR監視間隔もデフォルト20秒
 			Labels: LabelConfig{
 				Plan:            "status:needs-plan",
 				Ready:           "status:ready",
@@ -110,6 +112,7 @@ func (c *Config) Load(configPath string) error {
 
 	// デフォルト値の設定
 	v.SetDefault("github.poll_interval", 20*time.Second)
+	v.SetDefault("github.pr_poll_interval", 20*time.Second) // PR監視間隔のデフォルト値
 	v.SetDefault("github.labels.plan", "status:needs-plan")
 	v.SetDefault("github.labels.ready", "status:ready")
 	v.SetDefault("github.labels.review", "status:review-requested")
@@ -192,6 +195,13 @@ func (c *Config) LoadOrDefault(configPath string) string {
 func (c *Config) Validate() error {
 	if c.GitHub.PollInterval < 1*time.Second {
 		return errors.New("poll interval must be at least 1 second")
+	}
+	// PRPollIntervalが未設定（0）の場合はPollIntervalと同じ値を使用
+	if c.GitHub.PRPollInterval == 0 {
+		c.GitHub.PRPollInterval = c.GitHub.PollInterval
+	}
+	if c.GitHub.PRPollInterval < 1*time.Second {
+		return errors.New("PR poll interval must be at least 1 second")
 	}
 
 	// ラベルが空の場合はデフォルト値を設定

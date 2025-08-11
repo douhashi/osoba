@@ -104,6 +104,14 @@ func (m *MockGitHubClientForAutoMerge) ListAllOpenIssues(ctx context.Context, ow
 	return args.Get(0).([]*github.Issue), args.Error(1)
 }
 
+func (m *MockGitHubClientForAutoMerge) ListPullRequestsByLabels(ctx context.Context, owner, repo string, labels []string) ([]*github.PullRequest, error) {
+	args := m.Called(ctx, owner, repo, labels)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*github.PullRequest), args.Error(1)
+}
+
 // MockCleanupManager はCleanupManagerのモック
 type MockCleanupManager struct {
 	mock.Mock

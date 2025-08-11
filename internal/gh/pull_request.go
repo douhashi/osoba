@@ -119,3 +119,56 @@ func (c *Client) GetPullRequestStatus(ctx context.Context, prNumber int) (*inter
 
 	return pr, nil
 }
+
+// ListPullRequestsByLabels は指定されたラベルを持つPRをリストする
+func (c *Client) ListPullRequestsByLabels(ctx context.Context, owner, repo string, labels []string) ([]*internalGitHub.PullRequest, error) {
+	if len(labels) == 0 {
+		return []*internalGitHub.PullRequest{}, nil
+	}
+
+	// gh pr list --state open --label <label> --json number,title,state,mergeable,isDraft,headRefName,statusCheckRollup
+	args := []string{
+		"pr", "list",
+		"--state", "open",
+		"--label", labels[0], // 最初のラベルで検索
+		"--json", "number,title,state,mergeable,isDraft,headRefName,statusCheckRollup",
+	}
+
+	output, err := c.executor.Execute(ctx, "gh", args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pull requests by labels: %w", err)
+	}
+
+	// JSONをパース
+	var prs []struct {
+		Number            int    `json:"number"`
+		Title             string `json:"title"`
+		State             string `json:"state"`
+		Mergeable         string `json:"mergeable"`
+		IsDraft           bool   `json:"isDraft"`
+		HeadRefName       string `json:"headRefName"`
+		StatusCheckRollup struct {
+			State string `json:"state"`
+		} `json:"statusCheckRollup"`
+	}
+
+	if err := json.Unmarshal([]byte(output), &prs); err != nil {
+		return nil, fmt.Errorf("failed to parse pull request response: %w", err)
+	}
+
+	// 結果をGitHubPullRequest構造体に変換
+	var result []*internalGitHub.PullRequest
+	for _, pr := range prs {
+		result = append(result, &internalGitHub.PullRequest{
+			Number:       pr.Number,
+			Title:        pr.Title,
+			State:        pr.State,
+			Mergeable:    pr.Mergeable,
+			IsDraft:      pr.IsDraft,
+			HeadRefName:  pr.HeadRefName,
+			ChecksStatus: pr.StatusCheckRollup.State,
+		})
+	}
+
+	return result, nil
+}
