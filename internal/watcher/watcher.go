@@ -30,8 +30,9 @@ type HealthStats struct {
 
 // HealthStatus はヘルスチェックの結果
 type HealthStatus struct {
-	IsHealthy bool
-	Message   string
+	IsHealthy              bool
+	Message                string
+	LabelTransitionMetrics *LabelTransitionMetricsSnapshot // ラベル遷移メトリクスのスナップショット
 }
 
 // ActionManagerInterface はActionManagerのインターフェース
@@ -43,20 +44,21 @@ type ActionManagerInterface interface {
 
 // IssueWatcher はGitHub Issueを監視する構造体
 type IssueWatcher struct {
-	client              github.GitHubClient
-	owner               string
-	repo                string
-	sessionName         string // tmuxセッション名
-	labels              []string
-	pollInterval        time.Duration
-	actionManager       ActionManagerInterface
-	eventNotifier       *EventNotifier     // イベント通知システム
-	labelChangeTracking bool               // ラベル変更追跡が有効かどうか
-	issueLabels         map[int64][]string // Issue IDとラベルのマッピング
-	logger              logger.Logger      // ロガー
-	config              *config.Config     // 設定
-	cleanupManager      cleanup.Manager    // クリーンアップマネージャー
-	autoMergeMetrics    *AutoMergeMetrics  // 自動マージメトリクス
+	client                 github.GitHubClient
+	owner                  string
+	repo                   string
+	sessionName            string // tmuxセッション名
+	labels                 []string
+	pollInterval           time.Duration
+	actionManager          ActionManagerInterface
+	eventNotifier          *EventNotifier          // イベント通知システム
+	labelChangeTracking    bool                    // ラベル変更追跡が有効かどうか
+	issueLabels            map[int64][]string      // Issue IDとラベルのマッピング
+	logger                 logger.Logger           // ロガー
+	config                 *config.Config          // 設定
+	cleanupManager         cleanup.Manager         // クリーンアップマネージャー
+	autoMergeMetrics       *AutoMergeMetrics       // 自動マージメトリクス
+	labelTransitionMetrics *LabelTransitionMetrics // ラベル遷移メトリクス
 
 	// ヘルスチェック用のフィールド
 	lastExecutionTime    time.Time
@@ -100,20 +102,21 @@ func NewIssueWatcherWithConfig(client github.GitHubClient, owner, repo, sessionN
 	}
 
 	return &IssueWatcher{
-		client:              client,
-		owner:               owner,
-		repo:                repo,
-		sessionName:         sessionName,
-		labels:              labels,
-		pollInterval:        pollInterval,
-		actionManager:       NewActionManager(sessionName),
-		labelChangeTracking: false,
-		issueLabels:         make(map[int64][]string),
-		startTime:           time.Now(),
-		logger:              logger.WithFields("component", "watcher", "owner", owner, "repo", repo),
-		config:              cfg,
-		cleanupManager:      cleanupMgr,
-		autoMergeMetrics:    NewAutoMergeMetrics(),
+		client:                 client,
+		owner:                  owner,
+		repo:                   repo,
+		sessionName:            sessionName,
+		labels:                 labels,
+		pollInterval:           pollInterval,
+		actionManager:          NewActionManager(sessionName),
+		labelChangeTracking:    false,
+		issueLabels:            make(map[int64][]string),
+		startTime:              time.Now(),
+		logger:                 logger.WithFields("component", "watcher", "owner", owner, "repo", repo),
+		config:                 cfg,
+		cleanupManager:         cleanupMgr,
+		autoMergeMetrics:       NewAutoMergeMetrics(),
+		labelTransitionMetrics: NewLabelTransitionMetrics(),
 	}, nil
 }
 
@@ -422,6 +425,15 @@ func (w *IssueWatcher) GetHealthStats() HealthStats {
 	}
 }
 
+// GetLabelTransitionMetrics はラベル遷移メトリクスのスナップショットを返す
+func (w *IssueWatcher) GetLabelTransitionMetrics() *LabelTransitionMetricsSnapshot {
+	if w.labelTransitionMetrics == nil {
+		return nil
+	}
+	snapshot := w.labelTransitionMetrics.GetSnapshot()
+	return &snapshot
+}
+
 // CheckHealth はwatcherの健全性をチェックする
 func (w *IssueWatcher) CheckHealth(maxInactivity time.Duration) HealthStatus {
 	w.mu.Lock()
@@ -450,12 +462,30 @@ func (w *IssueWatcher) CheckHealth(maxInactivity time.Duration) HealthStatus {
 		}
 	}
 
+	// ラベル遷移メトリクスのスナップショットを取得
+	var labelTransitionSnapshot *LabelTransitionMetricsSnapshot
+	if w.labelTransitionMetrics != nil {
+		snapshot := w.labelTransitionMetrics.GetSnapshot()
+		labelTransitionSnapshot = &snapshot
+	}
+
 	// 成功率が極端に低い場合
 	if totalExecutions > 10 && successRate < 10 {
 		return HealthStatus{
 			IsHealthy: false,
 			Message: fmt.Sprintf("Success rate is too low: %.2f%% (%d/%d executions)",
 				successRate, w.successfulExecutions, totalExecutions),
+			LabelTransitionMetrics: labelTransitionSnapshot,
+		}
+	}
+
+	// ラベル遷移の成功率もチェック
+	if labelTransitionSnapshot != nil && labelTransitionSnapshot.TotalTransitions > 10 && labelTransitionSnapshot.SuccessRate < 50 {
+		return HealthStatus{
+			IsHealthy: false,
+			Message: fmt.Sprintf("Label transition success rate is too low: %.2f%% (%d/%d transitions)",
+				labelTransitionSnapshot.SuccessRate, labelTransitionSnapshot.SuccessfulTransitions, labelTransitionSnapshot.TotalTransitions),
+			LabelTransitionMetrics: labelTransitionSnapshot,
 		}
 	}
 
@@ -463,6 +493,7 @@ func (w *IssueWatcher) CheckHealth(maxInactivity time.Duration) HealthStatus {
 		IsHealthy: true,
 		Message: fmt.Sprintf("Watcher is healthy (success rate: %.2f%%, last execution: %v ago)",
 			successRate, timeSinceLastExecution),
+		LabelTransitionMetrics: labelTransitionSnapshot,
 	}
 }
 
@@ -572,14 +603,18 @@ func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Iss
 				"from", transition.from,
 				"to", transition.to)
 
+			transitionType := fmt.Sprintf("%s->%s", transition.from, transition.to)
+
 			// リトライメカニズムを実装
 			const maxRetries = 3
 			var lastErr error
+			var failureReason string
 
 			for attempt := 1; attempt <= maxRetries; attempt++ {
 				// ラベルを削除
 				if err := w.client.RemoveLabel(ctx, w.owner, w.repo, *issue.Number, transition.from); err != nil {
 					lastErr = fmt.Errorf("failed to remove label %s (attempt %d/%d): %w", transition.from, attempt, maxRetries, err)
+					failureReason = fmt.Sprintf("remove_label_error_%s", transition.from)
 					w.logger.Warn("Failed to remove label, retrying",
 						"issueNumber", *issue.Number,
 						"label", transition.from,
@@ -590,12 +625,17 @@ func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Iss
 						time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
 						continue
 					}
+					// 最終的に失敗した場合、メトリクスに記録
+					if w.labelTransitionMetrics != nil {
+						w.labelTransitionMetrics.RecordFailure(int(*issue.Number), transitionType, failureReason)
+					}
 					return lastErr
 				}
 
 				// 新しいラベルを追加
 				if err := w.client.AddLabel(ctx, w.owner, w.repo, *issue.Number, transition.to); err != nil {
 					lastErr = fmt.Errorf("failed to add label %s (attempt %d/%d): %w", transition.to, attempt, maxRetries, err)
+					failureReason = fmt.Sprintf("add_label_error_%s", transition.to)
 					w.logger.Warn("Failed to add label, retrying",
 						"issueNumber", *issue.Number,
 						"label", transition.to,
@@ -606,10 +646,17 @@ func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Iss
 						time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
 						continue
 					}
+					// 最終的に失敗した場合、メトリクスに記録
+					if w.labelTransitionMetrics != nil {
+						w.labelTransitionMetrics.RecordFailure(int(*issue.Number), transitionType, failureReason)
+					}
 					return lastErr
 				}
 
-				// 成功した場合はループを抜ける
+				// 成功した場合はメトリクスに記録してループを抜ける
+				if w.labelTransitionMetrics != nil {
+					w.labelTransitionMetrics.RecordSuccess(int(*issue.Number), transitionType)
+				}
 				w.logger.Info("Successfully transitioned label",
 					"issueNumber", *issue.Number,
 					"from", transition.from,
@@ -619,6 +666,9 @@ func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Iss
 			}
 
 			// すべてのリトライが失敗した場合
+			if w.labelTransitionMetrics != nil && failureReason != "" {
+				w.labelTransitionMetrics.RecordFailure(int(*issue.Number), transitionType, failureReason)
+			}
 			return lastErr
 		}
 	}
@@ -638,6 +688,8 @@ func (w *IssueWatcher) executeRequiresChangesTransition(ctx context.Context, iss
 		"issueNumber", issueNumber,
 		"from", "status:requires-changes",
 		"to", "status:ready")
+
+	transitionType := "status:requires-changes->status:ready"
 
 	// tmuxウィンドウの削除（sessionNameが設定されている場合のみ）
 	if w.sessionName != "" {
@@ -662,11 +714,13 @@ func (w *IssueWatcher) executeRequiresChangesTransition(ctx context.Context, iss
 	// ラベル遷移の実行
 	const maxRetries = 3
 	var lastErr error
+	var failureReason string
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		// status:requires-changesラベルを削除
 		if err := w.client.RemoveLabel(ctx, w.owner, w.repo, issueNumber, "status:requires-changes"); err != nil {
 			lastErr = fmt.Errorf("failed to remove label status:requires-changes (attempt %d/%d): %w", attempt, maxRetries, err)
+			failureReason = "remove_label_error_status:requires-changes"
 			w.logger.Warn("Failed to remove label, retrying",
 				"issueNumber", issueNumber,
 				"label", "status:requires-changes",
@@ -677,12 +731,17 @@ func (w *IssueWatcher) executeRequiresChangesTransition(ctx context.Context, iss
 				time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
 				continue
 			}
+			// 最終的に失敗した場合、メトリクスに記録
+			if w.labelTransitionMetrics != nil {
+				w.labelTransitionMetrics.RecordFailure(issueNumber, transitionType, failureReason)
+			}
 			return lastErr
 		}
 
 		// status:readyラベルを追加
 		if err := w.client.AddLabel(ctx, w.owner, w.repo, issueNumber, "status:ready"); err != nil {
 			lastErr = fmt.Errorf("failed to add label status:ready (attempt %d/%d): %w", attempt, maxRetries, err)
+			failureReason = "add_label_error_status:ready"
 			w.logger.Warn("Failed to add label, retrying",
 				"issueNumber", issueNumber,
 				"label", "status:ready",
@@ -693,16 +752,27 @@ func (w *IssueWatcher) executeRequiresChangesTransition(ctx context.Context, iss
 				time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
 				continue
 			}
+			// 最終的に失敗した場合、メトリクスに記録
+			if w.labelTransitionMetrics != nil {
+				w.labelTransitionMetrics.RecordFailure(issueNumber, transitionType, failureReason)
+			}
 			return lastErr
 		}
 
-		// 成功した場合
+		// 成功した場合、メトリクスに記録
+		if w.labelTransitionMetrics != nil {
+			w.labelTransitionMetrics.RecordSuccess(issueNumber, transitionType)
+		}
 		w.logger.Info("Successfully transitioned requires-changes to ready",
 			"issueNumber", issueNumber,
 			"attempt", attempt)
 		return nil
 	}
 
+	// すべてのリトライが失敗した場合
+	if w.labelTransitionMetrics != nil && failureReason != "" {
+		w.labelTransitionMetrics.RecordFailure(issueNumber, transitionType, failureReason)
+	}
 	return lastErr
 }
 
