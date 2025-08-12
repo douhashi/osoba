@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/douhashi/osoba/internal/git"
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -40,6 +41,9 @@ func (m *MockRepository) WithDefaultBehavior() *MockRepository {
 		StagedFiles:    []string{},
 	}, nil)
 
+	// GetLogger returns nil logger by default (will need to be set explicitly if used)
+	m.On("GetLogger").Maybe().Return(logger.Logger(nil))
+
 	return m
 }
 
@@ -74,6 +78,15 @@ func (m *MockRepository) GetStatus(ctx context.Context, path string) (*git.Repos
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*git.RepositoryStatus), args.Error(1)
+}
+
+// GetLogger mocks the GetLogger method
+func (m *MockRepository) GetLogger() logger.Logger {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(logger.Logger)
 }
 
 // Ensure MockRepository implements git.Repository interface

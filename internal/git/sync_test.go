@@ -71,6 +71,116 @@ func TestSync_Fetch(t *testing.T) {
 	}
 }
 
+func TestSync_ResetHard(t *testing.T) {
+	// テスト用の一時ディレクトリを作成
+	tmpDir, err := os.MkdirTemp("", "git-sync-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// gitリポジトリを初期化
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	cmd := NewCommand(testLogger)
+	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
+	require.NoError(t, err)
+
+	// CI環境用のgit設定
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.email", "test@example.com"}, tmpDir)
+	require.NoError(t, err)
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.name", "Test User"}, tmpDir)
+	require.NoError(t, err)
+
+	// 初期コミットを作成
+	testFile := filepath.Join(tmpDir, "test.txt")
+	err = os.WriteFile(testFile, []byte("initial content"), 0644)
+	require.NoError(t, err)
+	_, err = cmd.Run(context.Background(), "git", []string{"add", "."}, tmpDir)
+	require.NoError(t, err)
+	_, err = cmd.Run(context.Background(), "git", []string{"commit", "-m", "initial commit"}, tmpDir)
+	require.NoError(t, err)
+
+	sync := NewSync(testLogger)
+
+	// ファイルを変更
+	err = os.WriteFile(testFile, []byte("modified content"), 0644)
+	require.NoError(t, err)
+
+	// 変更があることを確認
+	status, err := sync.GetStatus(context.Background(), tmpDir)
+	require.NoError(t, err)
+	assert.False(t, status.IsClean)
+
+	// reset --hard を実行
+	err = sync.ResetHard(context.Background(), tmpDir, "HEAD")
+	require.NoError(t, err)
+
+	// ファイルが元に戻っていることを確認
+	content, err := os.ReadFile(testFile)
+	require.NoError(t, err)
+	assert.Equal(t, "initial content", string(content))
+
+	// 変更がクリアされていることを確認
+	status, err = sync.GetStatus(context.Background(), tmpDir)
+	require.NoError(t, err)
+	assert.True(t, status.IsClean)
+}
+
+func TestSync_FetchBranch(t *testing.T) {
+	// テスト用の一時ディレクトリを作成
+	tmpDir, err := os.MkdirTemp("", "git-sync-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// gitリポジトリを初期化
+	testLogger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	cmd := NewCommand(testLogger)
+	_, err = cmd.Run(context.Background(), "git", []string{"init"}, tmpDir)
+	require.NoError(t, err)
+
+	// CI環境用のgit設定
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.email", "test@example.com"}, tmpDir)
+	require.NoError(t, err)
+	_, err = cmd.Run(context.Background(), "git", []string{"config", "user.name", "Test User"}, tmpDir)
+	require.NoError(t, err)
+
+	// 初期コミットを作成
+	testFile := filepath.Join(tmpDir, "test.txt")
+	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	require.NoError(t, err)
+	_, err = cmd.Run(context.Background(), "git", []string{"add", "."}, tmpDir)
+	require.NoError(t, err)
+	_, err = cmd.Run(context.Background(), "git", []string{"commit", "-m", "initial commit"}, tmpDir)
+	require.NoError(t, err)
+
+	// mainブランチを作成
+	_, err = cmd.Run(context.Background(), "git", []string{"branch", "-M", "main"}, tmpDir)
+	require.NoError(t, err)
+
+	// ログ出力をキャプチャ
+	testLogger, recorded := helpers.NewObservableLogger(zapcore.InfoLevel)
+
+	sync := &Sync{
+		logger:  testLogger,
+		command: NewCommand(testLogger),
+	}
+
+	// FetchBranchを実行（リモートがないのでエラーになるが、ログ出力を確認）
+	err = sync.FetchBranch(context.Background(), tmpDir, "origin", "main")
+	// リモートが設定されていないのでエラーになるはず
+	assert.Error(t, err)
+
+	// ログメッセージの検証
+	entries := recorded.All()
+	expectedMsg := "Fetching specific branch from remote"
+	found := false
+	for _, entry := range entries {
+		if strings.Contains(entry.Message, expectedMsg) {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "Expected log message not found: %s", expectedMsg)
+}
+
 func TestSync_Pull(t *testing.T) {
 	// テスト用の一時ディレクトリを作成
 	tmpDir, err := os.MkdirTemp("", "git-sync-test-*")

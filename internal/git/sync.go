@@ -372,3 +372,54 @@ func (s *Sync) RemoveRemote(ctx context.Context, repoPath, name string) error {
 
 	return nil
 }
+
+// FetchBranch は特定のブランチをリモートから直接フェッチする
+func (s *Sync) FetchBranch(ctx context.Context, repoPath, remote, branch string) error {
+	logFields := []interface{}{
+		"repoPath", repoPath,
+		"remote", remote,
+		"branch", branch,
+	}
+
+	s.logger.Info("Fetching specific branch from remote", logFields...)
+
+	// git fetch <remote> <branch>:<branch> を実行
+	args := []string{"fetch", remote, fmt.Sprintf("%s:%s", branch, branch)}
+	output, err := s.command.Run(ctx, "git", args, repoPath)
+	if err != nil {
+		errorFields := append(logFields, "error", err.Error())
+		s.logger.Error("Failed to fetch branch from remote", errorFields...)
+		return fmt.Errorf("failed to fetch branch: %w", err)
+	}
+
+	// 成功ログ
+	successFields := append(logFields, "output", output)
+	s.logger.Info("Branch fetched successfully", successFields...)
+
+	return nil
+}
+
+// ResetHard はgit reset --hardを実行してローカル変更を破棄する
+func (s *Sync) ResetHard(ctx context.Context, repoPath, ref string) error {
+	logFields := []interface{}{
+		"repoPath", repoPath,
+		"ref", ref,
+	}
+
+	s.logger.Warn("Resetting working directory (discarding local changes)", logFields...)
+
+	// git reset --hard <ref> を実行
+	args := []string{"reset", "--hard", ref}
+	output, err := s.command.Run(ctx, "git", args, repoPath)
+	if err != nil {
+		errorFields := append(logFields, "error", err.Error())
+		s.logger.Error("Failed to reset working directory", errorFields...)
+		return fmt.Errorf("failed to reset: %w", err)
+	}
+
+	// 成功ログ
+	successFields := append(logFields, "output", output)
+	s.logger.Info("Working directory reset successfully", successFields...)
+
+	return nil
+}
