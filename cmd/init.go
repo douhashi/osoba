@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/douhashi/osoba/internal/config"
-	"github.com/douhashi/osoba/internal/github"
+	"github.com/douhashi/osoba/internal/gh"
 	"github.com/douhashi/osoba/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -34,7 +34,8 @@ var (
 	statFunc               = os.Stat
 	execCommandFunc        = execCommand
 	createGitHubClientFunc = func(token string) githubInterface {
-		client, _ := github.NewClient(token)
+		executor := gh.NewRealCommandExecutor()
+		client, _ := gh.NewClient(executor)
 		return client
 	}
 	getGitHubRepoInfoFunc = utils.GetGitHubRepoInfo
