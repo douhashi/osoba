@@ -7,6 +7,7 @@ const (
 	ActionTypePlan           ActionType = "plan"
 	ActionTypeImplementation ActionType = "implementation"
 	ActionTypeReview         ActionType = "review"
+	ActionTypeRevise         ActionType = "revise"
 )
 
 // BaseAction はActionExecutorの基本実装

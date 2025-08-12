@@ -339,9 +339,10 @@ func TestPRWatcher_StartWithAutoMerge(t *testing.T) {
 		ChecksStatus: "SUCCESS",
 	}
 
-	// モックの設定
+	// モックの設定 - contextはマッチャーを使わずにmock.Anythingを使用
+	// ただし、呼び出し回数を制限してテストを安定化
 	mockClient.On("ListPullRequestsByLabels", mock.Anything, "owner", "repo", []string{"status:lgtm"}).
-		Return([]*github.PullRequest{testPR}, nil).Maybe()
+		Return([]*github.PullRequest{testPR}, nil).Times(10) // 最大10回まで
 
 	// GetPullRequestStatus は最新の PR 状態を返す
 	mockClient.On("GetPullRequestStatus", mock.Anything, 123).
@@ -351,6 +352,10 @@ func TestPRWatcher_StartWithAutoMerge(t *testing.T) {
 	mockClient.On("MergePullRequest", mock.Anything, 123).
 		Return(nil).Maybe()
 
+	// GetClosingIssueNumber の呼び出し（auto-mergeの後に呼ばれる）
+	mockClient.On("GetClosingIssueNumber", mock.Anything, 123).
+		Return(100, nil).Maybe()
+
 	watcher, err := NewPRWatcherWithConfig(mockClient, "owner", "repo", []string{"status:lgtm"}, 20*time.Second, logger, cfg, nil)
 	require.NoError(t, err)
 
@@ -359,15 +364,32 @@ func TestPRWatcher_StartWithAutoMerge(t *testing.T) {
 
 	// タイムアウト付きコンテキスト
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
+
+	// goroutineの完了を待つためのチャネル
+	done := make(chan struct{})
 
 	// StartWithAutoMergeを開始（goroutineで実行）
-	go watcher.StartWithAutoMerge(ctx)
+	go func() {
+		defer close(done)
+		watcher.StartWithAutoMerge(ctx)
+	}()
 
 	// 処理が実行されるまで待機
 	time.Sleep(50 * time.Millisecond)
 
-	// モックの呼び出しが行われたことを確認
+	// contextをキャンセルしてgoroutineを終了させる
+	cancel()
+
+	// goroutineの終了を待つ
+	select {
+	case <-done:
+		// goroutineが正常に終了
+	case <-time.After(200 * time.Millisecond):
+		// タイムアウト（goroutineが終了しない場合）
+		t.Error("goroutine did not finish in time")
+	}
+
+	// goroutineが終了してからモックのアサーションを実行
 	// 短い間隔なので複数回呼び出される可能性がある
 	mockClient.AssertCalled(t, "ListPullRequestsByLabels", mock.Anything, "owner", "repo", []string{"status:lgtm"})
 }

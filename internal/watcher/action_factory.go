@@ -15,6 +15,7 @@ type ActionFactory interface {
 	CreatePlanAction() ActionExecutor
 	CreateImplementationAction() ActionExecutor
 	CreateReviewAction() ActionExecutor
+	CreateReviseAction() ActionExecutor
 	CreateNoOpAction() ActionExecutor
 }
 
@@ -109,7 +110,26 @@ func (f *DefaultActionFactory) CreateReviewAction() ActionExecutor {
 	)
 }
 
-// CreateNoOpAction は何もしないアクションを作成する（status:requires-changes用）
+// CreateReviseAction はレビュー指摘対応フェーズのアクションを作成する
+func (f *DefaultActionFactory) CreateReviseAction() ActionExecutor {
+	labelManager := &actions.DefaultLabelManager{
+		GitHubClient: f.ghClient,
+		Owner:        f.owner,
+		Repo:         f.repo,
+	}
+
+	return actions.NewReviseAction(
+		f.sessionName,
+		f.tmuxManager,
+		labelManager,
+		f.worktreeManager,
+		f.claudeExecutor,
+		f.claudeConfig,
+		f.logger.WithFields("component", "ReviseAction"),
+	)
+}
+
+// CreateNoOpAction は何もしないアクションを作成する
 func (f *DefaultActionFactory) CreateNoOpAction() ActionExecutor {
 	return NewNoOpAction(f.logger.WithFields("component", "NoOpAction"))
 }

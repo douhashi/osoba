@@ -27,6 +27,10 @@ func NewDefaultClaudeConfig() *ClaudeConfig {
 				Args:   []string{"--dangerously-skip-permissions"},
 				Prompt: "/osoba:review {{issue-number}}",
 			},
+			"revise": {
+				Args:   []string{"--dangerously-skip-permissions"},
+				Prompt: "/osoba:revise {{issue-number}}",
+			},
 		},
 	}
 }

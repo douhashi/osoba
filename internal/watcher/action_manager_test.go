@@ -53,6 +53,14 @@ func (m *MockActionFactory) CreateReviewAction() ActionExecutor {
 	return args.Get(0).(ActionExecutor)
 }
 
+func (m *MockActionFactory) CreateReviseAction() ActionExecutor {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(ActionExecutor)
+}
+
 func (m *MockActionFactory) CreateNoOpAction() ActionExecutor {
 	args := m.Called()
 	if args.Get(0) == nil {
