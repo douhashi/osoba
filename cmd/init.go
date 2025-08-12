@@ -282,7 +282,7 @@ func setupClaudeCommands(out io.Writer) error {
 	}
 
 	// テンプレートファイルの配置
-	files := []string{"plan.md", "implement.md", "review.md", "add-backlog.md"}
+	files := []string{"plan.md", "implement.md", "review.md", "revise.md", "add-backlog.md"}
 	allExist := true
 	someExist := false
 

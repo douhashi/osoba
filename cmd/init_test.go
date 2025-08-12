@@ -828,6 +828,7 @@ func TestSetupClaudeCommands(t *testing.T) {
 				".claude/commands/osoba/plan.md":        true,
 				".claude/commands/osoba/implement.md":   true,
 				".claude/commands/osoba/review.md":      true,
+				".claude/commands/osoba/revise.md":      true,
 				".claude/commands/osoba/add-backlog.md": true,
 			},
 		},
@@ -852,6 +853,7 @@ func TestSetupClaudeCommands(t *testing.T) {
 				".claude/commands/osoba/plan.md":        true,
 				".claude/commands/osoba/implement.md":   true,
 				".claude/commands/osoba/review.md":      true,
+				".claude/commands/osoba/revise.md":      true,
 				".claude/commands/osoba/add-backlog.md": true,
 			},
 		},
@@ -880,6 +882,7 @@ func TestSetupClaudeCommands(t *testing.T) {
 			filesCreated: map[string]bool{
 				".claude/commands/osoba/implement.md":   true,
 				".claude/commands/osoba/review.md":      true,
+				".claude/commands/osoba/revise.md":      true,
 				".claude/commands/osoba/add-backlog.md": true,
 			},
 			filesSkipped: map[string]bool{
