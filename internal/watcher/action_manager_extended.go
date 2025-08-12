@@ -58,7 +58,7 @@ func (m *ActionManagerExtended) GetActionForIssue(issue *github.Issue) ActionExe
 		return m.factory.CreateReviewAction()
 	}
 	if hasLabel(issue, "status:requires-changes") {
-		return m.factory.CreateNoOpAction()
+		return m.factory.CreateReviseAction()
 	}
 
 	return nil

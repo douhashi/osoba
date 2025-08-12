@@ -6,14 +6,15 @@ import (
 
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestActionManagerExtended_RequiresChanges(t *testing.T) {
-	t.Run("returns NoOpAction for status:requires-changes label", func(t *testing.T) {
+	t.Run("returns ReviseAction for status:requires-changes label", func(t *testing.T) {
 		// モックファクトリーを作成
 		mockFactory := new(MockActionFactory)
-		noOpAction := NewNoOpAction(NewMockLogger())
-		mockFactory.On("CreateNoOpAction").Return(noOpAction)
+		mockReviseAction := new(MockActionExecutorExt)
+		mockFactory.On("CreateReviseAction").Return(mockReviseAction)
 
 		// ActionManagerを作成
 		manager := NewActionManagerExtended("test-session", mockFactory)
@@ -29,20 +30,20 @@ func TestActionManagerExtended_RequiresChanges(t *testing.T) {
 		// アクションを取得
 		action := manager.GetActionForIssue(issue)
 
-		// NoOpActionが返されることを確認
+		// ReviseActionが返されることを確認
 		assert.NotNil(t, action)
-		// NoOpActionの型であることを確認
-		_, ok := action.(*NoOpAction)
-		assert.True(t, ok, "Expected NoOpAction type")
+		assert.Equal(t, mockReviseAction, action)
 
 		mockFactory.AssertExpectations(t)
 	})
 
-	t.Run("executes NoOpAction successfully", func(t *testing.T) {
+	t.Run("executes ReviseAction successfully", func(t *testing.T) {
 		// モックファクトリーを作成
 		mockFactory := new(MockActionFactory)
-		noOpAction := NewNoOpAction(NewMockLogger())
-		mockFactory.On("CreateNoOpAction").Return(noOpAction)
+		mockReviseAction := new(MockActionExecutorExt)
+		mockReviseAction.On("CanExecute", mock.Anything).Return(true)
+		mockReviseAction.On("Execute", mock.Anything, mock.Anything).Return(nil)
+		mockFactory.On("CreateReviseAction").Return(mockReviseAction)
 
 		// ActionManagerを作成
 		manager := NewActionManagerExtended("test-session", mockFactory)
@@ -62,5 +63,6 @@ func TestActionManagerExtended_RequiresChanges(t *testing.T) {
 		assert.NoError(t, err)
 
 		mockFactory.AssertExpectations(t)
+		mockReviseAction.AssertExpectations(t)
 	})
 }

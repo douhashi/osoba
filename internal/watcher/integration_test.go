@@ -161,6 +161,7 @@ type mockActionFactory struct {
 	planAction           ActionExecutor
 	implementationAction ActionExecutor
 	reviewAction         ActionExecutor
+	reviseAction         ActionExecutor
 	noOpAction           ActionExecutor
 }
 
@@ -174,6 +175,21 @@ func (m *mockActionFactory) CreateImplementationAction() ActionExecutor {
 
 func (m *mockActionFactory) CreateReviewAction() ActionExecutor {
 	return m.reviewAction
+}
+
+func (m *mockActionFactory) CreateReviseAction() ActionExecutor {
+	if m.reviseAction != nil {
+		return m.reviseAction
+	}
+	// デフォルトでNoOpActionを返す（仮の実装）
+	return &mockAction{
+		canExecute: func(issue *github.Issue) bool {
+			return false
+		},
+		execute: func(ctx context.Context, issue *github.Issue) error {
+			return nil
+		},
+	}
 }
 
 func (m *mockActionFactory) CreateNoOpAction() ActionExecutor {
