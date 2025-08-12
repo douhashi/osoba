@@ -23,6 +23,9 @@ type Repository interface {
 
 	// GetStatus はリポジトリのステータスを取得する
 	GetStatus(ctx context.Context, path string) (*RepositoryStatus, error)
+
+	// GetLogger はロガーを取得する
+	GetLogger() logger.Logger
 }
 
 // RepositoryStatus はリポジトリのステータス情報
@@ -128,4 +131,9 @@ func (r *repositoryImpl) GetStatus(ctx context.Context, path string) (*Repositor
 	}
 
 	return status, nil
+}
+
+// GetLogger はロガーを取得する
+func (r *repositoryImpl) GetLogger() logger.Logger {
+	return r.logger
 }

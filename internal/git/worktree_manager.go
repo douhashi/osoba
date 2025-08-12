@@ -92,23 +92,40 @@ func (m *worktreeManager) UpdateMainBranch(ctx context.Context) error {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	// mainブランチに切り替え
-	if err := m.branch.Checkout(ctx, m.basePath, "main", false); err != nil {
-		return fmt.Errorf("failed to checkout main branch: %w", err)
+	// 現在のブランチがmainでない場合、直接fetchで更新
+	if currentBranch != "main" {
+		// git fetch origin main:main でmainブランチを直接更新
+		if err := m.sync.FetchBranch(ctx, m.basePath, "origin", "main"); err != nil {
+			// fetchが失敗した場合の警告
+			m.repository.GetLogger().Warn("Failed to fetch main branch, continuing with local main branch",
+				"error", err.Error())
+			// エラーは返さず続行（ローカルのmainを使用）
+		}
+		return nil
+	}
+
+	// 現在mainブランチにいる場合
+	// ローカル変更の有無を確認
+	status, err := m.sync.GetStatus(ctx, m.basePath)
+	if err != nil {
+		return fmt.Errorf("failed to get status: %w", err)
+	}
+
+	// ローカル変更がある場合は警告してリセット
+	if !status.IsClean {
+		m.repository.GetLogger().Warn("Local changes detected in main branch, discarding changes",
+			"modified", len(status.ModifiedFiles),
+			"untracked", len(status.UntrackedFiles))
+
+		// git reset --hard HEAD でローカル変更を破棄
+		if err := m.sync.ResetHard(ctx, m.basePath, "HEAD"); err != nil {
+			return fmt.Errorf("failed to reset main branch: %w", err)
+		}
 	}
 
 	// mainブランチを最新化
 	if err := m.sync.Pull(ctx, m.basePath, "origin", "main", false); err != nil {
-		// 元のブランチに戻す
-		_ = m.branch.Checkout(ctx, m.basePath, currentBranch, false)
 		return fmt.Errorf("failed to pull main branch: %w", err)
-	}
-
-	// 元のブランチに戻す（mainでない場合）
-	if currentBranch != "main" {
-		if err := m.branch.Checkout(ctx, m.basePath, currentBranch, false); err != nil {
-			return fmt.Errorf("failed to checkout back to %s: %w", currentBranch, err)
-		}
 	}
 
 	return nil

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/testutil/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -354,4 +355,9 @@ func (m *mockRepository) GetStatus(ctx context.Context, path string) (*Repositor
 		UntrackedFiles: []string{},
 		StagedFiles:    []string{},
 	}, nil
+}
+
+func (m *mockRepository) GetLogger() logger.Logger {
+	logger, _ := helpers.NewObservableLogger(zapcore.InfoLevel)
+	return logger
 }
