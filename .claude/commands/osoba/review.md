@@ -81,15 +81,16 @@ After posting the review result, update the labels based on the verdict:
 
 #### If Approved (LGTM):
 1. Keep `status:reviewing` label on the Issue (Issue lifecycle ends here)
-2. Add `status:lgtm` label to the Pull Request:
+2. Remove `status:requires-changes` label from the Pull Request (if exists) and add `status:lgtm` label:
    ```bash
-   gh pr edit <PR number> --add-label "status:lgtm"
+   gh pr edit <PR number> --remove-label "status:requires-changes" --add-label "status:lgtm"
    ```
 
 #### If Requires Changes:
-1. Update Issue labels (remove `status:reviewing` and add `status:requires-changes`):
+1. Keep `status:reviewing` label on the Issue (Issue remains in review state)
+2. Add `status:requires-changes` label to the Pull Request:
    ```bash
-   gh issue edit <issue number> --remove-label "status:reviewing" --add-label "status:requires-changes"
+   gh pr edit <PR number> --add-label "status:requires-changes"
    ```
 
 ## Basic Rules

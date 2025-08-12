@@ -48,7 +48,9 @@ if err := w.executeLabelTransition(ctx, issue); err != nil {
 |-------------|-------------|------------|
 | `status:review-requested` | `status:reviewing` | Issue に `status:review-requested` ラベルが存在する |
 
-**Note**: レビュー承認時（LGTM）の場合、Issueは`status:reviewing`ラベルを維持し、PRに`status:lgtm`ラベルが付与されます。
+**Note**: レビュー結果のラベルはPRに付与されます：
+- 承認時（LGTM）: Issueは`status:reviewing`ラベルを維持し、PRに`status:lgtm`ラベルが付与されます
+- 修正要求時: Issueは`status:reviewing`ラベルを維持し、PRに`status:requires-changes`ラベルが付与されます
 
 ### 4. 再実装フェーズ (Re-implementation Phase)
 
@@ -146,15 +148,18 @@ Issueは開発タスクの管理単位として、以下のライフサイクル
 2. `status:ready` → `status:implementing` → `status:review-requested`
 3. `status:review-requested` → `status:reviewing`
 4. レビュー結果により：
-   - 承認時: `status:reviewing` で終了（PRにマージ判断が移る）
-   - 修正要求時: `status:requires-changes` → `status:ready`（再実装へ）
+   - 承認時: `status:reviewing` を維持（PRにマージ判断が移る）
+   - 修正要求時: `status:reviewing` を維持（PRに`status:requires-changes`が付与される）
 
 ### PR のライフサイクル
 
 PRは実装結果の管理単位として、以下のラベルを持ちます：
 
 - `status:lgtm`: レビュー承認済み、マージ可能
+- `status:requires-changes`: レビューで修正要求あり、再実装が必要
 - 将来的に他のPR専用ラベルを追加可能
+
+**Note**: レビュー結果は主にPRのラベルで管理され、Issueは`status:reviewing`を維持します。
 
 ### 自動マージ機能への影響
 
