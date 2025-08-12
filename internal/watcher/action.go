@@ -102,6 +102,10 @@ func (m *ActionManager) GetActionForIssue(issue *github.Issue) ActionExecutor {
 		log.Printf("[DEBUG] Issue #%d has status:review-requested label, creating ReviewAction", *issue.Number)
 		return m.actionFactory.CreateReviewAction()
 	}
+	if hasLabel(issue, "status:requires-changes") {
+		log.Printf("[DEBUG] Issue #%d has status:requires-changes label, creating ReviseAction", *issue.Number)
+		return m.actionFactory.CreateReviseAction()
+	}
 
 	log.Printf("[DEBUG] No matching label found for issue #%d", *issue.Number)
 	return nil

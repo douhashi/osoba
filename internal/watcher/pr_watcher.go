@@ -28,6 +28,8 @@ type PRWatcher struct {
 	config           *config.Config
 	cleanupManager   cleanup.Manager
 	autoMergeMetrics *AutoMergeMetrics
+	sessionName      string                 // tmuxセッション名（Reviseアクション用）
+	actionManager    ActionManagerInterface // ReviseAction実行用
 
 	// ヘルスチェック用のフィールド
 	lastExecutionTime    time.Time
@@ -105,6 +107,16 @@ func (w *PRWatcher) GetPollInterval() time.Duration {
 	return w.pollInterval
 }
 
+// SetActionManager はActionManagerを設定する
+func (w *PRWatcher) SetActionManager(am ActionManagerInterface) {
+	w.actionManager = am
+}
+
+// SetSessionName はtmuxセッション名を設定する
+func (w *PRWatcher) SetSessionName(sessionName string) {
+	w.sessionName = sessionName
+}
+
 // GetAutoMergeMetrics は自動マージメトリクスのスナップショットを取得する
 func (w *PRWatcher) GetAutoMergeMetrics() AutoMergeMetricsSnapshot {
 	if w.autoMergeMetrics == nil {
@@ -155,6 +167,15 @@ func (w *PRWatcher) StartWithAutoMerge(ctx context.Context) {
 		if w.config != nil && w.config.GitHub.AutoMergeLGTM {
 			if err := executeAutoMergeForPRWithLogger(ctx, pr, w.config, w.client, w.cleanupManager, w.logger, w.autoMergeMetrics); err != nil {
 				w.logger.Error("Failed to execute auto-merge for PR",
+					"prNumber", pr.Number,
+					"error", err)
+			}
+		}
+
+		// 自動Revise処理を実行
+		if w.config != nil && w.config.GitHub.AutoRevisePR && w.actionManager != nil {
+			if err := executeAutoReviseIfRequiresChangesWithLogger(ctx, pr, w.config, w.client, w.actionManager, w.sessionName, w.logger); err != nil {
+				w.logger.Error("Failed to execute auto-revise for PR",
 					"prNumber", pr.Number,
 					"error", err)
 			}
