@@ -58,6 +58,11 @@ var requiredLabels = []LabelDefinition{
 		Color:       "fbca04",
 		Description: "Changes requested",
 	},
+	{
+		Name:        "status:revising",
+		Color:       "f29513",
+		Description: "Currently addressing review feedback",
+	},
 }
 
 // EnsureLabelsExist は必要なラベルがリポジトリに存在することを保証する

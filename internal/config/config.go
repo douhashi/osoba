@@ -38,6 +38,7 @@ type LabelConfig struct {
 	Ready           string `mapstructure:"ready"`
 	Review          string `mapstructure:"review"`
 	RequiresChanges string `mapstructure:"requires_changes"`
+	Revising        string `mapstructure:"revising"`
 }
 
 // PhaseMessageConfig はフェーズ開始時のコメントメッセージ設定
@@ -78,6 +79,7 @@ func NewConfig() *Config {
 				Ready:           "status:ready",
 				Review:          "status:review-requested",
 				RequiresChanges: "status:requires-changes",
+				Revising:        "status:revising",
 			},
 			Messages:      NewDefaultPhaseMessageConfig(),
 			AutoMergeLGTM: true,  // デフォルトで自動マージ機能を有効化
@@ -119,6 +121,7 @@ func (c *Config) Load(configPath string) error {
 	v.SetDefault("github.labels.ready", "status:ready")
 	v.SetDefault("github.labels.review", "status:review-requested")
 	v.SetDefault("github.labels.requires_changes", "status:requires-changes")
+	v.SetDefault("github.labels.revising", "status:revising")
 	v.SetDefault("github.messages.plan", "osoba: 計画を作成します")
 	v.SetDefault("github.messages.implement", "osoba: 実装を開始します")
 	v.SetDefault("github.messages.review", "osoba: レビューを開始します")
@@ -138,6 +141,8 @@ func (c *Config) Load(configPath string) error {
 	v.SetDefault("claude.phases.implement.prompt", "/osoba:implement {{issue-number}}")
 	v.SetDefault("claude.phases.review.args", []string{"--dangerously-skip-permissions"})
 	v.SetDefault("claude.phases.review.prompt", "/osoba:review {{issue-number}}")
+	v.SetDefault("claude.phases.revise.args", []string{"--dangerously-skip-permissions"})
+	v.SetDefault("claude.phases.revise.prompt", "/osoba:revise {{issue-number}}")
 
 	// 設定ファイルを読み込む
 	if err := v.ReadInConfig(); err != nil {
@@ -220,6 +225,9 @@ func (c *Config) Validate() error {
 	if c.GitHub.Labels.RequiresChanges == "" {
 		c.GitHub.Labels.RequiresChanges = "status:requires-changes"
 	}
+	if c.GitHub.Labels.Revising == "" {
+		c.GitHub.Labels.Revising = "status:revising"
+	}
 
 	// tmux設定のバリデーション
 	if c.Tmux.SessionPrefix == "" {
@@ -300,6 +308,7 @@ func (c *Config) GetLabels() []string {
 		c.GitHub.Labels.Ready,
 		c.GitHub.Labels.Review,
 		c.GitHub.Labels.RequiresChanges,
+		c.GitHub.Labels.Revising,
 	}
 }
 
@@ -354,6 +363,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.GitHub.Labels.RequiresChanges == "" {
 		c.GitHub.Labels.RequiresChanges = "status:requires-changes"
+	}
+	if c.GitHub.Labels.Revising == "" {
+		c.GitHub.Labels.Revising = "status:revising"
 	}
 }
 
