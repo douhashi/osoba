@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 )
 
 // GetPullRequestForIssueViaGraphQL はGraphQL APIを使用してIssueに関連するPRを取得
@@ -313,6 +315,7 @@ func (c *GHClient) GetClosingIssueNumber(ctx context.Context, prNumber int) (int
 	{
 		repository(owner: "%s", name: "%s") {
 			pullRequest(number: %d) {
+				body
 				closingIssuesReferences(first: 1) {
 					nodes {
 						number
@@ -349,6 +352,7 @@ func (c *GHClient) GetClosingIssueNumber(ctx context.Context, prNumber int) (int
 		Data struct {
 			Repository struct {
 				PullRequest *struct {
+					Body                    string `json:"body"`
 					ClosingIssuesReferences struct {
 						Nodes []struct {
 							Number int `json:"number"`
@@ -384,12 +388,27 @@ func (c *GHClient) GetClosingIssueNumber(ctx context.Context, prNumber int) (int
 	if len(response.Data.Repository.PullRequest.ClosingIssuesReferences.Nodes) > 0 {
 		issueNumber := response.Data.Repository.PullRequest.ClosingIssuesReferences.Nodes[0].Number
 		if c.logger != nil {
-			c.logger.Debug("Found closing issue for PR",
+			c.logger.Debug("Found closing issue for PR via closingIssuesReferences",
 				"pr_number", prNumber,
 				"issue_number", issueNumber,
 			)
 		}
 		return issueNumber, nil
+	}
+
+	// closingIssuesReferencesが空の場合、bodyから正規表現でissue番号を抽出
+	if body := response.Data.Repository.PullRequest.Body; body != "" {
+		issueNumber := extractIssueNumberFromBody(body)
+		if issueNumber > 0 {
+			if c.logger != nil {
+				c.logger.Debug("Found closing issue for PR via body parsing",
+					"pr_number", prNumber,
+					"issue_number", issueNumber,
+					"body_preview", truncateString(body, 100),
+				)
+			}
+			return issueNumber, nil
+		}
 	}
 
 	if c.logger != nil {
@@ -399,4 +418,29 @@ func (c *GHClient) GetClosingIssueNumber(ctx context.Context, prNumber int) (int
 	}
 
 	return 0, nil
+}
+
+// extractIssueNumberFromBody はPRのbodyから"fixes #123"や"closes #456"のような
+// パターンでIssue番号を抽出する
+func extractIssueNumberFromBody(body string) int {
+	// GitHub closing keywords: fix, fixes, fixed, close, closes, closed, resolve, resolves, resolved
+	pattern := `(?i)(?:fix|fixes|fixed|close|closes|closed|resolve|resolves|resolved)\s+#(\d+)`
+	re := regexp.MustCompile(pattern)
+
+	matches := re.FindStringSubmatch(body)
+	if len(matches) >= 2 {
+		if issueNumber, err := strconv.Atoi(matches[1]); err == nil {
+			return issueNumber
+		}
+	}
+
+	return 0
+}
+
+// truncateString は文字列を指定した長さで切り詰める
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
