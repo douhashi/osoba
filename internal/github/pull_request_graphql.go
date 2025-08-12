@@ -284,6 +284,7 @@ func (c *GHClient) ListPullRequestsByLabelsViaGraphQL(ctx context.Context, owner
 				IsDraft:      prNode.IsDraft,
 				HeadRefName:  prNode.HeadRefName,
 				ChecksStatus: checksStatus,
+				Labels:       prLabels, // ラベル情報を設定
 			}
 			prs = append(prs, pr)
 

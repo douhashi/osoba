@@ -10,13 +10,14 @@ import (
 
 // PullRequest はプルリクエストの情報を表す
 type PullRequest struct {
-	Number       int    `json:"number"`
-	Title        string `json:"title"`
-	State        string `json:"state"`
-	Mergeable    string `json:"mergeable"`
-	IsDraft      bool   `json:"isDraft"`
-	HeadRefName  string `json:"headRefName"`
-	ChecksStatus string `json:"-"`
+	Number       int      `json:"number"`
+	Title        string   `json:"title"`
+	State        string   `json:"state"`
+	Mergeable    string   `json:"mergeable"`
+	IsDraft      bool     `json:"isDraft"`
+	HeadRefName  string   `json:"headRefName"`
+	ChecksStatus string   `json:"-"`
+	Labels       []string `json:"-"` // PR監視で使用されるラベル情報
 }
 
 // pullRequestWithStatus はghコマンドのJSON出力用の構造体
