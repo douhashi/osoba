@@ -6,6 +6,8 @@ log:
 github:
   poll_interval: 10s
   auto_plan_issue: true
+  auto_merge_lgtm: true   # 排他制御により安全に動作
+  auto_revise_pr: true
 
 tmux:
   session_prefix: "osoba-"

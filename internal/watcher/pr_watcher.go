@@ -163,26 +163,69 @@ func (w *PRWatcher) Start(ctx context.Context, callback PRCallback) {
 // StartWithAutoMerge はPR監視を開始し、自動マージを実行する
 func (w *PRWatcher) StartWithAutoMerge(ctx context.Context) {
 	callback := func(pr *github.PullRequest) {
-		// 自動マージ処理を実行
-		if w.config != nil && w.config.GitHub.AutoMergeLGTM {
-			if err := executeAutoMergeForPRWithLogger(ctx, pr, w.config, w.client, w.cleanupManager, w.logger, w.autoMergeMetrics); err != nil {
-				w.logger.Error("Failed to execute auto-merge for PR",
+		// ラベルベースの排他制御: status:lgtm と status:requires-changes は相互排他
+		hasLGTM := hasPRLabel(pr, "status:lgtm")
+		hasRequiresChanges := hasPRLabel(pr, "status:requires-changes")
+
+		w.logger.Debug("PR label analysis",
+			"prNumber", pr.Number,
+			"hasLGTM", hasLGTM,
+			"hasRequiresChanges", hasRequiresChanges,
+			"allLabels", pr.Labels,
+		)
+
+		// status:lgtm が優先 - 自動マージを実行
+		if hasLGTM {
+			if w.config != nil && w.config.GitHub.AutoMergeLGTM {
+				w.logger.Info("Executing auto-merge for PR with status:lgtm",
 					"prNumber", pr.Number,
-					"error", err)
+				)
+				if err := executeAutoMergeForPRWithLogger(ctx, pr, w.config, w.client, w.cleanupManager, w.logger, w.autoMergeMetrics); err != nil {
+					w.logger.Error("Failed to execute auto-merge for PR",
+						"prNumber", pr.Number,
+						"error", err)
+				}
 			}
+			return // status:lgtmが存在する場合は他の処理をスキップ
 		}
 
-		// 自動Revise処理を実行
-		if w.config != nil && w.config.GitHub.AutoRevisePR && w.actionManager != nil {
-			if err := executeAutoReviseIfRequiresChangesWithLogger(ctx, pr, w.config, w.client, w.actionManager, w.sessionName, w.logger); err != nil {
-				w.logger.Error("Failed to execute auto-revise for PR",
+		// status:requires-changes - auto-revise処理を実行（status:lgtmが無い場合のみ）
+		if hasRequiresChanges {
+			if w.config != nil && w.config.GitHub.AutoRevisePR && w.actionManager != nil {
+				w.logger.Info("Executing auto-revise for PR with status:requires-changes",
 					"prNumber", pr.Number,
-					"error", err)
+				)
+				if err := executeAutoReviseIfRequiresChangesWithLogger(ctx, pr, w.config, w.client, w.actionManager, w.sessionName, w.logger); err != nil {
+					w.logger.Error("Failed to execute auto-revise for PR",
+						"prNumber", pr.Number,
+						"error", err)
+				}
 			}
+			return
 		}
+
+		// 該当するラベルがない場合はログ出力のみ
+		w.logger.Debug("PR has no actionable labels (status:lgtm or status:requires-changes)",
+			"prNumber", pr.Number,
+			"labels", pr.Labels,
+		)
 	}
 
 	w.Start(ctx, callback)
+}
+
+// hasPRLabel はPRが指定されたラベルを持っているかをチェック
+func hasPRLabel(pr *github.PullRequest, labelName string) bool {
+	if pr == nil || pr.Labels == nil {
+		return false
+	}
+
+	for _, label := range pr.Labels {
+		if label == labelName {
+			return true
+		}
+	}
+	return false
 }
 
 // checkPRs は現在のPRをチェックし、新しいPRがあればコールバックを呼ぶ

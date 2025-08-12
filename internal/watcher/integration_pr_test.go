@@ -163,6 +163,7 @@ func TestPRWatcherAutoMergeFlow(t *testing.T) {
 		IsDraft:      false,
 		HeadRefName:  "feature-123",
 		ChecksStatus: "SUCCESS",
+		Labels:       []string{"status:lgtm"}, // LGTMラベルを設定
 	}
 
 	// マージ不可能なPR（Draft）
@@ -174,6 +175,7 @@ func TestPRWatcherAutoMergeFlow(t *testing.T) {
 		IsDraft:      true, // Draft なのでマージしない
 		HeadRefName:  "draft-124",
 		ChecksStatus: "SUCCESS",
+		Labels:       []string{"status:lgtm"}, // LGTMラベルを設定
 	}
 
 	// モックの設定（mock.Anythingを使用）
@@ -226,6 +228,120 @@ func TestPRWatcherAutoMergeFlow(t *testing.T) {
 
 	// Draftのためマージされていないことを確認
 	mockClient.AssertNotCalled(t, "MergePullRequest", mock.Anything, 124)
+}
+
+// TestPRWatcherExclusiveLabelControl は排他制御ロジックをテストする
+func TestPRWatcherExclusiveLabelControl(t *testing.T) {
+	logger := NewMockLogger()
+	cfg := config.NewConfig()
+	cfg.GitHub.AutoMergeLGTM = true
+	cfg.GitHub.AutoRevisePR = true
+
+	t.Run("status:lgtm優先でauto-mergeのみ実行", func(t *testing.T) {
+		mockClient := &mocks.MockGitHubClient{}
+
+		// 両方のラベルを持つPR
+		prWithBothLabels := &github.PullRequest{
+			Number:       123,
+			Title:        "PR with both labels",
+			State:        "OPEN",
+			Mergeable:    "MERGEABLE",
+			IsDraft:      false,
+			HeadRefName:  "feature-123",
+			ChecksStatus: "SUCCESS",
+			Labels:       []string{"status:lgtm", "status:requires-changes"}, // 両方のラベル
+		}
+
+		// モックの設定
+		mockClient.On("ListPullRequestsByLabels", mock.Anything, "owner", "repo", []string{"status:lgtm", "status:requires-changes"}).
+			Return([]*github.PullRequest{prWithBothLabels}, nil)
+
+		// auto-merge関連のモック
+		mockClient.On("GetPullRequestStatus", mock.Anything, 123).
+			Return(prWithBothLabels, nil)
+		mockClient.On("MergePullRequest", mock.Anything, 123).
+			Return(nil)
+
+		// PRWatcherを作成（両方のラベルを監視）
+		prWatcher, err := NewPRWatcherWithConfig(
+			mockClient,
+			"owner",
+			"repo",
+			[]string{"status:lgtm", "status:requires-changes"},
+			20*time.Second,
+			logger,
+			cfg,
+			nil,
+		)
+		require.NoError(t, err)
+
+		prWatcher.SetPollIntervalForTest(10 * time.Millisecond)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		go prWatcher.StartWithAutoMerge(ctx)
+
+		time.Sleep(30 * time.Millisecond)
+
+		// auto-mergeが実行されたことを確認
+		mockClient.AssertCalled(t, "MergePullRequest", mock.Anything, 123)
+
+		// auto-revise関連の呼び出しは発生しないはず（排他制御）
+		// GetClosingIssueNumberは呼ばれないことを確認
+		mockClient.AssertNotCalled(t, "GetClosingIssueNumber", mock.Anything, 123)
+	})
+
+	t.Run("status:requires-changesのみでauto-merge非実行", func(t *testing.T) {
+		mockClient := &mocks.MockGitHubClient{}
+
+		// status:requires-changesのみのPR
+		prWithRequiresChanges := &github.PullRequest{
+			Number:       124,
+			Title:        "PR with requires-changes",
+			State:        "OPEN",
+			Mergeable:    "MERGEABLE",
+			IsDraft:      false,
+			HeadRefName:  "feature-124",
+			ChecksStatus: "SUCCESS",
+			Labels:       []string{"status:requires-changes"}, // requires-changesのみ
+		}
+
+		// モックの設定
+		mockClient.On("ListPullRequestsByLabels", mock.Anything, "owner", "repo", []string{"status:lgtm", "status:requires-changes"}).
+			Return([]*github.PullRequest{prWithRequiresChanges}, nil)
+
+		// auto-revise関連のモック（GetClosingIssueNumberは呼ばれる可能性がある）
+		mockClient.On("GetClosingIssueNumber", mock.Anything, 124).
+			Return(100, nil).Maybe()
+
+		// PRWatcherを作成（ActionManagerは設定しない）
+		prWatcher, err := NewPRWatcherWithConfig(
+			mockClient,
+			"owner",
+			"repo",
+			[]string{"status:lgtm", "status:requires-changes"},
+			20*time.Second,
+			logger,
+			cfg,
+			nil,
+		)
+		require.NoError(t, err)
+
+		prWatcher.SetPollIntervalForTest(10 * time.Millisecond)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		go prWatcher.StartWithAutoMerge(ctx)
+
+		time.Sleep(30 * time.Millisecond)
+
+		// auto-merge関連の呼び出しは発生しないはず（排他制御）
+		// status:requires-changesのみの場合、auto-mergeは実行されない
+		mockClient.AssertNotCalled(t, "MergePullRequest", mock.Anything, 124)
+		mockClient.AssertNotCalled(t, "GetPullRequestStatus", mock.Anything, 124)
+	})
 }
 
 // TestPRWatcherHealthMetrics はPRWatcherのヘルスメトリクス機能をテスト
