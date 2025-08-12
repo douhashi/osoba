@@ -257,11 +257,21 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 	// ActionManagerにActionFactoryを設定
 	issueWatcher.GetActionManager().SetActionFactory(actionFactory)
 
-	// PR監視を作成（status:lgtmラベル付きPRを監視）
-	prWatcher, err := watcher.NewPRWatcherWithConfig(githubClient, owner, repoName, []string{"status:lgtm"}, cfg.GitHub.PRPollInterval, appLogger, cfg, nil)
+	// PR監視を作成（status:lgtmとstatus:requires-changesラベル付きPRを監視）
+	prLabels := []string{"status:lgtm"}
+	if cfg.GitHub.AutoRevisePR {
+		prLabels = append(prLabels, "status:requires-changes")
+	}
+	prWatcher, err := watcher.NewPRWatcherWithConfig(githubClient, owner, repoName, prLabels, cfg.GitHub.PRPollInterval, appLogger, cfg, nil)
 	if err != nil {
 		return fmt.Errorf("PR監視の作成に失敗: %w", err)
 	}
+
+	// PR watcherにActionManagerとsessionNameを設定（Reviseアクション用）
+	prActionManager := watcher.NewActionManager(sessionName)
+	prActionManager.SetActionFactory(actionFactory)
+	prWatcher.SetActionManager(prActionManager)
+	prWatcher.SetSessionName(sessionName)
 
 	// シグナルハンドリング
 	ctx, cancel := context.WithCancel(context.Background())

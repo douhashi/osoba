@@ -29,6 +29,7 @@ type GitHubConfig struct {
 	Messages       PhaseMessageConfig `mapstructure:"messages"`
 	AutoMergeLGTM  bool               `mapstructure:"auto_merge_lgtm"` // status:lgtmラベルが付いたPRを自動マージする機能の有効/無効
 	AutoPlanIssue  bool               `mapstructure:"auto_plan_issue"` // 処理中のIssueがない場合に自動的に次のIssueをplanフェーズに移行させる機能の有効/無効
+	AutoRevisePR   bool               `mapstructure:"auto_revise_pr"`  // status:requires-changesラベルが付いたPRに対して自動的にreviseアクションを実行する機能の有効/無効
 }
 
 // LabelConfig は監視対象のラベル設定
@@ -81,6 +82,7 @@ func NewConfig() *Config {
 			Messages:      NewDefaultPhaseMessageConfig(),
 			AutoMergeLGTM: true,  // デフォルトで自動マージ機能を有効化
 			AutoPlanIssue: false, // デフォルトで自動計画機能を無効化
+			AutoRevisePR:  true,  // デフォルトで自動Revise機能を有効化
 		},
 		Tmux: TmuxConfig{
 			SessionPrefix: "osoba-",
@@ -122,6 +124,7 @@ func (c *Config) Load(configPath string) error {
 	v.SetDefault("github.messages.review", "osoba: レビューを開始します")
 	v.SetDefault("github.auto_merge_lgtm", true)
 	v.SetDefault("github.auto_plan_issue", false)
+	v.SetDefault("github.auto_revise_pr", true)
 	v.SetDefault("tmux.session_prefix", "osoba-")
 
 	// ログ設定のデフォルト値
