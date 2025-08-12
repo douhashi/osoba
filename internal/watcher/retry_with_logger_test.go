@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,10 +40,10 @@ func TestRetryWithBackoffLogger(t *testing.T) {
 			name:       "正常系: 2回目で成功",
 			maxRetries: 3,
 			operation: func() func() error {
-				attempt := 0
+				var attempt int32
 				return func() error {
-					attempt++
-					if attempt < 2 {
+					currentAttempt := atomic.AddInt32(&attempt, 1)
+					if currentAttempt < 2 {
 						return &github.RateLimitError{
 							Message: "API rate limit exceeded",
 							Rate: github.RateLimit{
@@ -217,10 +218,10 @@ func TestIsRetryableErrorLogger(t *testing.T) {
 // TestMigrationCompatibility tests that old function calls still work
 func TestMigrationCompatibility(t *testing.T) {
 	t.Run("RetryWithBackoff互換性", func(t *testing.T) {
-		attempts := 0
+		var attempts int32
 		operation := func() error {
-			attempts++
-			if attempts < 2 {
+			currentAttempt := atomic.AddInt32(&attempts, 1)
+			if currentAttempt < 2 {
 				return &github.RateLimitError{
 					Message: "API rate limit exceeded",
 					Rate: github.RateLimit{
@@ -237,8 +238,9 @@ func TestMigrationCompatibility(t *testing.T) {
 			t.Errorf("RetryWithBackoff() returned unexpected error: %v", err)
 		}
 
-		if attempts != 2 {
-			t.Errorf("Expected 2 attempts, got %d", attempts)
+		finalAttempts := atomic.LoadInt32(&attempts)
+		if finalAttempts != 2 {
+			t.Errorf("Expected 2 attempts, got %d", finalAttempts)
 		}
 	})
 
@@ -260,10 +262,10 @@ func TestLoggerIntegration(t *testing.T) {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
 
-	attempts := 0
+	var attempts int32
 	operation := func() error {
-		attempts++
-		if attempts < 3 {
+		currentAttempt := atomic.AddInt32(&attempts, 1)
+		if currentAttempt < 3 {
 			return &github.ErrorResponse{
 				Message: "Internal Server Error",
 			}
@@ -276,7 +278,8 @@ func TestLoggerIntegration(t *testing.T) {
 		t.Errorf("RetryWithBackoffLogger() returned unexpected error: %v", err)
 	}
 
-	if attempts != 3 {
-		t.Errorf("Expected 3 attempts, got %d", attempts)
+	finalAttempts := atomic.LoadInt32(&attempts)
+	if finalAttempts != 3 {
+		t.Errorf("Expected 3 attempts, got %d", finalAttempts)
 	}
 }
