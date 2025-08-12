@@ -24,3 +24,6 @@ claude:
     review:
       args: ["--dangerously-skip-permissions"]
       prompt: "/osoba:review {{issue-number}}"
+    revise:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:revise {{issue-number}}"

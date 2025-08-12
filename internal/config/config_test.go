@@ -274,13 +274,14 @@ func TestConfig_GetLabels(t *testing.T) {
 				Ready:           "status:ready",
 				Review:          "status:review-requested",
 				RequiresChanges: "status:requires-changes",
+				Revising:        "status:revising",
 			},
 		},
 	}
 
 	labels := cfg.GetLabels()
 
-	expected := []string{"status:needs-plan", "status:ready", "status:review-requested", "status:requires-changes"}
+	expected := []string{"status:needs-plan", "status:ready", "status:review-requested", "status:requires-changes", "status:revising"}
 	if len(labels) != len(expected) {
 		t.Fatalf("GetLabels() returned %d labels, want %d", len(labels), len(expected))
 	}
