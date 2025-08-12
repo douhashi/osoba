@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,10 +31,10 @@ func TestRetryWithBackoff(t *testing.T) {
 			name:       "正常系: 2回目で成功",
 			maxRetries: 3,
 			operation: func() func() error {
-				attempt := 0
+				var attempt int32
 				return func() error {
-					attempt++
-					if attempt < 2 {
+					currentAttempt := atomic.AddInt32(&attempt, 1)
+					if currentAttempt < 2 {
 						// リトライ可能なエラーを返す
 						return &github.RateLimitError{
 							Message: "API rate limit exceeded",

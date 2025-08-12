@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -253,9 +254,9 @@ func TestPRWatcherHealthMetrics(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	var callCount int
+	var callCount int32
 	callback := func(pr *github.PullRequest) {
-		callCount++
+		atomic.AddInt32(&callCount, 1)
 	}
 
 	// Start メソッドで実行
