@@ -142,19 +142,11 @@ func (c *GHClient) GetPullRequestForIssueViaGraphQL(ctx context.Context, issueNu
 
 // ListPullRequestsByLabelsViaGraphQL はGraphQL APIを使用してラベル付きPRを取得
 func (c *GHClient) ListPullRequestsByLabelsViaGraphQL(ctx context.Context, owner, repo string, labels []string) ([]*PullRequest, error) {
-	// ラベル条件を作成
-	labelFilter := ""
-	for i, label := range labels {
-		if i > 0 {
-			labelFilter += " "
-		}
-		labelFilter += fmt.Sprintf("label:\"%s\"", label)
-	}
-
+	// ラベルフィルタなしで全てのOPEN状態のPRを取得し、アプリケーション側でフィルタリング
 	query := fmt.Sprintf(`
 	{
 		repository(owner: "%s", name: "%s") {
-			pullRequests(first: 50, states: OPEN, labels: ["%s"]) {
+			pullRequests(first: 100, states: OPEN) {
 				nodes {
 					number
 					title
@@ -173,7 +165,7 @@ func (c *GHClient) ListPullRequestsByLabelsViaGraphQL(ctx context.Context, owner
 				}
 			}
 		}
-	}`, owner, repo, labels[0]) // 単一ラベルで検索（複数ラベルのAND条件は別途実装）
+	}`, owner, repo)
 
 	args := []string{
 		"api", "graphql",
@@ -261,24 +253,22 @@ func (c *GHClient) ListPullRequestsByLabelsViaGraphQL(ctx context.Context, owner
 			prLabels = append(prLabels, labelNode.Name)
 		}
 
-		// すべての要求ラベルがPRに含まれているかチェック
-		hasAllLabels := true
+		// いずれかの要求ラベルがPRに含まれているかチェック (OR条件)
+		hasAnyLabel := false
 		for _, reqLabel := range labels {
-			found := false
 			for _, prLabel := range prLabels {
 				if prLabel == reqLabel {
-					found = true
+					hasAnyLabel = true
 					break
 				}
 			}
-			if !found {
-				hasAllLabels = false
+			if hasAnyLabel {
 				break
 			}
 		}
 
-		// すべてのラベルが含まれている場合のみ追加
-		if hasAllLabels {
+		// いずれかのラベルが含まれている場合のみ追加
+		if hasAnyLabel {
 			checksStatus := ""
 			if prNode.StatusCheckRollup != nil {
 				checksStatus = prNode.StatusCheckRollup.State
