@@ -12,6 +12,7 @@ type ActionsLabelManager interface {
 	TransitionLabel(ctx context.Context, issueNumber int, from, to string) error
 	AddLabel(ctx context.Context, issueNumber int, label string) error
 	RemoveLabel(ctx context.Context, issueNumber int, label string) error
+	GetPullRequestForIssue(ctx context.Context, issueNumber int) (*github.PullRequest, error)
 }
 
 // DefaultLabelManager はデフォルトのラベル管理実装
@@ -56,4 +57,13 @@ func (m *DefaultLabelManager) RemoveLabel(ctx context.Context, issueNumber int, 
 	}
 
 	return m.GitHubClient.RemoveLabel(ctx, m.Owner, m.Repo, issueNumber, label)
+}
+
+// GetPullRequestForIssue はIssueに関連するPRを取得する
+func (m *DefaultLabelManager) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*github.PullRequest, error) {
+	if m.GitHubClient == nil {
+		return nil, fmt.Errorf("GitHub client is not initialized")
+	}
+
+	return m.GitHubClient.GetPullRequestForIssue(ctx, issueNumber)
 }

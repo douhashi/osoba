@@ -3,6 +3,7 @@ package mocks
 import (
 	"context"
 
+	"github.com/douhashi/osoba/internal/github"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -32,6 +33,15 @@ func (m *MockLabelManager) AddLabel(ctx context.Context, issueNumber int, label 
 func (m *MockLabelManager) RemoveLabel(ctx context.Context, issueNumber int, label string) error {
 	args := m.Called(ctx, issueNumber, label)
 	return args.Error(0)
+}
+
+// GetPullRequestForIssue はIssueに関連するPRを取得する
+func (m *MockLabelManager) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*github.PullRequest, error) {
+	args := m.Called(ctx, issueNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.PullRequest), args.Error(1)
 }
 
 // WithSuccessfulTransition は成功するTransitionLabelの期待値を設定
