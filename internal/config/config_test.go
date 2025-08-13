@@ -11,6 +11,15 @@ import (
 
 func TestNewConfig(t *testing.T) {
 	t.Run("正常系: デフォルト設定でConfigを作成できる", func(t *testing.T) {
+		// 環境変数を一時的にクリア
+		origTestMode := os.Getenv("OSOBA_TEST_MODE")
+		os.Unsetenv("OSOBA_TEST_MODE")
+		defer func() {
+			if origTestMode != "" {
+				os.Setenv("OSOBA_TEST_MODE", origTestMode)
+			}
+		}()
+
 		cfg := NewConfig()
 		if cfg == nil {
 			t.Fatal("NewConfig() returned nil")
@@ -564,6 +573,15 @@ github:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// 環境変数を一時的にクリア（テストモードが影響しないように）
+			origTestMode := os.Getenv("OSOBA_TEST_MODE")
+			os.Unsetenv("OSOBA_TEST_MODE")
+			defer func() {
+				if origTestMode != "" {
+					os.Setenv("OSOBA_TEST_MODE", origTestMode)
+				}
+			}()
+
 			// テスト用設定ファイルを作成
 			filename := "test_config_reflection_" + tt.name + ".yml"
 			err := os.WriteFile(filename, []byte(tt.configContent), 0644)
