@@ -35,11 +35,6 @@ if [ -f "go.mod" ]; then
     go mod tidy
 fi
 
-# Install pre-commit hooks if they exist
-if [ -d ".githooks" ]; then
-    echo "🔗 Setting up git hooks..."
-    git config core.hooksPath .githooks
-fi
 
 # Build osoba to verify the environment
 echo "🔨 Building osoba..."
