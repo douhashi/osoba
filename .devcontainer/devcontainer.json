@@ -129,7 +129,10 @@
     "GO111MODULE": "on",
     "GOPATH": "/go",
     "CGO_ENABLED": "1",
-    "GOMODCACHE": "/home/vscode/go/pkg/mod"
+    "GOMODCACHE": "/home/vscode/go/pkg/mod",
+    "TZ": "Asia/Tokyo",
+    "LANG": "en_US.UTF-8",
+    "LC_ALL": "en_US.UTF-8"
   },
   "remoteEnv": {
     "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",

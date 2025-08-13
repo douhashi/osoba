@@ -1,7 +1,7 @@
 # Go 1.24 development container for osoba
 FROM mcr.microsoft.com/devcontainers/go:1.23-bookworm
 
-# Install system dependencies
+# Install system dependencies and locale packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         tmux \
@@ -16,9 +16,16 @@ RUN apt-get update && \
         gnupg \
         lsb-release \
         ca-certificates \
-        software-properties-common && \
+        software-properties-common \
+        locales && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Set locale to UTF-8 for Japanese support
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    sed -i '/ja_JP.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen && \
+    update-locale LANG=en_US.UTF-8
 
 # Install GitHub CLI
 RUN type -p curl >/dev/null || (apt-get update && apt-get install curl -y) && \
