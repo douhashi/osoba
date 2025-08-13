@@ -4,11 +4,13 @@
 package tmux
 
 import (
+	"context"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/douhashi/osoba/internal/testutil/testenv"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,31 +21,37 @@ func TestTmuxManagerRealIntegration(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// tmuxコマンドが利用可能かチェック
-	if err := exec.Command("tmux", "list-sessions").Run(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			// tmuxサーバーが起動していない場合は正常（セッションがない）
-		} else {
-			t.Skip("tmux command not available, skipping tmux integration test")
+	// テスト環境の設定
+	testenv.WithTestEnvironment(t, testenv.DefaultConfig(), func(envManager testenv.TestEnvironmentManager) {
+		// tmuxコマンドが利用可能かチェック
+		if err := exec.Command("tmux", "list-sessions").Run(); err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+				// tmuxサーバーが起動していない場合は正常（セッションがない）
+			} else {
+				t.Skip("tmux command not available, skipping tmux integration test")
+			}
 		}
-	}
 
-	// 安全性チェック：本番セッションの存在確認
-	if err := SafetyCheckBeforeTests(); err != nil {
-		t.Logf("Safety check warning: %v", err)
-	}
-
-	// テスト用のセッション名（test-osoba-プレフィックスを使用）
-	testSessionName := "test-osoba-session-" + time.Now().Format("20060102-150405")
-
-	// クリーンアップ関数
-	cleanup := func() {
-		// テストセッションが存在する場合は削除
-		if err := exec.Command("tmux", "kill-session", "-t", testSessionName).Run(); err != nil {
-			// セッションが存在しない場合はエラーを無視
+		// 安全性チェック：本番セッションの存在確認
+		if err := SafetyCheckBeforeTests(); err != nil {
+			t.Logf("Safety check warning: %v", err)
 		}
-	}
-	defer cleanup()
+
+		// テスト環境検証
+		validator := NewIsolationValidator(NewDefaultManager())
+		if err := validator.ValidateIsolation(); err != nil {
+			t.Logf("Isolation validation warning: %v", err)
+		}
+
+		// テスト用のセッション名（test-osoba-プレフィックスを使用）
+		testSessionName := "test-osoba-session-" + time.Now().Format("20060102-150405")
+
+		// クリーンアップをテスト環境マネージャーに登録
+		envManager.RegisterCleanup(func() error {
+			// テストセッションが存在する場合は削除
+			_ = exec.Command("tmux", "kill-session", "-t", testSessionName).Run()
+			return nil
+		})
 
 	t.Run("tmuxマネージャーとの実際の連携", func(t *testing.T) {
 		// 実際のコマンド実行を使用するマネージャーを作成
@@ -239,6 +247,7 @@ func TestTmuxManagerConcurrentAccess(t *testing.T) {
 			assert.True(t, found, "Session %s should exist", sessionName)
 		}
 	})
+	}) // Close testenv.WithTestEnvironment
 }
 
 // TestTmuxManagerPerformance はパフォーマンスの統合テスト
@@ -247,8 +256,10 @@ func TestTmuxManagerPerformance(t *testing.T) {
 		t.Skip("Skipping performance test in short mode")
 	}
 
-	// tmuxコマンドが利用可能かチェック
-	if err := exec.Command("tmux", "list-sessions").Run(); err != nil {
+	// テスト環境の設定
+	testenv.WithTestEnvironment(t, testenv.DefaultConfig(), func(envManager testenv.TestEnvironmentManager) {
+		// tmuxコマンドが利用可能かチェック
+		if err := exec.Command("tmux", "list-sessions").Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 			// tmuxサーバーが起動していない場合は正常（セッションがない）
 		} else {
@@ -291,4 +302,5 @@ func TestTmuxManagerPerformance(t *testing.T) {
 
 		t.Logf("Session listing time: %v (found %d sessions)", duration, len(sessions))
 	})
+	}) // Close testenv.WithTestEnvironment
 }
