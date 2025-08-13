@@ -88,7 +88,7 @@ func (m *Manager) Setup(ctx context.Context) error {
 	if err := os.Setenv("OSOBA_TEST_MODE", "true"); err != nil {
 		return fmt.Errorf("failed to set OSOBA_TEST_MODE: %w", err)
 	}
-	m.RegisterCleanup(func() error {
+	m.registerCleanupLocked(func() error {
 		return os.Unsetenv("OSOBA_TEST_MODE")
 	})
 	
@@ -97,7 +97,7 @@ func (m *Manager) Setup(ctx context.Context) error {
 		if err := os.Setenv("OSOBA_TEST_SOCKET", m.config.TestSocketPath); err != nil {
 			return fmt.Errorf("failed to set OSOBA_TEST_SOCKET: %w", err)
 		}
-		m.RegisterCleanup(func() error {
+		m.registerCleanupLocked(func() error {
 			return os.Unsetenv("OSOBA_TEST_SOCKET")
 		})
 	}
@@ -106,7 +106,7 @@ func (m *Manager) Setup(ctx context.Context) error {
 	if err := os.Setenv("OSOBA_TEST_SESSION_PREFIX", m.config.SessionPrefix); err != nil {
 		return fmt.Errorf("failed to set OSOBA_TEST_SESSION_PREFIX: %w", err)
 	}
-	m.RegisterCleanup(func() error {
+	m.registerCleanupLocked(func() error {
 		return os.Unsetenv("OSOBA_TEST_SESSION_PREFIX")
 	})
 	
@@ -165,6 +165,11 @@ func (m *Manager) GetTestSocket() string {
 func (m *Manager) RegisterCleanup(cleanup func() error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.registerCleanupLocked(cleanup)
+}
+
+// registerCleanupLocked registers a cleanup function without locking (must be called with lock held).
+func (m *Manager) registerCleanupLocked(cleanup func() error) {
 	m.cleanups = append(m.cleanups, cleanup)
 }
 
