@@ -115,7 +115,8 @@
   "containerEnv": {
     "GO111MODULE": "on",
     "GOPATH": "/go",
-    "CGO_ENABLED": "1"
+    "CGO_ENABLED": "1",
+    "GOMODCACHE": "/home/vscode/go/pkg/mod"
   },
   "remoteEnv": {
     "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
