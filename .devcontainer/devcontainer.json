@@ -109,7 +109,7 @@
   },
   "forwardPorts": [],
   "postCreateCommand": "/bin/bash .devcontainer/postCreateCommand.sh",
-  "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}",
+  "postStartCommand": "git config --add safe.directory ${containerWorkspaceFolder} 2>/dev/null || true",
   "postAttachCommand": "echo 'Welcome to osoba Development Container! Run \"make help\" to see available commands.'",
   "remoteUser": "vscode",
   "containerEnv": {

@@ -27,8 +27,8 @@ fi
 
 # Setup git configuration for better DevContainer experience
 echo "⚙️ Configuring git..."
-git config --global init.defaultBranch main
-git config --global pull.rebase false
+# Note: .gitconfig is mounted as read-only, so we skip global config
+# Users can configure these settings locally if needed
 
 # Create useful aliases
 echo "📝 Setting up shell aliases..."
