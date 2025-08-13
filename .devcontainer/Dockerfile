@@ -31,17 +31,16 @@ RUN type -p curl >/dev/null || (apt-get update && apt-get install curl -y) && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Go development tools
-ARG GO_TOOLS_VERSION="latest"
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@${GO_TOOLS_VERSION} && \
-    go install github.com/goreleaser/goreleaser/v2@${GO_TOOLS_VERSION} && \
-    go install github.com/golang/mock/mockgen@${GO_TOOLS_VERSION} && \
-    go install golang.org/x/tools/cmd/goimports@${GO_TOOLS_VERSION} && \
-    go install github.com/go-delve/delve/cmd/dlv@${GO_TOOLS_VERSION} && \
-    go install golang.org/x/tools/gopls@${GO_TOOLS_VERSION} && \
-    go install github.com/fatih/gomodifytags@${GO_TOOLS_VERSION} && \
-    go install github.com/josharian/impl@${GO_TOOLS_VERSION} && \
-    go install github.com/haya14busa/goplay/cmd/goplay@${GO_TOOLS_VERSION} && \
-    go install github.com/cweill/gotests/gotests@${GO_TOOLS_VERSION}
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2 && \
+    go install github.com/goreleaser/goreleaser@v1.26.2 && \
+    go install github.com/golang/mock/mockgen@v1.6.0 && \
+    go install golang.org/x/tools/cmd/goimports@latest && \
+    go install github.com/go-delve/delve/cmd/dlv@v1.21.0 && \
+    go install golang.org/x/tools/gopls@v0.13.2 && \
+    go install github.com/fatih/gomodifytags@v1.16.0 && \
+    go install github.com/josharian/impl@v1.1.0 && \
+    go install github.com/haya14busa/goplay/cmd/goplay@v1.0.0 && \
+    go install github.com/cweill/gotests/gotests@v1.6.0
 
 # Clean go cache to reduce image size
 RUN go clean -cache -modcache

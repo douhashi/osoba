@@ -3,8 +3,30 @@ set -e
 
 echo "🚀 Setting up osoba development environment..."
 
+# ベースディレクトリを取得（絶対パスに変換）
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Go to workspace directory
 cd "${containerWorkspaceFolder:-/workspace}"
+
+# Execute setup scripts from setup directory
+SETUP_DIR="${BASE_DIR}/setup"
+if [ -d "${SETUP_DIR}" ]; then
+    echo "📂 Running setup scripts from ${SETUP_DIR}..."
+    for script in "${SETUP_DIR}"/[0-9][0-9]*.sh; do
+        if [ -f "${script}" ]; then
+            script_name=$(basename "${script}")
+            echo "  🔧 Running ${script_name}..."
+            chmod +x "${script}"
+            if "${script}"; then
+                echo "  ✅ ${script_name} completed successfully"
+            else
+                echo "  ❌ Error occurred while running ${script_name}"
+                exit 1
+            fi
+        fi
+    done
+fi
 
 # Download Go dependencies
 echo "📦 Downloading Go dependencies..."
@@ -27,8 +49,8 @@ fi
 
 # Setup git configuration for better DevContainer experience
 echo "⚙️ Configuring git..."
-git config --global init.defaultBranch main
-git config --global pull.rebase false
+# Note: .gitconfig is mounted as read-only, so we skip global config
+# Users can configure these settings locally if needed
 
 # Create useful aliases
 echo "📝 Setting up shell aliases..."
@@ -68,6 +90,9 @@ alias tls='tmux ls'
 alias ta='tmux attach -t'
 alias tn='tmux new -s'
 alias tk='tmux kill-session -t'
+
+# Claude CLI alias
+alias claude='claude --dangerously-skip-permissions'
 
 EOF
 
@@ -114,5 +139,6 @@ echo "  ob       - Run osoba"
 echo "  obt      - Run tests"
 echo "  obb      - Build osoba"
 echo "  got      - Run go tests"
+echo "  claude   - Claude CLI (with skip permissions)"
 echo ""
 echo "Happy coding! 🎉"

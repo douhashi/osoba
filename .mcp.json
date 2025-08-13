@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "env": {}
+    },
+    "markdownify-mcp": {
+      "command": "node",
+      "args": [
+        "/home/vscode/Documents/Cline/MCP/markdownify-mcp/dist/index.js"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "webpage-to-markdown",
+        "pdf-to-markdown"
+      ],
+      "env": {
+        "UV_PATH": "/home/vscode/.local/bin/uv"
+      }
+    }
+  }
+}

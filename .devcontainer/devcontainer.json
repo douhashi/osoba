@@ -14,27 +14,40 @@
     "seccomp=unconfined"
   ],
   "mounts": [
-    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached",
-    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
+    {
+      "source": "${localEnv:HOME}/.claude",
+      "target": "/home/vscode/.claude",
+      "type": "bind",
+      "consistency": "cached"
+    },
+    {
+      "source": "${localEnv:HOME}/.claude.json",
+      "target": "/home/vscode/.claude.json",
+      "type": "bind",
+      "consistency": "cached"
+    },
+    {
+      "source": "${localEnv:HOME}/.config/gh",
+      "target": "/home/vscode/.config/gh",
+      "type": "bind",
+      "consistency": "cached"
+    },
+    {
+      "source": "${localEnv:HOME}/.ssh",
+      "target": "/home/vscode/.ssh",
+      "type": "bind",
+      "consistency": "cached"
+    },
+    {
+      "source": "${localEnv:HOME}/.gitconfig",
+      "target": "/home/vscode/.gitconfig",
+      "type": "bind",
+      "consistency": "cached"
+    }
   ],
   "customizations": {
     "vscode": {
-      "extensions": [
-        "golang.go",
-        "GitHub.vscode-pull-request-github",
-        "GitHub.copilot",
-        "GitHub.copilot-chat",
-        "eamodio.gitlens",
-        "ms-azuretools.vscode-docker",
-        "davidanson.vscode-markdownlint",
-        "redhat.vscode-yaml",
-        "ms-vscode.makefile-tools",
-        "streetsidesoftware.code-spell-checker",
-        "wayou.vscode-todo-highlight",
-        "gruntfuggly.todo-tree",
-        "yzhang.markdown-all-in-one",
-        "bierner.markdown-mermaid"
-      ],
+      "extensions": [],
       "settings": {
         "go.toolsManagement.checkForUpdates": "local",
         "go.useLanguageServer": true,
@@ -109,13 +122,14 @@
   },
   "forwardPorts": [],
   "postCreateCommand": "/bin/bash .devcontainer/postCreateCommand.sh",
-  "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}",
+  "postStartCommand": "git config --add safe.directory ${containerWorkspaceFolder} 2>/dev/null || true",
   "postAttachCommand": "echo 'Welcome to osoba Development Container! Run \"make help\" to see available commands.'",
   "remoteUser": "vscode",
   "containerEnv": {
     "GO111MODULE": "on",
     "GOPATH": "/go",
-    "CGO_ENABLED": "1"
+    "CGO_ENABLED": "1",
+    "GOMODCACHE": "/home/vscode/go/pkg/mod"
   },
   "remoteEnv": {
     "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
@@ -140,6 +154,10 @@
     "ghcr.io/devcontainers/features/git-lfs:1": {
       "version": "latest",
       "autoPull": true
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts",
+      "nodeGypDependencies": true
     }
   }
 }
