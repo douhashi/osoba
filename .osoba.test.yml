@@ -1,0 +1,48 @@
+# テスト環境用のosoba設定ファイル
+# このファイルはテスト実行時に使用され、本番環境との分離を確保します
+
+# GitHub関連の設定
+github:
+  # Issue/PRの監視間隔（テスト時は短めに設定）
+  poll_interval: 5s
+  pr_poll_interval: 5s
+  
+  # ラベル設定（本番と同じ）
+  labels:
+    plan: "status:needs-plan"
+    ready: "status:ready"
+    review: "status:review-requested"
+    requires_changes: "status:requires-changes"
+    revising: "status:revising"
+  
+  # 自動機能の設定（テスト時は無効化）
+  auto_merge_lgtm: false
+  auto_plan_issue: false
+  auto_revise_pr: false
+
+# tmux関連の設定
+tmux:
+  # テスト用のセッションプレフィックス
+  # 本番の "osoba-" と区別するため "test-osoba-" を使用
+  session_prefix: "test-osoba-"
+
+# ログ設定
+log:
+  level: "debug"  # テスト時は詳細なログを出力
+  format: "text"
+
+# Claude関連の設定
+claude:
+  phases:
+    plan:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:plan {{issue-number}}"
+    implement:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:implement {{issue-number}}"
+    review:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:review {{issue-number}}"
+    revise:
+      args: ["--dangerously-skip-permissions"]
+      prompt: "/osoba:revise {{issue-number}}"

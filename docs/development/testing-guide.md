@@ -9,7 +9,8 @@
 3. [モックの使い方](#モックの使い方)
 4. [テストデータビルダーの使い方](#テストデータビルダーの使い方)
 5. [ベストプラクティス](#ベストプラクティス)
-6. [よくある質問](#よくある質問)
+6. [テスト実行時の安全性確保](#テスト実行時の安全性確保)
+7. [よくある質問](#よくある質問)
 
 ## 概要
 
@@ -297,6 +298,89 @@ A: 以下の基準で判断してください：
 - 複数パッケージで共有：`internal/testutil/helpers`
 - モックやビルダー：それぞれ`internal/testutil/mocks`、`internal/testutil/builders`
 
+## テスト実行時の安全性確保
+
+### 本番セッションの保護
+
+osoba開発ではosobaを使った開発（dogfooding）を行っているため、テスト実行時に本番のtmuxセッションを誤って削除しないよう、以下の仕組みを実装しています：
+
+#### 1. セッション命名規則の分離
+
+- **本番セッション**: `osoba-`プレフィックスを使用（例：`osoba-repo-name`）
+- **テストセッション**: `test-osoba-`プレフィックスを使用（例：`test-osoba-session-20240101-120000`）
+
+#### 2. 環境変数によるテストモード制御
+
+```bash
+# テストモードを有効にする
+export OSOBA_TEST_MODE=true
+
+# CI環境を明示する（GitHub Actions等で自動設定）
+export CI=true
+```
+
+#### 3. テスト用設定ファイル
+
+`.osoba.test.yml`ファイルにテスト専用の設定を定義：
+
+```yaml
+tmux:
+  session_prefix: "test-osoba-"
+```
+
+#### 4. 統合テストでの安全性チェック
+
+統合テスト実行前に自動的に以下のチェックが実行されます：
+
+```go
+// internal/tmux/safety_check.go
+func SafetyCheckBeforeTests() error {
+    // 本番セッションの存在確認
+    prodSessions, err := CheckProductionSessions()
+    if len(prodSessions) > 0 {
+        // 警告を表示
+        fmt.Fprintf(os.Stderr, "⚠️  WARNING: Found production sessions\n")
+        // CI環境では続行、ローカルでは注意喚起
+    }
+    return nil
+}
+```
+
+### テスト実行のベストプラクティス
+
+1. **統合テスト実行前**：
+   ```bash
+   # テストモードを設定
+   export OSOBA_TEST_MODE=true
+   
+   # 統合テストを実行
+   make integration-test
+   ```
+
+2. **本番セッションの確認**：
+   ```bash
+   # 現在のtmuxセッション一覧を確認
+   tmux list-sessions
+   ```
+
+3. **テストセッションのクリーンアップ**：
+   ```bash
+   # test-osoba-プレフィックスのセッションのみ削除
+   tmux list-sessions -F "#{session_name}" | grep "^test-osoba-" | xargs -I {} tmux kill-session -t {}
+   ```
+
+### CI/CD環境での設定
+
+GitHub Actionsなどのでは、以下の環境変数が自動設定されます：
+
+```yaml
+env:
+  OSOBA_TEST_MODE: true
+  CI: true
+```
+
+これにより、CI環境でのテスト実行が安全に行われます。
+
 ## まとめ
 
-`internal/testutil`パッケージを活用することで、テストの記述が簡潔になり、保守性が向上します。新しいテストを作成する際は、まずこのパッケージの既存の機能を確認し、必要に応じて拡張してください。
+`internal/testutil`パッケージを活用することで、テストの記述が簡潔になり、保守性が向上します。新しいテストを作成する際は、まずこのパッケージの既存の機能を確認し、必要に応じて拡張してください。また、テスト実行時は本番環境への影響を防ぐため、適切な環境変数の設定とセッション命名規則の遵守を心がけてください。
