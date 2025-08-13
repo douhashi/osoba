@@ -140,6 +140,10 @@
     "ghcr.io/devcontainers/features/git-lfs:1": {
       "version": "latest",
       "autoPull": true
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts",
+      "nodeGypDependencies": true
     }
   }
 }

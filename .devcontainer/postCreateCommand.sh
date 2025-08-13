@@ -3,8 +3,30 @@ set -e
 
 echo "🚀 Setting up osoba development environment..."
 
+# ベースディレクトリを取得（絶対パスに変換）
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Go to workspace directory
 cd "${containerWorkspaceFolder:-/workspace}"
+
+# Execute setup scripts from setup directory
+SETUP_DIR="${BASE_DIR}/setup"
+if [ -d "${SETUP_DIR}" ]; then
+    echo "📂 Running setup scripts from ${SETUP_DIR}..."
+    for script in "${SETUP_DIR}"/[0-9][0-9]*.sh; do
+        if [ -f "${script}" ]; then
+            script_name=$(basename "${script}")
+            echo "  🔧 Running ${script_name}..."
+            chmod +x "${script}"
+            if "${script}"; then
+                echo "  ✅ ${script_name} completed successfully"
+            else
+                echo "  ❌ Error occurred while running ${script_name}"
+                exit 1
+            fi
+        fi
+    done
+fi
 
 # Download Go dependencies
 echo "📦 Downloading Go dependencies..."
