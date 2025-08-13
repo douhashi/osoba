@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	
+	"github.com/douhashi/osoba/internal/tmux"
 )
 
 // MockTmuxManager is a mock implementation of tmux.Manager for testing.
@@ -348,9 +350,9 @@ func (m *MockTmuxManager) CreateWindowForIssueWithNewWindowDetection(sessionName
 }
 
 // CreatePane creates a new pane.
-func (m *MockTmuxManager) CreatePane(sessionName, windowName string) (int, error) {
+func (m *MockTmuxManager) CreatePane(sessionName, windowName string, opts tmux.PaneOptions) (*tmux.PaneInfo, error) {
 	if err := m.getError("CreatePane"); err != nil {
-		return 0, err
+		return nil, err
 	}
 	
 	m.mu.Lock()
@@ -358,17 +360,24 @@ func (m *MockTmuxManager) CreatePane(sessionName, windowName string) (int, error
 	
 	session, exists := m.sessions[sessionName]
 	if !exists {
-		return 0, fmt.Errorf("session %s does not exist", sessionName)
+		return nil, fmt.Errorf("session %s does not exist", sessionName)
 	}
 	
 	window, exists := session.Windows[windowName]
 	if !exists {
-		return 0, fmt.Errorf("window %s does not exist", windowName)
+		return nil, fmt.Errorf("window %s does not exist", windowName)
 	}
 	
 	newIndex := m.paneBaseIndex + len(window.Panes)
 	window.Panes = append(window.Panes, MockPane{Index: newIndex})
-	return newIndex, nil
+	
+	return &tmux.PaneInfo{
+		Index:  newIndex,
+		Title:  opts.Title,
+		Active: true,
+		Width:  80,  // default mock width
+		Height: 24,  // default mock height
+	}, nil
 }
 
 // SplitPane splits a pane.
@@ -377,7 +386,20 @@ func (m *MockTmuxManager) SplitPane(sessionName, windowName string, paneIndex in
 		return 0, err
 	}
 	
-	return m.CreatePane(sessionName, windowName)
+	opts := tmux.PaneOptions{
+		Split:      "-v",
+		Percentage: percentage,
+		Title:      "",
+	}
+	if !vertical {
+		opts.Split = "-h"
+	}
+	
+	info, err := m.CreatePane(sessionName, windowName, opts)
+	if err != nil {
+		return 0, err
+	}
+	return info.Index, nil
 }
 
 // SendKeysToPane sends keys to a specific pane.
@@ -438,6 +460,124 @@ func (m *MockTmuxManager) GetSessions() map[string]*MockSession {
 		sessions[k] = v
 	}
 	return sessions
+}
+
+// SelectPane selects a specific pane.
+func (m *MockTmuxManager) SelectPane(sessionName, windowName string, paneIndex int) error {
+	if err := m.getError("SelectPane"); err != nil {
+		return err
+	}
+	
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	session, exists := m.sessions[sessionName]
+	if !exists {
+		return fmt.Errorf("session %s does not exist", sessionName)
+	}
+	
+	window, exists := session.Windows[windowName]
+	if !exists {
+		return fmt.Errorf("window %s does not exist", windowName)
+	}
+	
+	for _, pane := range window.Panes {
+		if pane.Index == paneIndex {
+			return nil
+		}
+	}
+	
+	return fmt.Errorf("pane %d does not exist", paneIndex)
+}
+
+// SetPaneTitle sets the title of a pane.
+func (m *MockTmuxManager) SetPaneTitle(sessionName, windowName string, paneIndex int, title string) error {
+	if err := m.getError("SetPaneTitle"); err != nil {
+		return err
+	}
+	
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	session, exists := m.sessions[sessionName]
+	if !exists {
+		return fmt.Errorf("session %s does not exist", sessionName)
+	}
+	
+	window, exists := session.Windows[windowName]
+	if !exists {
+		return fmt.Errorf("window %s does not exist", windowName)
+	}
+	
+	for i := range window.Panes {
+		if window.Panes[i].Index == paneIndex {
+			// Note: MockPane doesn't have a Title field, but we can simulate success
+			return nil
+		}
+	}
+	
+	return fmt.Errorf("pane %d does not exist", paneIndex)
+}
+
+// ListPanes lists all panes in a window.
+func (m *MockTmuxManager) ListPanes(sessionName, windowName string) ([]*tmux.PaneInfo, error) {
+	if err := m.getError("ListPanes"); err != nil {
+		return nil, err
+	}
+	
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	session, exists := m.sessions[sessionName]
+	if !exists {
+		return nil, fmt.Errorf("session %s does not exist", sessionName)
+	}
+	
+	window, exists := session.Windows[windowName]
+	if !exists {
+		return nil, fmt.Errorf("window %s does not exist", windowName)
+	}
+	
+	var panes []*tmux.PaneInfo
+	for _, pane := range window.Panes {
+		panes = append(panes, &tmux.PaneInfo{
+			Index:  pane.Index,
+			Title:  "", // MockPane doesn't have a Title field
+			Active: pane.Index == 0, // First pane is active
+			Width:  80,
+			Height: 24,
+		})
+	}
+	
+	return panes, nil
+}
+
+// GetPaneByTitle finds a pane by its title.
+func (m *MockTmuxManager) GetPaneByTitle(sessionName, windowName string, title string) (*tmux.PaneInfo, error) {
+	if err := m.getError("GetPaneByTitle"); err != nil {
+		return nil, err
+	}
+	
+	// For mock purposes, we'll return a default pane info based on title
+	// Since MockPane doesn't have a Title field, we'll simulate based on common titles
+	knownTitles := map[string]int{
+		"Plan":           0,
+		"Implementation": 1,
+		"Review":         2,
+		"Test":           3,
+	}
+	
+	if index, exists := knownTitles[title]; exists {
+		return &tmux.PaneInfo{
+			Index:  index,
+			Title:  title,
+			Active: index == 0,
+			Width:  80,
+			Height: 24,
+		}, nil
+	}
+	
+	return nil, fmt.Errorf("pane with title %s not found", title)
 }
 
 // Reset clears all mock data.

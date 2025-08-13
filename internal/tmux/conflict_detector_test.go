@@ -83,6 +83,9 @@ func (m *MockConflictManager) ListPanes(sessionName, windowName string) ([]*Pane
 func (m *MockConflictManager) SelectPane(sessionName, windowName string, paneIndex int) error {
 	return nil
 }
+func (m *MockConflictManager) SetPaneTitle(sessionName, windowName string, paneIndex int, title string) error {
+	return nil
+}
 
 func TestConflictDetector_CheckSessionConflict(t *testing.T) {
 	tests := []struct {
