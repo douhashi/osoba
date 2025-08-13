@@ -347,6 +347,7 @@ tmux:
 			// 環境変数をクリア
 			originalGitHubToken := os.Getenv("GITHUB_TOKEN")
 			originalOsobaGitHubToken := os.Getenv("OSOBA_GITHUB_TOKEN")
+			originalTestMode := os.Getenv("OSOBA_TEST_MODE")
 			defer func() {
 				if originalGitHubToken != "" {
 					os.Setenv("GITHUB_TOKEN", originalGitHubToken)
@@ -358,9 +359,15 @@ tmux:
 				} else {
 					os.Unsetenv("OSOBA_GITHUB_TOKEN")
 				}
+				if originalTestMode != "" {
+					os.Setenv("OSOBA_TEST_MODE", originalTestMode)
+				} else {
+					os.Unsetenv("OSOBA_TEST_MODE")
+				}
 			}()
 			os.Unsetenv("GITHUB_TOKEN")
 			os.Unsetenv("OSOBA_GITHUB_TOKEN")
+			os.Unsetenv("OSOBA_TEST_MODE") // テスト設定ファイルの検証のため一時的にクリア
 
 			// viperをリセット
 			viper.Reset()

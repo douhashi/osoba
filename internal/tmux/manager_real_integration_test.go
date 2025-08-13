@@ -28,8 +28,13 @@ func TestTmuxManagerRealIntegration(t *testing.T) {
 		}
 	}
 
-	// テスト用のセッション名
-	testSessionName := "osoba-test-session-" + time.Now().Format("20060102-150405")
+	// 安全性チェック：本番セッションの存在確認
+	if err := SafetyCheckBeforeTests(); err != nil {
+		t.Logf("Safety check warning: %v", err)
+	}
+
+	// テスト用のセッション名（test-osoba-プレフィックスを使用）
+	testSessionName := "test-osoba-session-" + time.Now().Format("20060102-150405")
 
 	// クリーンアップ関数
 	cleanup := func() {
@@ -81,7 +86,7 @@ func TestTmuxManagerRealIntegration(t *testing.T) {
 		})
 
 		t.Run("セッション一覧取得", func(t *testing.T) {
-			sessions, err := manager.ListSessions("osoba")
+			sessions, err := manager.ListSessions("test-osoba")
 			assert.NoError(t, err)
 			assert.NotNil(t, sessions)
 
@@ -124,6 +129,11 @@ func TestTmuxManagerErrorHandling(t *testing.T) {
 		}
 	}
 
+	// 安全性チェック：本番セッションの存在確認
+	if err := SafetyCheckBeforeTests(); err != nil {
+		t.Logf("Safety check warning: %v", err)
+	}
+
 	manager := NewDefaultManager()
 
 	t.Run("存在しないセッションでのエラーハンドリング", func(t *testing.T) {
@@ -136,7 +146,7 @@ func TestTmuxManagerErrorHandling(t *testing.T) {
 	})
 
 	t.Run("重複セッション作成でのエラーハンドリング", func(t *testing.T) {
-		testSessionName := "osoba-duplicate-test-" + time.Now().Format("20060102-150405")
+		testSessionName := "test-osoba-duplicate-" + time.Now().Format("20060102-150405")
 
 		// クリーンアップ
 		defer func() {
@@ -169,6 +179,11 @@ func TestTmuxManagerConcurrentAccess(t *testing.T) {
 		}
 	}
 
+	// 安全性チェック：本番セッションの存在確認
+	if err := SafetyCheckBeforeTests(); err != nil {
+		t.Logf("Safety check warning: %v", err)
+	}
+
 	manager := NewDefaultManager()
 
 	t.Run("複数セッションの同時作成", func(t *testing.T) {
@@ -187,7 +202,7 @@ func TestTmuxManagerConcurrentAccess(t *testing.T) {
 
 		// 複数のgoroutineでセッションを作成
 		for i := 0; i < numSessions; i++ {
-			sessionNames[i] = "osoba-concurrent-test-" + time.Now().Format("20060102-150405") + "-" + string(rune('a'+i))
+			sessionNames[i] = "test-osoba-concurrent-" + time.Now().Format("20060102-150405") + "-" + string(rune('a'+i))
 
 			go func(sessionName string) {
 				err := manager.CreateSession(sessionName)
@@ -210,7 +225,7 @@ func TestTmuxManagerConcurrentAccess(t *testing.T) {
 		assert.Equal(t, numSessions, successCount, "All concurrent session creations should succeed")
 
 		// セッションが実際に作成されたことを確認
-		sessions, err := manager.ListSessions("osoba")
+		sessions, err := manager.ListSessions("test-osoba")
 		assert.NoError(t, err)
 
 		for _, sessionName := range sessionNames {
@@ -241,10 +256,15 @@ func TestTmuxManagerPerformance(t *testing.T) {
 		}
 	}
 
+	// 安全性チェック：本番セッションの存在確認
+	if err := SafetyCheckBeforeTests(); err != nil {
+		t.Logf("Safety check warning: %v", err)
+	}
+
 	manager := NewDefaultManager()
 
 	t.Run("セッション作成のレスポンス時間", func(t *testing.T) {
-		testSessionName := "osoba-perf-test-" + time.Now().Format("20060102-150405")
+		testSessionName := "test-osoba-perf-" + time.Now().Format("20060102-150405")
 
 		defer func() {
 			exec.Command("tmux", "kill-session", "-t", testSessionName).Run()
@@ -262,7 +282,7 @@ func TestTmuxManagerPerformance(t *testing.T) {
 
 	t.Run("セッション一覧取得のレスポンス時間", func(t *testing.T) {
 		start := time.Now()
-		sessions, err := manager.ListSessions("osoba")
+		sessions, err := manager.ListSessions("test-osoba")
 		duration := time.Since(start)
 
 		assert.NoError(t, err)

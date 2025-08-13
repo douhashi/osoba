@@ -48,7 +48,12 @@ func TestOpenCommand(t *testing.T) {
 				checkTmuxInstalledFunc = func() error { return nil }
 				getRepositoryNameFunc = func() (string, error) { return "test-repo", nil }
 				sessionExistsFunc = func(name string) (bool, error) {
-					if name == "osoba-test-repo" {
+					// テストモードに応じたプレフィックスをチェック
+					prefix := "osoba-"
+					if os.Getenv("OSOBA_TEST_MODE") == "true" {
+						prefix = "test-osoba-"
+					}
+					if name == prefix+"test-repo" {
 						return true, nil
 					}
 					return false, nil
@@ -62,7 +67,12 @@ func TestOpenCommand(t *testing.T) {
 				checkTmuxInstalledFunc = func() error { return nil }
 				getRepositoryNameFunc = func() (string, error) { return "test-repo", nil }
 				sessionExistsFunc = func(name string) (bool, error) {
-					if name == "osoba-test-repo" {
+					// テストモードに応じたプレフィックスをチェック
+					prefix := "osoba-"
+					if os.Getenv("OSOBA_TEST_MODE") == "true" {
+						prefix = "test-osoba-"
+					}
+					if name == prefix+"test-repo" {
 						return true, nil
 					}
 					return false, nil
@@ -108,7 +118,7 @@ func TestOpenCommand(t *testing.T) {
 					return false, nil
 				}
 			},
-			expectedError: "セッション 'osoba-test-repo' が見つかりません。先に 'osoba start'を実行してください",
+			expectedError: "", // 動的に設定するため空にする
 		},
 		{
 			name: "エラー: セッション確認でエラー",
@@ -143,7 +153,19 @@ func TestOpenCommand(t *testing.T) {
 			err := cmd.Execute()
 
 			// エラーの検証
-			if tt.expectedError != "" {
+			if tt.name == "エラー: セッションが存在しない" {
+				// テストモードに応じた期待値を動的に設定
+				prefix := "osoba-"
+				if os.Getenv("OSOBA_TEST_MODE") == "true" {
+					prefix = "test-osoba-"
+				}
+				expectedErr := fmt.Sprintf("セッション '%stest-repo' が見つかりません。先に 'osoba start'を実行してください", prefix)
+				if err == nil {
+					t.Errorf("期待されたエラーが発生しませんでした: %s", expectedErr)
+				} else if err.Error() != expectedErr {
+					t.Errorf("エラーメッセージが一致しません\n期待: %s\n実際: %s", expectedErr, err.Error())
+				}
+			} else if tt.expectedError != "" {
 				if err == nil {
 					t.Errorf("期待されたエラーが発生しませんでした: %s", tt.expectedError)
 				} else if err.Error() != tt.expectedError {

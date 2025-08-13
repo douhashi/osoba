@@ -15,10 +15,11 @@ import (
 
 // Config はアプリケーション全体の設定
 type Config struct {
-	GitHub GitHubConfig         `mapstructure:"github"`
-	Tmux   TmuxConfig           `mapstructure:"tmux"`
-	Claude *claude.ClaudeConfig `mapstructure:"claude"`
-	Log    LogConfig            `mapstructure:"log"`
+	GitHub     GitHubConfig         `mapstructure:"github"`
+	Tmux       TmuxConfig           `mapstructure:"tmux"`
+	Claude     *claude.ClaudeConfig `mapstructure:"claude"`
+	Log        LogConfig            `mapstructure:"log"`
+	IsTestMode bool                 // テストモードかどうかを示すフラグ
 }
 
 // GitHubConfig はGitHub関連の設定
@@ -70,6 +71,15 @@ func NewDefaultPhaseMessageConfig() PhaseMessageConfig {
 
 // NewConfig は新しいConfigを作成する
 func NewConfig() *Config {
+	// テストモードかどうかを判定
+	isTestMode := os.Getenv("OSOBA_TEST_MODE") == "true"
+
+	// セッションプレフィックスをテストモードに応じて設定
+	sessionPrefix := "osoba-"
+	if isTestMode {
+		sessionPrefix = "test-osoba-"
+	}
+
 	return &Config{
 		GitHub: GitHubConfig{
 			PollInterval:   20 * time.Second,
@@ -87,13 +97,14 @@ func NewConfig() *Config {
 			AutoRevisePR:  true,  // デフォルトで自動Revise機能を有効化
 		},
 		Tmux: TmuxConfig{
-			SessionPrefix: "osoba-",
+			SessionPrefix: sessionPrefix,
 		},
 		Claude: claude.NewDefaultClaudeConfig(),
 		Log: LogConfig{
 			Level:  "info",
 			Format: "text",
 		},
+		IsTestMode: isTestMode,
 	}
 }
 
@@ -154,6 +165,12 @@ func (c *Config) Load(configPath string) error {
 		return err
 	}
 
+	// テストモードの場合、セッションプレフィックスを上書き
+	if os.Getenv("OSOBA_TEST_MODE") == "true" {
+		c.IsTestMode = true
+		c.Tmux.SessionPrefix = "test-osoba-"
+	}
+
 	// ghコマンドを使用するため、トークンの取得は不要
 
 	return nil
@@ -194,6 +211,12 @@ func (c *Config) LoadOrDefault(configPath string) string {
 	// Claudeのデフォルト設定を確保
 	if c.Claude == nil {
 		c.Claude = claude.NewDefaultClaudeConfig()
+	}
+
+	// テストモードの場合、セッションプレフィックスを上書き
+	if os.Getenv("OSOBA_TEST_MODE") == "true" {
+		c.IsTestMode = true
+		c.Tmux.SessionPrefix = "test-osoba-"
 	}
 
 	return ""
