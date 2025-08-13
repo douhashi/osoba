@@ -37,10 +37,19 @@ Refer to the following documentation:
 5. After addressing all feedback, the PR should be ready for re-review
 6. Update the Issue label to "status:review-requested" when complete
 7. If the current directory is under `.git/osoba/`, this is a dedicated codebase created using git worktree
+8. **Work carefully and thoroughly until all issues are resolved, without worrying about time constraints or context compression**
 
 ---
 
 ## Instructions
+
+### **⚠️ CI Success is Mandatory ⚠️**
+
+**Passing CI is an absolute prerequisite for task completion.**
+
+- Even if CI failures are "unrelated to your current changes", **you must make every effort to fix those issues**
+- All CI problems must be resolved, including test failures, build errors, and lint errors
+- Never mark a task as complete while CI is failing
 
 ### Workflow (Overview)
 
@@ -48,9 +57,10 @@ Refer to the following documentation:
 2. Understand all feedback points
 3. Make necessary corrections
 4. Run tests to verify fixes
-5. Commit changes with clear messages
-6. Post a summary of changes made
-7. Update Issue labels
+5. **Ensure CI passes completely**
+6. Commit changes with clear messages
+7. Post a summary of changes made
+8. Update Issue labels
 
 ---
 
@@ -86,6 +96,8 @@ Refer to the following documentation:
    - Run the full test suite to ensure nothing is broken
    - Verify that all review points have been addressed
    - Check that the code still meets the original requirements
+   - **Ensure CI passes completely**
+   - If CI fails, fix the issues regardless of their cause
 
 5. **Post a summary comment**
    - Create a comment on the PR summarizing what was changed:
@@ -150,7 +162,9 @@ Refer to the following documentation:
 
 ## Important Notes
 
-- Never mark as "ready for review" if tests are failing
+- **Never mark as "ready for review" if CI is failing**
+- **If CI is failing, you must attempt to fix it even if the cause is unrelated to your current changes**
 - If you cannot address certain feedback, explain why in the PR comments
 - Keep the commit history clean and meaningful
 - Always verify the changes work as expected before updating labels
+- **Task completion requirement: CI must pass completely**
