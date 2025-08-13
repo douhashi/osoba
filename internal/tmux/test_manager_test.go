@@ -47,18 +47,28 @@ func TestNewTestManager(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Save and restore env vars
 			origVars := make(map[string]string)
-			for k := range tt.envVars {
-				origVars[k] = os.Getenv(k)
+			origSet := make(map[string]bool)
+			envKeys := []string{"OSOBA_TEST_MODE", "OSOBA_TEST_SOCKET", "OSOBA_TEST_SESSION_PREFIX"}
+			for _, k := range envKeys {
+				if v, ok := os.LookupEnv(k); ok {
+					origVars[k] = v
+					origSet[k] = true
+				}
 			}
 			defer func() {
-				for k, v := range origVars {
-					if v == "" {
-						os.Unsetenv(k)
+				for _, k := range envKeys {
+					if origSet[k] {
+						os.Setenv(k, origVars[k])
 					} else {
-						os.Setenv(k, v)
+						os.Unsetenv(k)
 					}
 				}
 			}()
+
+			// Clear all test env vars first
+			for _, k := range envKeys {
+				os.Unsetenv(k)
+			}
 
 			// Set test env vars
 			for k, v := range tt.envVars {

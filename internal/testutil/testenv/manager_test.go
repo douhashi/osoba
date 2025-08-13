@@ -37,13 +37,25 @@ func TestManager_Setup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Save original env vars
-			origTestMode := os.Getenv("OSOBA_TEST_MODE")
-			origSocket := os.Getenv("OSOBA_TEST_SOCKET")
-			origPrefix := os.Getenv("OSOBA_TEST_SESSION_PREFIX")
+			origTestMode, origTestModeSet := os.LookupEnv("OSOBA_TEST_MODE")
+			origSocket, origSocketSet := os.LookupEnv("OSOBA_TEST_SOCKET")
+			origPrefix, origPrefixSet := os.LookupEnv("OSOBA_TEST_SESSION_PREFIX")
 			defer func() {
-				os.Setenv("OSOBA_TEST_MODE", origTestMode)
-				os.Setenv("OSOBA_TEST_SOCKET", origSocket)
-				os.Setenv("OSOBA_TEST_SESSION_PREFIX", origPrefix)
+				if origTestModeSet {
+					os.Setenv("OSOBA_TEST_MODE", origTestMode)
+				} else {
+					os.Unsetenv("OSOBA_TEST_MODE")
+				}
+				if origSocketSet {
+					os.Setenv("OSOBA_TEST_SOCKET", origSocket)
+				} else {
+					os.Unsetenv("OSOBA_TEST_SOCKET")
+				}
+				if origPrefixSet {
+					os.Setenv("OSOBA_TEST_SESSION_PREFIX", origPrefix)
+				} else {
+					os.Unsetenv("OSOBA_TEST_SESSION_PREFIX")
+				}
 			}()
 
 			manager := NewManager(t, tt.config)
@@ -84,13 +96,16 @@ func TestManager_Setup(t *testing.T) {
 			}
 
 			// Check environment variables are cleaned up
-			if os.Getenv("OSOBA_TEST_MODE") != origTestMode {
+			currentTestMode, currentTestModeSet := os.LookupEnv("OSOBA_TEST_MODE")
+			if currentTestModeSet != origTestModeSet || (currentTestModeSet && currentTestMode != origTestMode) {
 				t.Error("OSOBA_TEST_MODE not restored")
 			}
-			if os.Getenv("OSOBA_TEST_SOCKET") != origSocket {
+			currentSocket, currentSocketSet := os.LookupEnv("OSOBA_TEST_SOCKET")
+			if currentSocketSet != origSocketSet || (currentSocketSet && currentSocket != origSocket) {
 				t.Error("OSOBA_TEST_SOCKET not restored")
 			}
-			if os.Getenv("OSOBA_TEST_SESSION_PREFIX") != origPrefix {
+			currentPrefix, currentPrefixSet := os.LookupEnv("OSOBA_TEST_SESSION_PREFIX")
+			if currentPrefixSet != origPrefixSet || (currentPrefixSet && currentPrefix != origPrefix) {
 				t.Error("OSOBA_TEST_SESSION_PREFIX not restored")
 			}
 		})
@@ -98,6 +113,17 @@ func TestManager_Setup(t *testing.T) {
 }
 
 func TestManager_IsTestMode(t *testing.T) {
+	// Save and clear test mode env var
+	origTestMode, origTestModeSet := os.LookupEnv("OSOBA_TEST_MODE")
+	os.Unsetenv("OSOBA_TEST_MODE")
+	defer func() {
+		if origTestModeSet {
+			os.Setenv("OSOBA_TEST_MODE", origTestMode)
+		} else {
+			os.Unsetenv("OSOBA_TEST_MODE")
+		}
+	}()
+
 	config := DefaultConfig()
 	config.AutoCleanup = false // Disable signal handlers in test
 	manager := NewManager(t, config)
