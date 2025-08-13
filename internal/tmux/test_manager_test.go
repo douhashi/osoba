@@ -8,10 +8,10 @@ import (
 
 func TestNewTestManager(t *testing.T) {
 	tests := []struct {
-		name          string
-		envVars       map[string]string
-		expectSocket  bool
-		expectPrefix  string
+		name           string
+		envVars        map[string]string
+		expectSocket   bool
+		expectPrefix   string
 		expectTestMode bool
 	}{
 		{
@@ -21,8 +21,8 @@ func TestNewTestManager(t *testing.T) {
 				"OSOBA_TEST_SOCKET":         "/tmp/test.sock",
 				"OSOBA_TEST_SESSION_PREFIX": "test-custom-",
 			},
-			expectSocket:  true,
-			expectPrefix:  "test-custom-",
+			expectSocket:   true,
+			expectPrefix:   "test-custom-",
 			expectTestMode: true,
 		},
 		{
@@ -30,19 +30,19 @@ func TestNewTestManager(t *testing.T) {
 			envVars: map[string]string{
 				"OSOBA_TEST_MODE": "true",
 			},
-			expectSocket:  false,
-			expectPrefix:  "test-osoba-",
+			expectSocket:   false,
+			expectPrefix:   "test-osoba-",
 			expectTestMode: true,
 		},
 		{
-			name:          "without test mode",
-			envVars:       map[string]string{},
-			expectSocket:  false,
-			expectPrefix:  "test-osoba-",
+			name:           "without test mode",
+			envVars:        map[string]string{},
+			expectSocket:   false,
+			expectPrefix:   "test-osoba-",
 			expectTestMode: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Save and restore env vars
@@ -59,20 +59,20 @@ func TestNewTestManager(t *testing.T) {
 					}
 				}
 			}()
-			
+
 			// Set test env vars
 			for k, v := range tt.envVars {
 				os.Setenv(k, v)
 			}
-			
+
 			// Create test manager
 			manager := NewTestManager()
-			
+
 			// Check test mode
 			if manager.IsTestMode() != tt.expectTestMode {
 				t.Errorf("IsTestMode() = %v, want %v", manager.IsTestMode(), tt.expectTestMode)
 			}
-			
+
 			// Check socket
 			if tt.expectSocket {
 				if manager.GetTestSocket() == "" {
@@ -83,7 +83,7 @@ func TestNewTestManager(t *testing.T) {
 					t.Errorf("Expected no test socket but got %s", manager.GetTestSocket())
 				}
 			}
-			
+
 			// Check session prefix
 			if manager.GetSessionPrefix() != tt.expectPrefix {
 				t.Errorf("GetSessionPrefix() = %v, want %v", manager.GetSessionPrefix(), tt.expectPrefix)
@@ -95,17 +95,17 @@ func TestNewTestManager(t *testing.T) {
 func TestNewTestManagerWithSocket(t *testing.T) {
 	socket := "/tmp/test-explicit.sock"
 	prefix := "test-explicit-"
-	
+
 	manager := NewTestManagerWithSocket(socket, prefix)
-	
+
 	if !manager.IsTestMode() {
 		t.Error("IsTestMode() should return true for explicit socket manager")
 	}
-	
+
 	if manager.GetTestSocket() != socket {
 		t.Errorf("GetTestSocket() = %v, want %v", manager.GetTestSocket(), socket)
 	}
-	
+
 	if manager.GetSessionPrefix() != prefix {
 		t.Errorf("GetSessionPrefix() = %v, want %v", manager.GetSessionPrefix(), prefix)
 	}
@@ -113,7 +113,7 @@ func TestNewTestManagerWithSocket(t *testing.T) {
 
 func TestTestManager_SessionPrefixHandling(t *testing.T) {
 	manager := NewTestManagerWithSocket("/tmp/test.sock", "test-prefix-")
-	
+
 	tests := []struct {
 		name         string
 		sessionName  string
@@ -130,12 +130,12 @@ func TestTestManager_SessionPrefixHandling(t *testing.T) {
 			expectPrefix: false, // Already has prefix, shouldn't add again
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// We can't actually create sessions without tmux, but we can test the prefix logic
 			// by checking if the methods would add the prefix
-			
+
 			// Verify the expected behavior
 			if tt.expectPrefix {
 				if strings.HasPrefix(tt.sessionName, manager.GetSessionPrefix()) {
@@ -154,32 +154,32 @@ func TestTestCommandExecutor_Execute(t *testing.T) {
 	executor := &TestCommandExecutor{
 		testSocket: "/tmp/test.sock",
 	}
-	
+
 	tests := []struct {
-		name        string
-		command     string
-		args        []string
+		name         string
+		command      string
+		args         []string
 		expectSocket bool
 	}{
 		{
-			name:        "tmux command with socket",
-			command:     "tmux",
-			args:        []string{"list-sessions"},
+			name:         "tmux command with socket",
+			command:      "tmux",
+			args:         []string{"list-sessions"},
 			expectSocket: true,
 		},
 		{
-			name:        "non-tmux command",
-			command:     "echo",
-			args:        []string{"hello"},
+			name:         "non-tmux command",
+			command:      "echo",
+			args:         []string{"hello"},
 			expectSocket: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// We can't actually execute tmux commands in test, but we can verify the argument modification
 			// This would need to be tested with a mock executor in a real implementation
-			
+
 			// For now, just verify the logic is correct
 			if tt.command == "tmux" && tt.expectSocket {
 				// Socket should be injected for tmux commands
@@ -217,7 +217,7 @@ func TestValidateTestEnvironment(t *testing.T) {
 			expectErr: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Save and restore env vars
@@ -235,16 +235,16 @@ func TestValidateTestEnvironment(t *testing.T) {
 					os.Setenv("OSOBA_TEST_SOCKET", origSocket)
 				}
 			}()
-			
+
 			// Clear env vars
 			os.Unsetenv("OSOBA_TEST_MODE")
 			os.Unsetenv("OSOBA_TEST_SOCKET")
-			
+
 			// Set test env vars
 			for k, v := range tt.envVars {
 				os.Setenv(k, v)
 			}
-			
+
 			err := ValidateTestEnvironment()
 			if (err != nil) != tt.expectErr {
 				t.Errorf("ValidateTestEnvironment() error = %v, expectErr %v", err, tt.expectErr)

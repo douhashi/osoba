@@ -53,71 +53,72 @@ func TestTmuxManagerRealIntegration(t *testing.T) {
 			return nil
 		})
 
-	t.Run("tmuxマネージャーとの実際の連携", func(t *testing.T) {
-		// 実際のコマンド実行を使用するマネージャーを作成
-		manager := NewDefaultManager()
+		t.Run("tmuxマネージャーとの実際の連携", func(t *testing.T) {
+			// 実際のコマンド実行を使用するマネージャーを作成
+			manager := NewDefaultManager()
 
-		t.Run("セッション作成", func(t *testing.T) {
-			err := manager.CreateSession(testSessionName)
-			assert.NoError(t, err)
+			t.Run("セッション作成", func(t *testing.T) {
+				err := manager.CreateSession(testSessionName)
+				assert.NoError(t, err)
 
-			// セッションが実際に作成されたことを確認
-			output, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
-			assert.NoError(t, err)
+				// セッションが実際に作成されたことを確認
+				output, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+				assert.NoError(t, err)
 
-			sessions := strings.Split(strings.TrimSpace(string(output)), "\n")
-			assert.Contains(t, sessions, testSessionName)
-		})
+				sessions := strings.Split(strings.TrimSpace(string(output)), "\n")
+				assert.Contains(t, sessions, testSessionName)
+			})
 
-		t.Run("セッション存在確認", func(t *testing.T) {
-			exists, err := manager.SessionExists(testSessionName)
-			assert.NoError(t, err)
-			assert.True(t, exists)
+			t.Run("セッション存在確認", func(t *testing.T) {
+				exists, err := manager.SessionExists(testSessionName)
+				assert.NoError(t, err)
+				assert.True(t, exists)
 
-			// 存在しないセッションのテスト
-			exists, err = manager.SessionExists("non-existent-session-12345")
-			assert.NoError(t, err)
-			assert.False(t, exists)
-		})
+				// 存在しないセッションのテスト
+				exists, err = manager.SessionExists("non-existent-session-12345")
+				assert.NoError(t, err)
+				assert.False(t, exists)
+			})
 
-		t.Run("ウィンドウ作成", func(t *testing.T) {
-			testWindowName := "test-window"
-			err := manager.CreateWindow(testSessionName, testWindowName)
-			assert.NoError(t, err)
+			t.Run("ウィンドウ作成", func(t *testing.T) {
+				testWindowName := "test-window"
+				err := manager.CreateWindow(testSessionName, testWindowName)
+				assert.NoError(t, err)
 
-			// ウィンドウが実際に作成されたことを確認
-			output, err := exec.Command("tmux", "list-windows", "-t", testSessionName, "-F", "#{window_name}").Output()
-			assert.NoError(t, err)
+				// ウィンドウが実際に作成されたことを確認
+				output, err := exec.Command("tmux", "list-windows", "-t", testSessionName, "-F", "#{window_name}").Output()
+				assert.NoError(t, err)
 
-			windows := strings.Split(strings.TrimSpace(string(output)), "\n")
-			assert.Contains(t, windows, testWindowName)
-		})
+				windows := strings.Split(strings.TrimSpace(string(output)), "\n")
+				assert.Contains(t, windows, testWindowName)
+			})
 
-		t.Run("セッション一覧取得", func(t *testing.T) {
-			sessions, err := manager.ListSessions("test-osoba")
-			assert.NoError(t, err)
-			assert.NotNil(t, sessions)
+			t.Run("セッション一覧取得", func(t *testing.T) {
+				sessions, err := manager.ListSessions("test-osoba")
+				assert.NoError(t, err)
+				assert.NotNil(t, sessions)
 
-			// テストセッションが含まれていることを確認
-			found := false
-			for _, session := range sessions {
-				if session == testSessionName {
-					found = true
-					break
+				// テストセッションが含まれていることを確認
+				found := false
+				for _, session := range sessions {
+					if session == testSessionName {
+						found = true
+						break
+					}
 				}
-			}
-			assert.True(t, found, "Test session should be in the list")
-		})
+				assert.True(t, found, "Test session should be in the list")
+			})
 
-		t.Run("セッション削除", func(t *testing.T) {
-			// DefaultManagerにはKillSessionがないため、手動削除
-			err := exec.Command("tmux", "kill-session", "-t", testSessionName).Run()
-			assert.NoError(t, err)
+			t.Run("セッション削除", func(t *testing.T) {
+				// DefaultManagerにはKillSessionがないため、手動削除
+				err := exec.Command("tmux", "kill-session", "-t", testSessionName).Run()
+				assert.NoError(t, err)
 
-			// セッションが実際に削除されたことを確認
-			exists, err := manager.SessionExists(testSessionName)
-			assert.NoError(t, err)
-			assert.False(t, exists)
+				// セッションが実際に削除されたことを確認
+				exists, err := manager.SessionExists(testSessionName)
+				assert.NoError(t, err)
+				assert.False(t, exists)
+			})
 		})
 	})
 }
@@ -247,7 +248,6 @@ func TestTmuxManagerConcurrentAccess(t *testing.T) {
 			assert.True(t, found, "Session %s should exist", sessionName)
 		}
 	})
-	}) // Close testenv.WithTestEnvironment
 }
 
 // TestTmuxManagerPerformance はパフォーマンスの統合テスト
@@ -260,47 +260,47 @@ func TestTmuxManagerPerformance(t *testing.T) {
 	testenv.WithTestEnvironment(t, testenv.DefaultConfig(), func(envManager testenv.TestEnvironmentManager) {
 		// tmuxコマンドが利用可能かチェック
 		if err := exec.Command("tmux", "list-sessions").Run(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			// tmuxサーバーが起動していない場合は正常（セッションがない）
-		} else {
-			t.Skip("tmux command not available")
+			if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+				// tmuxサーバーが起動していない場合は正常（セッションがない）
+			} else {
+				t.Skip("tmux command not available")
+			}
 		}
-	}
 
-	// 安全性チェック：本番セッションの存在確認
-	if err := SafetyCheckBeforeTests(); err != nil {
-		t.Logf("Safety check warning: %v", err)
-	}
+		// 安全性チェック：本番セッションの存在確認
+		if err := SafetyCheckBeforeTests(); err != nil {
+			t.Logf("Safety check warning: %v", err)
+		}
 
-	manager := NewDefaultManager()
+		manager := NewDefaultManager()
 
-	t.Run("セッション作成のレスポンス時間", func(t *testing.T) {
-		testSessionName := "test-osoba-perf-" + time.Now().Format("20060102-150405")
+		t.Run("セッション作成のレスポンス時間", func(t *testing.T) {
+			testSessionName := "test-osoba-perf-" + time.Now().Format("20060102-150405")
 
-		defer func() {
-			exec.Command("tmux", "kill-session", "-t", testSessionName).Run()
-		}()
+			defer func() {
+				exec.Command("tmux", "kill-session", "-t", testSessionName).Run()
+			}()
 
-		start := time.Now()
-		err := manager.CreateSession(testSessionName)
-		duration := time.Since(start)
+			start := time.Now()
+			err := manager.CreateSession(testSessionName)
+			duration := time.Since(start)
 
-		assert.NoError(t, err)
-		assert.Less(t, duration, 2*time.Second, "Session creation should be within 2 seconds")
+			assert.NoError(t, err)
+			assert.Less(t, duration, 2*time.Second, "Session creation should be within 2 seconds")
 
-		t.Logf("Session creation time: %v", duration)
-	})
+			t.Logf("Session creation time: %v", duration)
+		})
 
-	t.Run("セッション一覧取得のレスポンス時間", func(t *testing.T) {
-		start := time.Now()
-		sessions, err := manager.ListSessions("test-osoba")
-		duration := time.Since(start)
+		t.Run("セッション一覧取得のレスポンス時間", func(t *testing.T) {
+			start := time.Now()
+			sessions, err := manager.ListSessions("test-osoba")
+			duration := time.Since(start)
 
-		assert.NoError(t, err)
-		assert.NotNil(t, sessions)
-		assert.Less(t, duration, 1*time.Second, "Session listing should be within 1 second")
+			assert.NoError(t, err)
+			assert.NotNil(t, sessions)
+			assert.Less(t, duration, 1*time.Second, "Session listing should be within 1 second")
 
-		t.Logf("Session listing time: %v (found %d sessions)", duration, len(sessions))
-	})
+			t.Logf("Session listing time: %v (found %d sessions)", duration, len(sessions))
+		})
 	}) // Close testenv.WithTestEnvironment
 }

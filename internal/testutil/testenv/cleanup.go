@@ -12,14 +12,14 @@ import (
 
 // CleanupHandler manages cleanup operations for test environments.
 type CleanupHandler struct {
-	mu           sync.Mutex
-	cleanups     []CleanupFunc
-	executed     bool
-	timeout      time.Duration
-	onPanic      bool
-	onSignal     bool
-	signalChan   chan os.Signal
-	stopChan     chan struct{}
+	mu         sync.Mutex
+	cleanups   []CleanupFunc
+	executed   bool
+	timeout    time.Duration
+	onPanic    bool
+	onSignal   bool
+	signalChan chan os.Signal
+	stopChan   chan struct{}
 }
 
 // CleanupFunc is a function that performs cleanup operations.
@@ -33,9 +33,9 @@ type CleanupFunc struct {
 // NewCleanupHandler creates a new cleanup handler.
 func NewCleanupHandler() *CleanupHandler {
 	return &CleanupHandler{
-		cleanups:   []CleanupFunc{},
-		timeout:    30 * time.Second,
-		stopChan:   make(chan struct{}),
+		cleanups: []CleanupFunc{},
+		timeout:  30 * time.Second,
+		stopChan: make(chan struct{}),
 	}
 }
 
@@ -72,20 +72,20 @@ func (h *CleanupHandler) EnablePanicRecovery() {
 func (h *CleanupHandler) EnableSignalHandling(signals ...os.Signal) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	
+
 	if h.onSignal {
 		return // Already enabled
 	}
-	
+
 	h.onSignal = true
 	h.signalChan = make(chan os.Signal, 1)
-	
+
 	if len(signals) == 0 {
 		signals = []os.Signal{syscall.SIGINT, syscall.SIGTERM}
 	}
-	
+
 	signal.Notify(h.signalChan, signals...)
-	
+
 	go h.handleSignals()
 }
 
@@ -96,11 +96,11 @@ func (h *CleanupHandler) handleSignals() {
 		fmt.Fprintf(os.Stderr, "\nReceived signal %v, performing cleanup...\n", sig)
 		ctx, cancel := context.WithTimeout(context.Background(), h.timeout)
 		defer cancel()
-		
+
 		if err := h.Execute(ctx); err != nil {
 			fmt.Fprintf(os.Stderr, "Cleanup error: %v\n", err)
 		}
-		
+
 		os.Exit(1)
 	case <-h.stopChan:
 		return
@@ -118,26 +118,26 @@ func (h *CleanupHandler) Execute(ctx context.Context) error {
 	cleanups := make([]CleanupFunc, len(h.cleanups))
 	copy(cleanups, h.cleanups)
 	h.mu.Unlock()
-	
+
 	// Create a context with timeout if not already set
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, h.timeout)
 		defer cancel()
 	}
-	
+
 	var errors []error
-	
+
 	// Execute cleanups in reverse order (LIFO)
 	for i := len(cleanups) - 1; i >= 0; i-- {
 		cleanup := cleanups[i]
-		
+
 		// Run cleanup in goroutine to handle timeout
 		done := make(chan error, 1)
 		go func() {
 			done <- cleanup.Fn()
 		}()
-		
+
 		var cleanupErr error
 		select {
 		case err := <-done:
@@ -145,7 +145,7 @@ func (h *CleanupHandler) Execute(ctx context.Context) error {
 		case <-ctx.Done():
 			cleanupErr = fmt.Errorf("timeout")
 		}
-		
+
 		if cleanupErr != nil {
 			if !cleanup.IgnoreError {
 				errors = append(errors, fmt.Errorf("%s: %w", cleanup.Name, cleanupErr))
@@ -155,11 +155,11 @@ func (h *CleanupHandler) Execute(ctx context.Context) error {
 			}
 		}
 	}
-	
+
 	if len(errors) > 0 {
 		return fmt.Errorf("cleanup errors: %v", errors)
 	}
-	
+
 	return nil
 }
 
@@ -167,7 +167,7 @@ func (h *CleanupHandler) Execute(ctx context.Context) error {
 func (h *CleanupHandler) Stop() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	
+
 	if h.onSignal && h.signalChan != nil {
 		signal.Stop(h.signalChan)
 		close(h.stopChan)
@@ -179,7 +179,7 @@ func (h *CleanupHandler) Stop() {
 func (h *CleanupHandler) Reset() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	
+
 	h.cleanups = []CleanupFunc{}
 	h.executed = false
 }
@@ -196,14 +196,14 @@ func WithCleanup(fn func() error, cleanup *CleanupHandler) (err error) {
 			}
 		}()
 	}
-	
+
 	// Execute the main function
 	err = fn()
-	
+
 	// Always execute cleanup
 	ctx := context.Background()
 	cleanupErr := cleanup.Execute(ctx)
-	
+
 	// Return the first error encountered
 	if err != nil {
 		return err
@@ -268,7 +268,7 @@ func NewTestCleanupManager(t TestingT) *TestCleanupManager {
 		handler:  NewCleanupHandler(),
 		autoExec: true,
 	}
-	
+
 	// Register automatic cleanup with test framework
 	t.Cleanup(func() {
 		if manager.autoExec {
@@ -278,7 +278,7 @@ func NewTestCleanupManager(t TestingT) *TestCleanupManager {
 			}
 		}
 	})
-	
+
 	return manager
 }
 

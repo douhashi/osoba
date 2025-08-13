@@ -3,7 +3,7 @@ package factories
 import (
 	"fmt"
 	"os"
-	
+
 	"github.com/douhashi/osoba/internal/tmux"
 )
 
@@ -13,13 +13,13 @@ type TmuxManagerType string
 const (
 	// TmuxManagerTypeMock creates a mock manager for unit tests.
 	TmuxManagerTypeMock TmuxManagerType = "mock"
-	
+
 	// TmuxManagerTypeTest creates a test manager with isolation.
 	TmuxManagerTypeTest TmuxManagerType = "test"
-	
+
 	// TmuxManagerTypeReal creates a real tmux manager.
 	TmuxManagerTypeReal TmuxManagerType = "real"
-	
+
 	// TmuxManagerTypeAuto automatically selects based on environment.
 	TmuxManagerTypeAuto TmuxManagerType = "auto"
 )
@@ -65,16 +65,16 @@ func (f *TmuxManagerFactory) CreateWithType(managerType TmuxManagerType) (tmux.M
 	switch managerType {
 	case TmuxManagerTypeMock:
 		return f.createMockManager(), nil
-		
+
 	case TmuxManagerTypeTest:
 		return f.createTestManager(), nil
-		
+
 	case TmuxManagerTypeReal:
 		return f.createRealManager(), nil
-		
+
 	case TmuxManagerTypeAuto:
 		return f.createAutoManager()
-		
+
 	default:
 		return nil, fmt.Errorf("unknown manager type: %s", managerType)
 	}
@@ -104,17 +104,17 @@ func (f *TmuxManagerFactory) createAutoManager() (tmux.Manager, error) {
 	if os.Getenv("OSOBA_USE_MOCK_TMUX") == "true" {
 		return f.createMockManager(), nil
 	}
-	
+
 	if os.Getenv("OSOBA_TEST_MODE") == "true" {
 		return f.createTestManager(), nil
 	}
-	
+
 	// Check if we're in a test binary
 	if isTestBinary() {
 		// In test binary, use test manager by default
 		return f.createTestManager(), nil
 	}
-	
+
 	// Default to real manager
 	return f.createRealManager(), nil
 }
@@ -127,12 +127,12 @@ func isTestBinary() bool {
 			return true
 		}
 	}
-	
+
 	// Check for test environment variable
 	if os.Getenv("GO_TEST") == "1" {
 		return true
 	}
-	
+
 	return false
 }
 

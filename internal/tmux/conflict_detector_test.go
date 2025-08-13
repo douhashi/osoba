@@ -46,23 +46,25 @@ func (m *MockConflictManager) ListSessions(prefix string) ([]string, error) {
 }
 
 // Implement remaining methods to satisfy the Manager interface
-func (m *MockConflictManager) CreateWindow(sessionName, windowName string) error { return nil }
+func (m *MockConflictManager) CreateWindow(sessionName, windowName string) error   { return nil }
 func (m *MockConflictManager) SwitchToWindow(sessionName, windowName string) error { return nil }
-func (m *MockConflictManager) WindowExists(sessionName, windowName string) (bool, error) { return false, nil }
-func (m *MockConflictManager) KillWindow(sessionName, windowName string) error { return nil }
+func (m *MockConflictManager) WindowExists(sessionName, windowName string) (bool, error) {
+	return false, nil
+}
+func (m *MockConflictManager) KillWindow(sessionName, windowName string) error            { return nil }
 func (m *MockConflictManager) CreateOrReplaceWindow(sessionName, windowName string) error { return nil }
-func (m *MockConflictManager) ListWindows(sessionName string) ([]string, error) { return nil, nil }
-func (m *MockConflictManager) SendKeys(sessionName, windowName, keys string) error { return nil }
-func (m *MockConflictManager) ClearWindow(sessionName, windowName string) error { return nil }
-func (m *MockConflictManager) RunInWindow(sessionName, windowName, command string) error { return nil }
-func (m *MockConflictManager) GetIssueWindow(issueNumber int) string { return "" }
-func (m *MockConflictManager) MatchIssueWindow(windowName string) bool { return false }
-func (m *MockConflictManager) FindIssueWindow(windowName string) (int, bool) { return 0, false }
+func (m *MockConflictManager) ListWindows(sessionName string) ([]string, error)           { return nil, nil }
+func (m *MockConflictManager) SendKeys(sessionName, windowName, keys string) error        { return nil }
+func (m *MockConflictManager) ClearWindow(sessionName, windowName string) error           { return nil }
+func (m *MockConflictManager) RunInWindow(sessionName, windowName, command string) error  { return nil }
+func (m *MockConflictManager) GetIssueWindow(issueNumber int) string                      { return "" }
+func (m *MockConflictManager) MatchIssueWindow(windowName string) bool                    { return false }
+func (m *MockConflictManager) FindIssueWindow(windowName string) (int, bool)              { return 0, false }
 func (m *MockConflictManager) CreateWindowForIssueWithNewWindowDetection(sessionName string, issueNumber int) (string, bool, error) {
 	return "", false, nil
 }
-func (m *MockConflictManager) CreatePane(sessionName, windowName string, options PaneOptions) (*PaneInfo, error) { 
-	return &PaneInfo{Index: 0}, nil 
+func (m *MockConflictManager) CreatePane(sessionName, windowName string, options PaneOptions) (*PaneInfo, error) {
+	return &PaneInfo{Index: 0}, nil
 }
 func (m *MockConflictManager) SplitPane(sessionName, windowName string, paneIndex int, vertical bool, percentage int) (int, error) {
 	return 0, nil
@@ -89,18 +91,18 @@ func (m *MockConflictManager) SetPaneTitle(sessionName, windowName string, paneI
 
 func TestConflictDetector_CheckSessionConflict(t *testing.T) {
 	tests := []struct {
-		name          string
-		sessionName   string
+		name             string
+		sessionName      string
 		existingSessions map[string]bool
-		testMode      bool
-		expectError   bool
+		testMode         bool
+		expectError      bool
 	}{
 		{
-			name:        "no conflict for new session",
-			sessionName: "test-osoba-123",
+			name:             "no conflict for new session",
+			sessionName:      "test-osoba-123",
 			existingSessions: map[string]bool{},
-			testMode:    true,
-			expectError: false,
+			testMode:         true,
+			expectError:      false,
 		},
 		{
 			name:        "conflict when session exists",
@@ -130,7 +132,7 @@ func TestConflictDetector_CheckSessionConflict(t *testing.T) {
 			expectError: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment
@@ -142,18 +144,18 @@ func TestConflictDetector_CheckSessionConflict(t *testing.T) {
 					os.Setenv("OSOBA_TEST_MODE", origTestMode)
 				}
 			}()
-			
+
 			if tt.testMode {
 				os.Setenv("OSOBA_TEST_MODE", "true")
 			} else {
 				os.Unsetenv("OSOBA_TEST_MODE")
 			}
-			
+
 			// Create mock manager and detector
 			mockManager := NewMockConflictManager()
 			mockManager.sessions = tt.existingSessions
 			detector := NewConflictDetector(mockManager)
-			
+
 			// Test
 			err := detector.CheckSessionConflict(tt.sessionName)
 			if (err != nil) != tt.expectError {
@@ -166,27 +168,27 @@ func TestConflictDetector_CheckSessionConflict(t *testing.T) {
 func TestConflictDetector_LockUnlock(t *testing.T) {
 	mockManager := NewMockConflictManager()
 	detector := NewConflictDetector(mockManager)
-	
+
 	sessionName := "test-session"
-	
+
 	// Lock session
 	err := detector.LockSession(sessionName)
 	if err != nil {
 		t.Fatalf("LockSession() error = %v", err)
 	}
-	
+
 	// Try to lock again from same process - should succeed
 	err = detector.LockSession(sessionName)
 	if err != nil {
 		t.Fatalf("LockSession() again error = %v", err)
 	}
-	
+
 	// Unlock session
 	err = detector.UnlockSession(sessionName)
 	if err != nil {
 		t.Fatalf("UnlockSession() error = %v", err)
 	}
-	
+
 	// Unlock again - should be no-op
 	err = detector.UnlockSession(sessionName)
 	if err != nil {
@@ -197,46 +199,46 @@ func TestConflictDetector_LockUnlock(t *testing.T) {
 func TestConflictDetector_PortConflicts(t *testing.T) {
 	mockManager := NewMockConflictManager()
 	detector := NewConflictDetector(mockManager)
-	
+
 	// Reserve port for production
 	err := detector.ReservePort(8080, false)
 	if err != nil {
 		t.Fatalf("ReservePort(8080, production) error = %v", err)
 	}
-	
+
 	// Try to reserve same port for test - should fail
 	err = detector.ReservePort(8080, true)
 	if err == nil {
 		t.Fatal("ReservePort(8080, test) should fail when production has it")
 	}
-	
+
 	// Reserve different port for test - should succeed
 	err = detector.ReservePort(8081, true)
 	if err != nil {
 		t.Fatalf("ReservePort(8081, test) error = %v", err)
 	}
-	
+
 	// Check port conflicts
 	err = detector.CheckPortConflict(8080, true)
 	if err == nil {
 		t.Fatal("CheckPortConflict(8080, test) should fail")
 	}
-	
+
 	err = detector.CheckPortConflict(8081, false)
 	if err == nil {
 		t.Fatal("CheckPortConflict(8081, production) should fail")
 	}
-	
+
 	// Release ports
 	detector.ReleasePort(8080, false)
 	detector.ReleasePort(8081, true)
-	
+
 	// Now both should be available
 	err = detector.CheckPortConflict(8080, true)
 	if err != nil {
 		t.Fatalf("CheckPortConflict(8080, test) after release error = %v", err)
 	}
-	
+
 	err = detector.CheckPortConflict(8081, false)
 	if err != nil {
 		t.Fatalf("CheckPortConflict(8081, production) after release error = %v", err)
@@ -273,11 +275,11 @@ func TestConflictDetector_ValidateEnvironmentConsistency(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:       "test mode without prefix",
-			testMode:   true,
-			testSocket: "/tmp/test.sock",
-			testPrefix: "",
-			sessions:   map[string]bool{},
+			name:        "test mode without prefix",
+			testMode:    true,
+			testSocket:  "/tmp/test.sock",
+			testPrefix:  "",
+			sessions:    map[string]bool{},
 			expectError: true,
 		},
 		{
@@ -291,7 +293,7 @@ func TestConflictDetector_ValidateEnvironmentConsistency(t *testing.T) {
 			expectError: false, // Just warns, doesn't error
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment
@@ -315,31 +317,31 @@ func TestConflictDetector_ValidateEnvironmentConsistency(t *testing.T) {
 					os.Setenv("OSOBA_TEST_SESSION_PREFIX", origPrefix)
 				}
 			}()
-			
+
 			// Set test environment
 			if tt.testMode {
 				os.Setenv("OSOBA_TEST_MODE", "true")
 			} else {
 				os.Unsetenv("OSOBA_TEST_MODE")
 			}
-			
+
 			if tt.testSocket != "" {
 				os.Setenv("OSOBA_TEST_SOCKET", tt.testSocket)
 			} else {
 				os.Unsetenv("OSOBA_TEST_SOCKET")
 			}
-			
+
 			if tt.testPrefix != "" {
 				os.Setenv("OSOBA_TEST_SESSION_PREFIX", tt.testPrefix)
 			} else {
 				os.Unsetenv("OSOBA_TEST_SESSION_PREFIX")
 			}
-			
+
 			// Create mock manager and detector
 			mockManager := NewMockConflictManager()
 			mockManager.sessions = tt.sessions
 			detector := NewConflictDetector(mockManager)
-			
+
 			// Test
 			err := detector.ValidateEnvironmentConsistency()
 			if (err != nil) != tt.expectError {
@@ -393,7 +395,7 @@ func TestIsolationValidator_ValidateIsolation(t *testing.T) {
 			expectError: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment
@@ -417,36 +419,36 @@ func TestIsolationValidator_ValidateIsolation(t *testing.T) {
 					os.Setenv("OSOBA_TEST_SESSION_PREFIX", origPrefix)
 				}
 			}()
-			
+
 			// Set test environment
 			if tt.testMode {
 				os.Setenv("OSOBA_TEST_MODE", "true")
 			} else {
 				os.Unsetenv("OSOBA_TEST_MODE")
 			}
-			
+
 			if tt.testSocket != "" {
 				os.Setenv("OSOBA_TEST_SOCKET", tt.testSocket)
 			} else {
 				os.Unsetenv("OSOBA_TEST_SOCKET")
 			}
-			
+
 			if tt.testPrefix != "" {
 				os.Setenv("OSOBA_TEST_SESSION_PREFIX", tt.testPrefix)
 			} else {
 				os.Unsetenv("OSOBA_TEST_SESSION_PREFIX")
 			}
-			
+
 			// Create validator
 			mockManager := NewMockConflictManager()
 			validator := NewIsolationValidator(mockManager)
-			
+
 			// Test - Skip actual socket test since tmux may not be available
 			if tt.testSocket != "" {
 				// Would test socket isolation in integration test
 				return
 			}
-			
+
 			err := validator.ValidateIsolation()
 			if (err != nil) != tt.expectError {
 				t.Errorf("ValidateIsolation() error = %v, expectError %v", err, tt.expectError)

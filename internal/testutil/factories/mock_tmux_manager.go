@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	
+
 	"github.com/douhashi/osoba/internal/tmux"
 )
 
 // MockTmuxManager is a mock implementation of tmux.Manager for testing.
 type MockTmuxManager struct {
-	mu           sync.RWMutex
-	sessions     map[string]*MockSession
+	mu            sync.RWMutex
+	sessions      map[string]*MockSession
 	paneBaseIndex int
-	errors       map[string]error // For simulating errors
+	errors        map[string]error // For simulating errors
 }
 
 // MockSession represents a mock tmux session.
@@ -79,7 +79,7 @@ func (m *MockTmuxManager) SessionExists(sessionName string) (bool, error) {
 	if err := m.getError("SessionExists"); err != nil {
 		return false, err
 	}
-	
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	_, exists := m.sessions[sessionName]
@@ -91,14 +91,14 @@ func (m *MockTmuxManager) CreateSession(sessionName string) error {
 	if err := m.getError("CreateSession"); err != nil {
 		return err
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if _, exists := m.sessions[sessionName]; exists {
 		return fmt.Errorf("session %s already exists", sessionName)
 	}
-	
+
 	m.sessions[sessionName] = &MockSession{
 		Name:    sessionName,
 		Windows: make(map[string]*MockWindow),
@@ -111,7 +111,7 @@ func (m *MockTmuxManager) EnsureSession(sessionName string) error {
 	if err := m.getError("EnsureSession"); err != nil {
 		return err
 	}
-	
+
 	exists, _ := m.SessionExists(sessionName)
 	if !exists {
 		return m.CreateSession(sessionName)
@@ -124,10 +124,10 @@ func (m *MockTmuxManager) ListSessions(prefix string) ([]string, error) {
 	if err := m.getError("ListSessions"); err != nil {
 		return nil, err
 	}
-	
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	var sessions []string
 	for name := range m.sessions {
 		if prefix == "" || strings.HasPrefix(name, prefix) {
@@ -142,19 +142,19 @@ func (m *MockTmuxManager) CreateWindow(sessionName, windowName string) error {
 	if err := m.getError("CreateWindow"); err != nil {
 		return err
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return fmt.Errorf("session %s does not exist", sessionName)
 	}
-	
+
 	if _, exists := session.Windows[windowName]; exists {
 		return fmt.Errorf("window %s already exists", windowName)
 	}
-	
+
 	session.Windows[windowName] = &MockWindow{
 		Name:  windowName,
 		Panes: []MockPane{{Index: m.paneBaseIndex}},
@@ -168,19 +168,19 @@ func (m *MockTmuxManager) SwitchToWindow(sessionName, windowName string) error {
 	if err := m.getError("SwitchToWindow"); err != nil {
 		return err
 	}
-	
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return fmt.Errorf("session %s does not exist", sessionName)
 	}
-	
+
 	if _, exists := session.Windows[windowName]; !exists {
 		return fmt.Errorf("window %s does not exist", windowName)
 	}
-	
+
 	return nil
 }
 
@@ -189,15 +189,15 @@ func (m *MockTmuxManager) WindowExists(sessionName, windowName string) (bool, er
 	if err := m.getError("WindowExists"); err != nil {
 		return false, err
 	}
-	
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return false, nil
 	}
-	
+
 	_, exists = session.Windows[windowName]
 	return exists, nil
 }
@@ -207,15 +207,15 @@ func (m *MockTmuxManager) KillWindow(sessionName, windowName string) error {
 	if err := m.getError("KillWindow"); err != nil {
 		return err
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return fmt.Errorf("session %s does not exist", sessionName)
 	}
-	
+
 	delete(session.Windows, windowName)
 	return nil
 }
@@ -225,7 +225,7 @@ func (m *MockTmuxManager) CreateOrReplaceWindow(sessionName, windowName string) 
 	if err := m.getError("CreateOrReplaceWindow"); err != nil {
 		return err
 	}
-	
+
 	exists, _ := m.WindowExists(sessionName, windowName)
 	if exists {
 		if err := m.KillWindow(sessionName, windowName); err != nil {
@@ -240,15 +240,15 @@ func (m *MockTmuxManager) ListWindows(sessionName string) ([]string, error) {
 	if err := m.getError("ListWindows"); err != nil {
 		return nil, err
 	}
-	
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return nil, fmt.Errorf("session %s does not exist", sessionName)
 	}
-	
+
 	var windows []string
 	for name := range session.Windows {
 		windows = append(windows, name)
@@ -261,20 +261,20 @@ func (m *MockTmuxManager) SendKeys(sessionName, windowName, keys string) error {
 	if err := m.getError("SendKeys"); err != nil {
 		return err
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return fmt.Errorf("session %s does not exist", sessionName)
 	}
-	
+
 	window, exists := session.Windows[windowName]
 	if !exists {
 		return fmt.Errorf("window %s does not exist", windowName)
 	}
-	
+
 	window.Keys = append(window.Keys, keys)
 	return nil
 }
@@ -284,20 +284,20 @@ func (m *MockTmuxManager) ClearWindow(sessionName, windowName string) error {
 	if err := m.getError("ClearWindow"); err != nil {
 		return err
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return fmt.Errorf("session %s does not exist", sessionName)
 	}
-	
+
 	window, exists := session.Windows[windowName]
 	if !exists {
 		return fmt.Errorf("window %s does not exist", windowName)
 	}
-	
+
 	window.Keys = []string{}
 	return nil
 }
@@ -307,7 +307,7 @@ func (m *MockTmuxManager) RunInWindow(sessionName, windowName, command string) e
 	if err := m.getError("RunInWindow"); err != nil {
 		return err
 	}
-	
+
 	// Simulate running command by sending it as keys
 	return m.SendKeys(sessionName, windowName, command+" Enter")
 }
@@ -327,7 +327,7 @@ func (m *MockTmuxManager) FindIssueWindow(windowName string) (int, bool) {
 	if !m.MatchIssueWindow(windowName) {
 		return 0, false
 	}
-	
+
 	var issueNumber int
 	_, err := fmt.Sscanf(windowName, "issue-%d", &issueNumber)
 	return issueNumber, err == nil
@@ -338,14 +338,14 @@ func (m *MockTmuxManager) CreateWindowForIssueWithNewWindowDetection(sessionName
 	if err := m.getError("CreateWindowForIssueWithNewWindowDetection"); err != nil {
 		return "", false, err
 	}
-	
+
 	windowName := m.GetIssueWindow(issueNumber)
 	exists, _ := m.WindowExists(sessionName, windowName)
-	
+
 	if err := m.CreateOrReplaceWindow(sessionName, windowName); err != nil {
 		return "", false, err
 	}
-	
+
 	return windowName, !exists, nil
 }
 
@@ -354,29 +354,29 @@ func (m *MockTmuxManager) CreatePane(sessionName, windowName string, opts tmux.P
 	if err := m.getError("CreatePane"); err != nil {
 		return nil, err
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return nil, fmt.Errorf("session %s does not exist", sessionName)
 	}
-	
+
 	window, exists := session.Windows[windowName]
 	if !exists {
 		return nil, fmt.Errorf("window %s does not exist", windowName)
 	}
-	
+
 	newIndex := m.paneBaseIndex + len(window.Panes)
 	window.Panes = append(window.Panes, MockPane{Index: newIndex})
-	
+
 	return &tmux.PaneInfo{
 		Index:  newIndex,
 		Title:  opts.Title,
 		Active: true,
-		Width:  80,  // default mock width
-		Height: 24,  // default mock height
+		Width:  80, // default mock width
+		Height: 24, // default mock height
 	}, nil
 }
 
@@ -385,7 +385,7 @@ func (m *MockTmuxManager) SplitPane(sessionName, windowName string, paneIndex in
 	if err := m.getError("SplitPane"); err != nil {
 		return 0, err
 	}
-	
+
 	opts := tmux.PaneOptions{
 		Split:      "-v",
 		Percentage: percentage,
@@ -394,7 +394,7 @@ func (m *MockTmuxManager) SplitPane(sessionName, windowName string, paneIndex in
 	if !vertical {
 		opts.Split = "-h"
 	}
-	
+
 	info, err := m.CreatePane(sessionName, windowName, opts)
 	if err != nil {
 		return 0, err
@@ -407,27 +407,27 @@ func (m *MockTmuxManager) SendKeysToPane(sessionName, windowName string, paneInd
 	if err := m.getError("SendKeysToPane"); err != nil {
 		return err
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return fmt.Errorf("session %s does not exist", sessionName)
 	}
-	
+
 	window, exists := session.Windows[windowName]
 	if !exists {
 		return fmt.Errorf("window %s does not exist", windowName)
 	}
-	
+
 	for i := range window.Panes {
 		if window.Panes[i].Index == paneIndex {
 			window.Panes[i].Keys = append(window.Panes[i].Keys, keys)
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("pane %d does not exist", paneIndex)
 }
 
@@ -436,7 +436,7 @@ func (m *MockTmuxManager) RunInPane(sessionName, windowName string, paneIndex in
 	if err := m.getError("RunInPane"); err != nil {
 		return err
 	}
-	
+
 	return m.SendKeysToPane(sessionName, windowName, paneIndex, command+" Enter")
 }
 
@@ -445,7 +445,7 @@ func (m *MockTmuxManager) GetPaneBaseIndex() (int, error) {
 	if err := m.getError("GetPaneBaseIndex"); err != nil {
 		return 0, err
 	}
-	
+
 	return m.paneBaseIndex, nil
 }
 
@@ -453,7 +453,7 @@ func (m *MockTmuxManager) GetPaneBaseIndex() (int, error) {
 func (m *MockTmuxManager) GetSessions() map[string]*MockSession {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	// Return a copy to avoid race conditions
 	sessions := make(map[string]*MockSession)
 	for k, v := range m.sessions {
@@ -467,26 +467,26 @@ func (m *MockTmuxManager) SelectPane(sessionName, windowName string, paneIndex i
 	if err := m.getError("SelectPane"); err != nil {
 		return err
 	}
-	
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return fmt.Errorf("session %s does not exist", sessionName)
 	}
-	
+
 	window, exists := session.Windows[windowName]
 	if !exists {
 		return fmt.Errorf("window %s does not exist", windowName)
 	}
-	
+
 	for _, pane := range window.Panes {
 		if pane.Index == paneIndex {
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("pane %d does not exist", paneIndex)
 }
 
@@ -495,27 +495,27 @@ func (m *MockTmuxManager) SetPaneTitle(sessionName, windowName string, paneIndex
 	if err := m.getError("SetPaneTitle"); err != nil {
 		return err
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return fmt.Errorf("session %s does not exist", sessionName)
 	}
-	
+
 	window, exists := session.Windows[windowName]
 	if !exists {
 		return fmt.Errorf("window %s does not exist", windowName)
 	}
-	
+
 	for i := range window.Panes {
 		if window.Panes[i].Index == paneIndex {
 			// Note: MockPane doesn't have a Title field, but we can simulate success
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("pane %d does not exist", paneIndex)
 }
 
@@ -524,31 +524,31 @@ func (m *MockTmuxManager) ListPanes(sessionName, windowName string) ([]*tmux.Pan
 	if err := m.getError("ListPanes"); err != nil {
 		return nil, err
 	}
-	
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	session, exists := m.sessions[sessionName]
 	if !exists {
 		return nil, fmt.Errorf("session %s does not exist", sessionName)
 	}
-	
+
 	window, exists := session.Windows[windowName]
 	if !exists {
 		return nil, fmt.Errorf("window %s does not exist", windowName)
 	}
-	
+
 	var panes []*tmux.PaneInfo
 	for _, pane := range window.Panes {
 		panes = append(panes, &tmux.PaneInfo{
 			Index:  pane.Index,
-			Title:  "", // MockPane doesn't have a Title field
+			Title:  "",              // MockPane doesn't have a Title field
 			Active: pane.Index == 0, // First pane is active
 			Width:  80,
 			Height: 24,
 		})
 	}
-	
+
 	return panes, nil
 }
 
@@ -557,7 +557,7 @@ func (m *MockTmuxManager) GetPaneByTitle(sessionName, windowName string, title s
 	if err := m.getError("GetPaneByTitle"); err != nil {
 		return nil, err
 	}
-	
+
 	// For mock purposes, we'll return a default pane info based on title
 	// Since MockPane doesn't have a Title field, we'll simulate based on common titles
 	knownTitles := map[string]int{
@@ -566,7 +566,7 @@ func (m *MockTmuxManager) GetPaneByTitle(sessionName, windowName string, title s
 		"Review":         2,
 		"Test":           3,
 	}
-	
+
 	if index, exists := knownTitles[title]; exists {
 		return &tmux.PaneInfo{
 			Index:  index,
@@ -576,7 +576,7 @@ func (m *MockTmuxManager) GetPaneByTitle(sessionName, windowName string, title s
 			Height: 24,
 		}, nil
 	}
-	
+
 	return nil, fmt.Errorf("pane with title %s not found", title)
 }
 
@@ -584,7 +584,7 @@ func (m *MockTmuxManager) GetPaneByTitle(sessionName, windowName string, title s
 func (m *MockTmuxManager) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	m.sessions = make(map[string]*MockSession)
 	m.errors = make(map[string]error)
 }

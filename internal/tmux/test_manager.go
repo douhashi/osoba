@@ -18,17 +18,17 @@ type TestManager struct {
 // NewTestManager creates a new test-specific tmux manager.
 func NewTestManager() *TestManager {
 	executor := &DefaultCommandExecutor{}
-	
+
 	// Check for test mode environment variables
 	testMode := os.Getenv("OSOBA_TEST_MODE") == "true"
 	testSocket := os.Getenv("OSOBA_TEST_SOCKET")
 	sessionPrefix := os.Getenv("OSOBA_TEST_SESSION_PREFIX")
-	
+
 	// Default session prefix for tests
 	if sessionPrefix == "" {
 		sessionPrefix = "test-osoba-"
 	}
-	
+
 	// Create test-specific executor if socket isolation is enabled
 	var testExecutor CommandExecutor = executor
 	if testSocket != "" {
@@ -37,7 +37,7 @@ func NewTestManager() *TestManager {
 			testSocket: testSocket,
 		}
 	}
-	
+
 	return &TestManager{
 		DefaultManager: NewDefaultManagerWithExecutor(testExecutor),
 		testSocket:     testSocket,
@@ -52,7 +52,7 @@ func NewTestManagerWithSocket(socket string, prefix string) *TestManager {
 		base:       &DefaultCommandExecutor{},
 		testSocket: socket,
 	}
-	
+
 	return &TestManager{
 		DefaultManager: NewDefaultManagerWithExecutor(executor),
 		testSocket:     socket,
@@ -82,7 +82,7 @@ func (m *TestManager) EnsureTestSession(sessionName string) error {
 	if !strings.HasPrefix(sessionName, m.sessionPrefix) {
 		sessionName = m.sessionPrefix + sessionName
 	}
-	
+
 	return m.EnsureSession(sessionName)
 }
 
@@ -92,7 +92,7 @@ func (m *TestManager) CreateTestSession(sessionName string) error {
 	if !strings.HasPrefix(sessionName, m.sessionPrefix) {
 		sessionName = m.sessionPrefix + sessionName
 	}
-	
+
 	return m.CreateSession(sessionName)
 }
 
@@ -102,7 +102,7 @@ func (m *TestManager) CleanupTestSessions() error {
 	if err != nil {
 		return fmt.Errorf("failed to list test sessions: %w", err)
 	}
-	
+
 	for _, session := range sessions {
 		if err := m.KillSession(session); err != nil {
 			// Log error but continue cleanup
@@ -111,7 +111,7 @@ func (m *TestManager) CleanupTestSessions() error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -137,7 +137,7 @@ func (e *TestCommandExecutor) Execute(command string, args ...string) (string, e
 		newArgs = append(newArgs, args...)
 		return e.base.Execute(command, newArgs...)
 	}
-	
+
 	return e.base.Execute(command, args...)
 }
 
@@ -146,7 +146,7 @@ func ValidateTestEnvironment() error {
 	if os.Getenv("OSOBA_TEST_MODE") != "true" {
 		return fmt.Errorf("OSOBA_TEST_MODE is not set to true")
 	}
-	
+
 	// Check if test socket is accessible if specified
 	if socket := os.Getenv("OSOBA_TEST_SOCKET"); socket != "" {
 		// Try to create a test tmux server with the socket
@@ -154,10 +154,10 @@ func ValidateTestEnvironment() error {
 			base:       &DefaultCommandExecutor{},
 			testSocket: socket,
 		}
-		
+
 		// Start tmux server if not running
 		_, _ = executor.Execute("tmux", "start-server")
-		
+
 		// Try to list sessions (this will fail if socket is not accessible)
 		if _, err := executor.Execute("tmux", "list-sessions"); err != nil {
 			// It's okay if there are no sessions, as long as the command doesn't fail due to socket issues
@@ -167,7 +167,7 @@ func ValidateTestEnvironment() error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -175,30 +175,30 @@ func ValidateTestEnvironment() error {
 func CreateIsolatedTestManager(testID string) (*TestManager, func(), error) {
 	// Generate unique socket path
 	socketPath := fmt.Sprintf("/tmp/osoba-test-%s-%d.sock", testID, os.Getpid())
-	
+
 	// Create test manager
 	manager := NewTestManagerWithSocket(socketPath, "test-"+testID+"-")
-	
+
 	// Start tmux server with the test socket
 	if testExec, ok := manager.executor.(*TestCommandExecutor); ok {
 		if _, err := testExec.Execute("tmux", "start-server"); err != nil {
 			return nil, nil, fmt.Errorf("failed to start test tmux server: %w", err)
 		}
 	}
-	
+
 	// Cleanup function
 	cleanup := func() {
 		// Kill all test sessions
 		_ = manager.CleanupTestSessions()
-		
+
 		// Kill the tmux server
 		if testExec, ok := manager.executor.(*TestCommandExecutor); ok {
 			_, _ = testExec.Execute("tmux", "kill-server")
 		}
-		
+
 		// Remove socket file
 		_ = os.Remove(socketPath)
 	}
-	
+
 	return manager, cleanup, nil
 }

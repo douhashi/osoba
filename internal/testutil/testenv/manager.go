@@ -14,16 +14,16 @@ import (
 type TestEnvironmentManager interface {
 	// Setup initializes the test environment.
 	Setup(ctx context.Context) error
-	
+
 	// Teardown cleans up the test environment.
 	Teardown(ctx context.Context) error
-	
+
 	// IsTestMode returns true if running in test mode.
 	IsTestMode() bool
-	
+
 	// GetTestSocket returns the test-specific tmux socket path.
 	GetTestSocket() string
-	
+
 	// RegisterCleanup registers a cleanup function to be called on teardown.
 	RegisterCleanup(cleanup func() error)
 }
@@ -32,13 +32,13 @@ type TestEnvironmentManager interface {
 type Config struct {
 	// UseSocketIsolation enables tmux socket isolation for tests.
 	UseSocketIsolation bool
-	
+
 	// TestSocketPath is the custom socket path for test tmux server.
 	TestSocketPath string
-	
+
 	// SessionPrefix is the prefix for test sessions.
 	SessionPrefix string
-	
+
 	// AutoCleanup enables automatic cleanup on process termination.
 	AutoCleanup bool
 }
@@ -67,7 +67,7 @@ func NewManager(t *testing.T, config *Config) *Manager {
 	if config == nil {
 		config = DefaultConfig()
 	}
-	
+
 	return &Manager{
 		config:   config,
 		cleanups: []func() error{},
@@ -79,11 +79,11 @@ func NewManager(t *testing.T, config *Config) *Manager {
 func (m *Manager) Setup(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if m.setupDone {
 		return nil
 	}
-	
+
 	// Set test mode environment variable
 	if err := os.Setenv("OSOBA_TEST_MODE", "true"); err != nil {
 		return fmt.Errorf("failed to set OSOBA_TEST_MODE: %w", err)
@@ -91,7 +91,7 @@ func (m *Manager) Setup(ctx context.Context) error {
 	m.registerCleanupLocked(func() error {
 		return os.Unsetenv("OSOBA_TEST_MODE")
 	})
-	
+
 	// Set test socket if using socket isolation
 	if m.config.UseSocketIsolation {
 		if err := os.Setenv("OSOBA_TEST_SOCKET", m.config.TestSocketPath); err != nil {
@@ -101,7 +101,7 @@ func (m *Manager) Setup(ctx context.Context) error {
 			return os.Unsetenv("OSOBA_TEST_SOCKET")
 		})
 	}
-	
+
 	// Set session prefix
 	if err := os.Setenv("OSOBA_TEST_SESSION_PREFIX", m.config.SessionPrefix); err != nil {
 		return fmt.Errorf("failed to set OSOBA_TEST_SESSION_PREFIX: %w", err)
@@ -109,13 +109,13 @@ func (m *Manager) Setup(ctx context.Context) error {
 	m.registerCleanupLocked(func() error {
 		return os.Unsetenv("OSOBA_TEST_SESSION_PREFIX")
 	})
-	
+
 	// Setup signal handlers for cleanup if auto cleanup is enabled
 	// Skip signal handlers in test mode to avoid test conflicts
 	if m.config.AutoCleanup && m.t == nil {
 		m.setupSignalHandlers(ctx)
 	}
-	
+
 	m.setupDone = true
 	return nil
 }
@@ -124,27 +124,27 @@ func (m *Manager) Setup(ctx context.Context) error {
 func (m *Manager) Teardown(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if !m.setupDone {
 		return nil
 	}
-	
+
 	var errs []error
-	
+
 	// Execute cleanup functions in reverse order
 	for i := len(m.cleanups) - 1; i >= 0; i-- {
 		if err := m.cleanups[i](); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	
+
 	m.cleanups = []func() error{}
 	m.setupDone = false
-	
+
 	if len(errs) > 0 {
 		return fmt.Errorf("teardown errors: %v", errs)
 	}
-	
+
 	return nil
 }
 
@@ -177,7 +177,7 @@ func (m *Manager) registerCleanupLocked(cleanup func() error) {
 func (m *Manager) setupSignalHandlers(ctx context.Context) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	go func() {
 		select {
 		case <-sigChan:
@@ -195,19 +195,19 @@ func (m *Manager) setupSignalHandlers(ctx context.Context) {
 // WithTestEnvironment is a helper function to set up and tear down test environment.
 func WithTestEnvironment(t *testing.T, config *Config, testFunc func(manager TestEnvironmentManager)) {
 	t.Helper()
-	
+
 	manager := NewManager(t, config)
 	ctx := context.Background()
-	
+
 	if err := manager.Setup(ctx); err != nil {
 		t.Fatalf("failed to setup test environment: %v", err)
 	}
-	
+
 	defer func() {
 		if err := manager.Teardown(ctx); err != nil {
 			t.Errorf("failed to teardown test environment: %v", err)
 		}
 	}()
-	
+
 	testFunc(manager)
 }
