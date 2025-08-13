@@ -1,67 +1,145 @@
 {
-  "name": "${localWorkspaceFolderBaseName}",
-  "dockerComposeFile": "compose.yaml",
-  "service": "app",
-  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-  "features": {
-    "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/rails/devcontainer/features/activestorage": {},
-    "ghcr.io/devcontainers/features/node:1": {},
-    "ghcr.io/devcontainers/features/python:1": {},
-    "ghcr.io/devcontainers/features/aws-cli:1.1.2": {},
-    "ghcr.io/devcontainers/features/sshd:1": {
-      "version": "latest"
+  "name": "osoba Development Container",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".",
+    "args": {
+      "GO_TOOLS_VERSION": "latest"
     }
   },
-  "containerEnv": {
-    "KAMAL_REGISTRY_USERNAME": "$KAMAL_REGISTRY_USERNAME",
-    "KAMAL_REGISTRY_PASSWORD": "$KAMAL_REGISTRY_PASSWORD",
-    "VITE_RUBY_HOST": "0.0.0.0",
-    "SELENIUM_URL": "http://selenium:4444/",
-    "PYTHON": "/usr/bin/python3"
-  },
-  "forwardPorts": [
-    5100,
-    3036
+  "runArgs": [
+    "--init",
+    "--cap-add=SYS_PTRACE",
+    "--security-opt",
+    "seccomp=unconfined"
   ],
   "mounts": [
-    {
-      "source": "${localEnv:HOME}/.claude",
-      "target": "/home/vscode/.claude",
-      "type": "bind",
-      "consistency": "cached"
-    },
-    {
-      "source": "${localEnv:HOME}/.claude.json",
-      "target": "/home/vscode/.claude.json",
-      "type": "bind",
-      "consistency": "cached"
-    },
-    {
-      "source": "${localEnv:HOME}/.config/gh",
-      "target": "/home/vscode/.config/gh",
-      "type": "bind",
-      "consistency": "cached"
-    },
-    {
-      "source": "${localEnv:HOME}/.ssh",
-      "target": "/home/vscode/.ssh",
-      "type": "bind",
-      "consistency": "cached"
-    },
-    {
-      "source": "${localEnv:HOME}/.aws",
-      "target": "/home/vscode/.aws",
-      "type": "bind",
-      "consistency": "cached"
-    },
-    {
-      "source": "${localEnv:HOME}/.gitconfig",
-      "target": "/home/vscode/.gitconfig",
-      "type": "bind",
-      "consistency": "cached"
-    }
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
   ],
-  "postCreateCommand": "/bin/bash .devcontainer/post-create.sh",
-  "postAttachCommand": "/bin/bash .devcontainer/post-attach.sh"
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "GitHub.vscode-pull-request-github",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "eamodio.gitlens",
+        "ms-azuretools.vscode-docker",
+        "davidanson.vscode-markdownlint",
+        "redhat.vscode-yaml",
+        "ms-vscode.makefile-tools",
+        "streetsidesoftware.code-spell-checker",
+        "wayou.vscode-todo-highlight",
+        "gruntfuggly.todo-tree",
+        "yzhang.markdown-all-in-one",
+        "bierner.markdown-mermaid"
+      ],
+      "settings": {
+        "go.toolsManagement.checkForUpdates": "local",
+        "go.useLanguageServer": true,
+        "go.gopath": "/go",
+        "go.goroot": "/usr/local/go",
+        "go.formatTool": "goimports",
+        "go.lintTool": "golangci-lint",
+        "go.lintOnSave": "workspace",
+        "go.testOnSave": false,
+        "go.coverOnSave": false,
+        "go.testFlags": ["-v", "-race"],
+        "go.testTimeout": "3m",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
+        "[go]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          },
+          "editor.snippetSuggestions": "none"
+        },
+        "[go.mod]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+        "gopls": {
+          "usePlaceholders": true,
+          "staticcheck": false,
+          "vulncheck": "Imports"
+        },
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash",
+            "icon": "terminal-bash"
+          },
+          "tmux": {
+            "path": "tmux",
+            "icon": "terminal-tmux"
+          }
+        },
+        "git.autofetch": true,
+        "git.confirmSync": false,
+        "git.enableSmartCommit": true,
+        "github.pullRequests.fileListLayout": "tree",
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+        "files.trimFinalNewlines": true,
+        "editor.rulers": [120],
+        "editor.wordWrap": "off",
+        "editor.tabSize": 4,
+        "editor.insertSpaces": false,
+        "[markdown]": {
+          "editor.wordWrap": "on",
+          "editor.rulers": [80]
+        },
+        "[yaml]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2,
+          "editor.autoIndent": "advanced"
+        },
+        "[json]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2
+        }
+      }
+    }
+  },
+  "forwardPorts": [],
+  "postCreateCommand": "/bin/bash .devcontainer/postCreateCommand.sh",
+  "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}",
+  "postAttachCommand": "echo 'Welcome to osoba Development Container! Run \"make help\" to see available commands.'",
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "GO111MODULE": "on",
+    "GOPATH": "/go",
+    "CGO_ENABLED": "1"
+  },
+  "remoteEnv": {
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "CLAUDE_API_KEY": "${localEnv:CLAUDE_API_KEY}",
+    "GH_TOKEN": "${localEnv:GH_TOKEN}"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": false,
+      "installOhMyZsh": false,
+      "installOhMyZshConfig": false,
+      "upgradePackages": true,
+      "username": "vscode",
+      "userUid": "automatic",
+      "userGid": "automatic"
+    },
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest",
+      "ppa": false
+    },
+    "ghcr.io/devcontainers/features/git-lfs:1": {
+      "version": "latest",
+      "autoPull": true
+    }
+  }
 }

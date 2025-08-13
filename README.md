@@ -275,6 +275,37 @@ osobaは環境変数での設定を必要としません。GitHub認証はghコ�
 
 ### 開発環境のセットアップ
 
+#### DevContainerを使用する場合（推奨）
+
+最も簡単に開発環境を構築する方法です。VS CodeとDockerがあれば、すべての依存関係が自動的にセットアップされます。
+
+1. **前提条件**:
+   - Docker DesktopまたはDocker Engineのインストール
+   - Visual Studio Codeのインストール
+   - VS Code拡張機能「Dev Containers」のインストール
+
+2. **DevContainerで開く**:
+   ```bash
+   # リポジトリをクローン
+   git clone https://github.com/douhashi/osoba.git
+   cd osoba
+   
+   # VS Codeで開く
+   code .
+   ```
+   VS Code内で `F1` → `Dev Containers: Reopen in Container` を選択
+
+3. **環境変数の設定**（オプション）:
+   ```bash
+   # ホストマシンで設定
+   export GITHUB_TOKEN="your-github-token"
+   export CLAUDE_API_KEY="your-claude-api-key"
+   ```
+
+詳細は [.devcontainer/README.md](.devcontainer/README.md) を参照してください。
+
+#### ローカル環境に直接セットアップする場合
+
 1. Go 1.24.5以上をインストール
 2. 開発ツールをインストール:
    ```bash
