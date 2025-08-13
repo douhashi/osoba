@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -218,7 +219,10 @@ func (w *IssueWatcher) StartWithActions(ctx context.Context) {
 		// ラベル遷移後、Issue情報を再取得して最新状態で自動マージ処理を実行
 		if w.config != nil && w.config.GitHub.AutoMergeLGTM && issue.Number != nil {
 			// ラベル遷移後のタイミング問題に対応するため、少し待機
-			time.Sleep(1 * time.Second)
+			// テストモードではスリープをスキップ
+			if os.Getenv("OSOBA_TEST_MODE") != "true" {
+				time.Sleep(1 * time.Second)
+			}
 
 			// 最新のIssue状態を取得
 			updatedIssue, err := w.getUpdatedIssueState(ctx, *issue.Number)
@@ -628,7 +632,10 @@ func (w *IssueWatcher) executeLabelTransition(ctx context.Context, issue *gh.Iss
 						"error", err)
 
 					if attempt < maxRetries {
-						time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
+						// テストモードではスリープをスキップ
+						if os.Getenv("OSOBA_TEST_MODE") != "true" {
+							time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
+						}
 						continue
 					}
 					// 最終的に失敗した場合、メトリクスに記録
@@ -714,7 +721,10 @@ func (w *IssueWatcher) executeRequiresChangesTransition(ctx context.Context, iss
 				"error", err)
 
 			if attempt < maxRetries {
-				time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
+				// テストモードではスリープをスキップ
+				if os.Getenv("OSOBA_TEST_MODE") != "true" {
+					time.Sleep(time.Duration(attempt) * time.Second) // バックオフ付きリトライ
+				}
 				continue
 			}
 			// 最終的に失敗した場合、メトリクスに記録

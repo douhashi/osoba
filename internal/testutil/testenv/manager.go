@@ -60,6 +60,7 @@ type Manager struct {
 	cleanups  []func() error
 	setupDone bool
 	t         *testing.T
+	origEnv   map[string]*string // Store original env values (nil if unset)
 }
 
 // NewManager creates a new test environment manager.
@@ -72,6 +73,7 @@ func NewManager(t *testing.T, config *Config) *Manager {
 		config:   config,
 		cleanups: []func() error{},
 		t:        t,
+		origEnv:  make(map[string]*string),
 	}
 }
 
@@ -84,29 +86,53 @@ func (m *Manager) Setup(ctx context.Context) error {
 		return nil
 	}
 
-	// Set test mode environment variable
+	// Save and set test mode environment variable
+	if val, exists := os.LookupEnv("OSOBA_TEST_MODE"); exists {
+		m.origEnv["OSOBA_TEST_MODE"] = &val
+	} else {
+		m.origEnv["OSOBA_TEST_MODE"] = nil
+	}
 	if err := os.Setenv("OSOBA_TEST_MODE", "true"); err != nil {
 		return fmt.Errorf("failed to set OSOBA_TEST_MODE: %w", err)
 	}
 	m.registerCleanupLocked(func() error {
+		if orig := m.origEnv["OSOBA_TEST_MODE"]; orig != nil {
+			return os.Setenv("OSOBA_TEST_MODE", *orig)
+		}
 		return os.Unsetenv("OSOBA_TEST_MODE")
 	})
 
-	// Set test socket if using socket isolation
+	// Save and set test socket if using socket isolation
 	if m.config.UseSocketIsolation {
+		if val, exists := os.LookupEnv("OSOBA_TEST_SOCKET"); exists {
+			m.origEnv["OSOBA_TEST_SOCKET"] = &val
+		} else {
+			m.origEnv["OSOBA_TEST_SOCKET"] = nil
+		}
 		if err := os.Setenv("OSOBA_TEST_SOCKET", m.config.TestSocketPath); err != nil {
 			return fmt.Errorf("failed to set OSOBA_TEST_SOCKET: %w", err)
 		}
 		m.registerCleanupLocked(func() error {
+			if orig := m.origEnv["OSOBA_TEST_SOCKET"]; orig != nil {
+				return os.Setenv("OSOBA_TEST_SOCKET", *orig)
+			}
 			return os.Unsetenv("OSOBA_TEST_SOCKET")
 		})
 	}
 
-	// Set session prefix
+	// Save and set session prefix
+	if val, exists := os.LookupEnv("OSOBA_TEST_SESSION_PREFIX"); exists {
+		m.origEnv["OSOBA_TEST_SESSION_PREFIX"] = &val
+	} else {
+		m.origEnv["OSOBA_TEST_SESSION_PREFIX"] = nil
+	}
 	if err := os.Setenv("OSOBA_TEST_SESSION_PREFIX", m.config.SessionPrefix); err != nil {
 		return fmt.Errorf("failed to set OSOBA_TEST_SESSION_PREFIX: %w", err)
 	}
 	m.registerCleanupLocked(func() error {
+		if orig := m.origEnv["OSOBA_TEST_SESSION_PREFIX"]; orig != nil {
+			return os.Setenv("OSOBA_TEST_SESSION_PREFIX", *orig)
+		}
 		return os.Unsetenv("OSOBA_TEST_SESSION_PREFIX")
 	})
 
