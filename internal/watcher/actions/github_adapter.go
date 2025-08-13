@@ -60,6 +60,21 @@ func (a *GitHubAdapter) TransitionLabel(ctx context.Context, issueNumber int, fr
 	return nil
 }
 
+// AddLabel はラベルを追加する
+func (a *GitHubAdapter) AddLabel(ctx context.Context, issueNumber int, label string) error {
+	return a.client.AddLabel(ctx, a.owner, a.repo, issueNumber, label)
+}
+
+// RemoveLabel はラベルを削除する
+func (a *GitHubAdapter) RemoveLabel(ctx context.Context, issueNumber int, label string) error {
+	return a.client.RemoveLabel(ctx, a.owner, a.repo, issueNumber, label)
+}
+
+// GetPullRequestForIssue はIssueに関連するPRを取得する
+func (a *GitHubAdapter) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*github.PullRequest, error) {
+	return a.client.GetPullRequestForIssue(ctx, issueNumber)
+}
+
 // ConfigAdapter はconfig.Configをactions.ConfigProviderに適合させるアダプター
 type ConfigAdapter struct {
 	config *config.Config

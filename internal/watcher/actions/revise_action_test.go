@@ -25,13 +25,20 @@ func TestReviseAction_Execute(t *testing.T) {
 		errContains  string
 	}{
 		{
-			name: "正常なReviseアクション実行",
+			name: "正常なReviseアクション実行（PR存在）",
 			issue: builders.NewIssueBuilder().
 				WithNumber(123).
 				WithTitle("Test Issue").
 				WithLabel("status:requires-changes").
 				Build(),
 			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor, labelManager *mocks.MockLabelManager) {
+				// PRラベル削除のため、PRを取得
+				pr := &github.PullRequest{
+					Number: 456,
+				}
+				labelManager.On("GetPullRequestForIssue", mock.Anything, 123).Return(pr, nil).Once()
+				labelManager.On("RemoveLabel", mock.Anything, 456, "status:requires-changes").Return(nil).Once()
+
 				// PrepareWorkspace - 既存のワークスペースを再利用
 				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
 				tmux.On("WindowExists", "test-session", "issue-123").Return(true, nil).Once()
@@ -79,6 +86,126 @@ func TestReviseAction_Execute(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "正常なReviseアクション実行（PR存在しない）",
+			issue: builders.NewIssueBuilder().
+				WithNumber(124).
+				WithTitle("Test Issue No PR").
+				WithLabel("status:requires-changes").
+				Build(),
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor, labelManager *mocks.MockLabelManager) {
+				// PRラベル削除のため、PRを取得（PRが存在しない）
+				labelManager.On("GetPullRequestForIssue", mock.Anything, 124).Return(nil, nil).Once()
+				// PRが存在しない場合はPRラベル削除をスキップ
+
+				// PrepareWorkspace - 既存のワークスペースを再利用
+				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
+				tmux.On("WindowExists", "test-session", "issue-124").Return(true, nil).Once()
+				git.On("WorktreeExistsForIssue", mock.Anything, 124).Return(true, nil).Once()
+				tmux.On("GetPaneByTitle", "test-session", "issue-124", "Revise").Return(nil, assert.AnError).Once()
+				// Reviseフェーズでは新しいpaneを作成
+				tmux.On("CreatePane", "test-session", "issue-124", mock.Anything).
+					Return(&tmuxpkg.PaneInfo{Index: 2, Title: "Revise", Active: true}, nil).Once()
+				git.On("GetWorktreePathForIssue", 124).Return("/test/worktree/issue-124").Once()
+
+				// Claude実行 - ExecuteInTmuxを使用
+				expectedConfig := &claude.PhaseConfig{
+					Prompt: "/osoba:revise {{issue-number}}",
+					Args:   []string{"--dangerously-skip-permissions"},
+				}
+				expectedVars := &claude.TemplateVariables{
+					IssueNumber: 124,
+					IssueTitle:  "Test Issue No PR",
+					RepoName:    "osoba",
+				}
+				claudeExec.On("ExecuteInTmux",
+					mock.Anything,
+					expectedConfig,
+					mock.MatchedBy(func(vars *claude.TemplateVariables) bool {
+						return vars.IssueNumber == expectedVars.IssueNumber &&
+							vars.IssueTitle == expectedVars.IssueTitle
+					}),
+					"test-session",
+					"issue-124",
+					"/test/worktree/issue-124",
+				).Return(nil).Once()
+
+				// ラベル更新
+				labelManager.On("RemoveLabel", mock.Anything, 124, "status:requires-changes").Return(nil).Once()
+				labelManager.On("AddLabel", mock.Anything, 124, "status:revising").Return(nil).Once()
+			},
+			claudeConfig: &claude.ClaudeConfig{
+				Phases: map[string]*claude.PhaseConfig{
+					"revise": {
+						Prompt: "/osoba:revise {{issue-number}}",
+						Args:   []string{"--dangerously-skip-permissions"},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "PRラベル削除失敗でも処理継続",
+			issue: builders.NewIssueBuilder().
+				WithNumber(125).
+				WithTitle("Test Issue PR Label Error").
+				WithLabel("status:requires-changes").
+				Build(),
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor, labelManager *mocks.MockLabelManager) {
+				// PRラベル削除のため、PRを取得
+				pr := &github.PullRequest{
+					Number: 457,
+				}
+				labelManager.On("GetPullRequestForIssue", mock.Anything, 125).Return(pr, nil).Once()
+				labelManager.On("RemoveLabel", mock.Anything, 457, "status:requires-changes").Return(assert.AnError).Once()
+				// エラーでも処理継続
+
+				// PrepareWorkspace - 既存のワークスペースを再利用
+				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
+				tmux.On("WindowExists", "test-session", "issue-125").Return(true, nil).Once()
+				git.On("WorktreeExistsForIssue", mock.Anything, 125).Return(true, nil).Once()
+				tmux.On("GetPaneByTitle", "test-session", "issue-125", "Revise").Return(nil, assert.AnError).Once()
+				// Reviseフェーズでは新しいpaneを作成
+				tmux.On("CreatePane", "test-session", "issue-125", mock.Anything).
+					Return(&tmuxpkg.PaneInfo{Index: 2, Title: "Revise", Active: true}, nil).Once()
+				git.On("GetWorktreePathForIssue", 125).Return("/test/worktree/issue-125").Once()
+
+				// Claude実行 - ExecuteInTmuxを使用
+				expectedConfig := &claude.PhaseConfig{
+					Prompt: "/osoba:revise {{issue-number}}",
+					Args:   []string{"--dangerously-skip-permissions"},
+				}
+				expectedVars := &claude.TemplateVariables{
+					IssueNumber: 125,
+					IssueTitle:  "Test Issue PR Label Error",
+					RepoName:    "osoba",
+				}
+				claudeExec.On("ExecuteInTmux",
+					mock.Anything,
+					expectedConfig,
+					mock.MatchedBy(func(vars *claude.TemplateVariables) bool {
+						return vars.IssueNumber == expectedVars.IssueNumber &&
+							vars.IssueTitle == expectedVars.IssueTitle
+					}),
+					"test-session",
+					"issue-125",
+					"/test/worktree/issue-125",
+				).Return(nil).Once()
+
+				// ラベル更新
+				labelManager.On("RemoveLabel", mock.Anything, 125, "status:requires-changes").Return(nil).Once()
+				labelManager.On("AddLabel", mock.Anything, 125, "status:revising").Return(nil).Once()
+			},
+			claudeConfig: &claude.ClaudeConfig{
+				Phases: map[string]*claude.PhaseConfig{
+					"revise": {
+						Prompt: "/osoba:revise {{issue-number}}",
+						Args:   []string{"--dangerously-skip-permissions"},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name:  "nilのissue",
 			issue: nil,
 			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor, labelManager *mocks.MockLabelManager) {
@@ -108,6 +235,9 @@ func TestReviseAction_Execute(t *testing.T) {
 				WithLabel("status:requires-changes").
 				Build(),
 			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor, labelManager *mocks.MockLabelManager) {
+				// PRラベル削除処理
+				labelManager.On("GetPullRequestForIssue", mock.Anything, 999).Return(nil, nil).Once()
+
 				// PrepareWorkspace
 				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
 				tmux.On("WindowExists", "test-session", "issue-999").Return(true, nil).Once()
@@ -133,6 +263,9 @@ func TestReviseAction_Execute(t *testing.T) {
 				WithLabel("status:requires-changes").
 				Build(),
 			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor, labelManager *mocks.MockLabelManager) {
+				// PRラベル削除処理
+				labelManager.On("GetPullRequestForIssue", mock.Anything, 456).Return(nil, nil).Once()
+
 				tmux.On("SessionExists", "test-session").Return(false, assert.AnError).Once()
 			},
 			claudeConfig: &claude.ClaudeConfig{

@@ -61,6 +61,41 @@ func (a *ReviseAction) Execute(ctx context.Context, issue *github.Issue) error {
 	issueNumber := int64(*issue.Number)
 	a.logger.Info("Executing revise action", "issue_number", issueNumber)
 
+	// PRのstatus:requires-changesラベルを削除（重複実行防止）
+	if a.labelManager != nil {
+		pr, err := a.labelManager.GetPullRequestForIssue(ctx, int(issueNumber))
+		if err != nil {
+			a.logger.Error("Failed to get PR for issue",
+				"issue_number", issueNumber,
+				"error", err,
+			)
+			// PRが取得できない場合も処理を継続
+		} else if pr != nil {
+			a.logger.Info("Found PR for issue, removing PR label",
+				"issue_number", issueNumber,
+				"pr_number", pr.Number,
+			)
+			// PRのstatus:requires-changesラベルを削除
+			if err := a.labelManager.RemoveLabel(ctx, pr.Number, "status:requires-changes"); err != nil {
+				a.logger.Error("Failed to remove PR label",
+					"pr_number", pr.Number,
+					"label", "status:requires-changes",
+					"error", err,
+				)
+				// エラーが発生しても処理を継続
+			} else {
+				a.logger.Info("Successfully removed PR label",
+					"pr_number", pr.Number,
+					"label", "status:requires-changes",
+				)
+			}
+		} else {
+			a.logger.Info("No PR found for issue",
+				"issue_number", issueNumber,
+			)
+		}
+	}
+
 	// ワークスペースの準備（既存のものを再利用）
 	workspace, err := a.baseExecutor.PrepareWorkspace(ctx, issue, "Revise")
 	if err != nil {
