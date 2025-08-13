@@ -91,6 +91,9 @@ alias ta='tmux attach -t'
 alias tn='tmux new -s'
 alias tk='tmux kill-session -t'
 
+# Claude CLI alias
+alias claude='claude --dangerously-skip-permissions'
+
 EOF
 
 # Create workspace directories if needed
@@ -136,5 +139,6 @@ echo "  ob       - Run osoba"
 echo "  obt      - Run tests"
 echo "  obb      - Build osoba"
 echo "  got      - Run go tests"
+echo "  claude   - Claude CLI (with skip permissions)"
 echo ""
 echo "Happy coding! 🎉"
