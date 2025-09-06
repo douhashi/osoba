@@ -144,6 +144,14 @@ func (a *ReviseAction) Execute(ctx context.Context, issue *github.Issue) error {
 				"error", err,
 			)
 		}
+		// status:reviewingラベルも削除（存在しない場合やエラーでも処理継続）
+		if err := a.labelManager.RemoveLabel(ctx, int(issueNumber), "status:reviewing"); err != nil {
+			a.logger.Error("Failed to remove label",
+				"issue_number", issueNumber,
+				"label", "status:reviewing",
+				"error", err,
+			)
+		}
 		if err := a.labelManager.AddLabel(ctx, int(issueNumber), "status:revising"); err != nil {
 			a.logger.Error("Failed to add label",
 				"issue_number", issueNumber,

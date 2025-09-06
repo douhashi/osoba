@@ -73,6 +73,7 @@ func TestReviseAction_Execute(t *testing.T) {
 
 				// ラベル更新
 				labelManager.On("RemoveLabel", mock.Anything, 123, "status:requires-changes").Return(nil).Once()
+				labelManager.On("RemoveLabel", mock.Anything, 123, "status:reviewing").Return(nil).Once()
 				labelManager.On("AddLabel", mock.Anything, 123, "status:revising").Return(nil).Once()
 			},
 			claudeConfig: &claude.ClaudeConfig{
@@ -131,6 +132,7 @@ func TestReviseAction_Execute(t *testing.T) {
 
 				// ラベル更新
 				labelManager.On("RemoveLabel", mock.Anything, 124, "status:requires-changes").Return(nil).Once()
+				labelManager.On("RemoveLabel", mock.Anything, 124, "status:reviewing").Return(nil).Once()
 				labelManager.On("AddLabel", mock.Anything, 124, "status:revising").Return(nil).Once()
 			},
 			claudeConfig: &claude.ClaudeConfig{
@@ -193,7 +195,69 @@ func TestReviseAction_Execute(t *testing.T) {
 
 				// ラベル更新
 				labelManager.On("RemoveLabel", mock.Anything, 125, "status:requires-changes").Return(nil).Once()
+				labelManager.On("RemoveLabel", mock.Anything, 125, "status:reviewing").Return(nil).Once()
 				labelManager.On("AddLabel", mock.Anything, 125, "status:revising").Return(nil).Once()
+			},
+			claudeConfig: &claude.ClaudeConfig{
+				Phases: map[string]*claude.PhaseConfig{
+					"revise": {
+						Prompt: "/osoba:revise {{issue-number}}",
+						Args:   []string{"--dangerously-skip-permissions"},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "status:reviewingラベル削除失敗でも処理継続",
+			issue: builders.NewIssueBuilder().
+				WithNumber(126).
+				WithTitle("Test Issue Reviewing Label Error").
+				WithLabel("status:requires-changes").
+				Build(),
+			setupMocks: func(tmux *mocks.MockTmuxManager, git *mocks.MockGitWorktreeManager, claudeExec *mocks.MockClaudeExecutor, labelManager *mocks.MockLabelManager) {
+				// PRラベル削除のため、PRを取得（PRが存在しない）
+				labelManager.On("GetPullRequestForIssue", mock.Anything, 126).Return(nil, nil).Once()
+				// PRが存在しない場合はPRラベル削除をスキップ
+
+				// PrepareWorkspace - 既存のワークスペースを再利用
+				tmux.On("SessionExists", "test-session").Return(true, nil).Once()
+				tmux.On("WindowExists", "test-session", "issue-126").Return(true, nil).Once()
+				git.On("WorktreeExistsForIssue", mock.Anything, 126).Return(true, nil).Once()
+				tmux.On("GetPaneByTitle", "test-session", "issue-126", "Revise").Return(nil, assert.AnError).Once()
+				// Reviseフェーズでは新しいpaneを作成
+				tmux.On("CreatePane", "test-session", "issue-126", mock.Anything).
+					Return(&tmuxpkg.PaneInfo{Index: 2, Title: "Revise", Active: true}, nil).Once()
+				git.On("GetWorktreePathForIssue", 126).Return("/test/worktree/issue-126").Once()
+
+				// Claude実行 - ExecuteInTmuxを使用
+				expectedConfig := &claude.PhaseConfig{
+					Prompt: "/osoba:revise {{issue-number}}",
+					Args:   []string{"--dangerously-skip-permissions"},
+				}
+				expectedVars := &claude.TemplateVariables{
+					IssueNumber: 126,
+					IssueTitle:  "Test Issue Reviewing Label Error",
+					RepoName:    "osoba",
+				}
+				claudeExec.On("ExecuteInTmux",
+					mock.Anything,
+					expectedConfig,
+					mock.MatchedBy(func(vars *claude.TemplateVariables) bool {
+						return vars.IssueNumber == expectedVars.IssueNumber &&
+							vars.IssueTitle == expectedVars.IssueTitle
+					}),
+					"test-session",
+					"issue-126",
+					"/test/worktree/issue-126",
+				).Return(nil).Once()
+
+				// ラベル更新
+				labelManager.On("RemoveLabel", mock.Anything, 126, "status:requires-changes").Return(nil).Once()
+				// status:reviewingラベル削除でエラーが発生
+				labelManager.On("RemoveLabel", mock.Anything, 126, "status:reviewing").Return(assert.AnError).Once()
+				// エラーでも処理継続
+				labelManager.On("AddLabel", mock.Anything, 126, "status:revising").Return(nil).Once()
 			},
 			claudeConfig: &claude.ClaudeConfig{
 				Phases: map[string]*claude.PhaseConfig{
