@@ -130,7 +130,7 @@ func TestExecuteAutoPlanIfNoActiveIssues(t *testing.T) {
 
 		// status:*ラベル付きIssueなし
 		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
-			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes", "status:revising"}).
 			Return([]*github.Issue{}, nil)
 
 		// ラベルなしIssueが存在
@@ -202,7 +202,37 @@ func TestExecuteAutoPlanIfNoActiveIssues(t *testing.T) {
 			},
 		}
 		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
-			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes", "status:revising"}).
+			Return(activeIssues, nil)
+
+		cfg := &config.Config{
+			GitHub: config.GitHubConfig{
+				AutoPlanIssue: true,
+			},
+		}
+
+		err := executeAutoPlanIfNoActiveIssues(context.Background(), cfg, mockClient, "test-owner", "test-repo", testLogger)
+
+		assert.NoError(t, err)
+		mockClient.AssertNotCalled(t, "ListAllOpenIssues")
+		mockClient.AssertNotCalled(t, "AddLabel")
+	})
+
+	t.Run("正常系: status:revisingラベル付きIssueが存在する場合はスキップ", func(t *testing.T) {
+		mockClient := new(MockGitHubClientForAutoPlan)
+
+		// status:revisingラベル付きIssueが存在
+		activeIssues := []*github.Issue{
+			{
+				Number: github.Int(20),
+				Title:  github.String("Revising Issue"),
+				Labels: []*github.Label{
+					{Name: github.String("status:revising")},
+				},
+			},
+		}
+		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes", "status:revising"}).
 			Return(activeIssues, nil)
 
 		cfg := &config.Config{
@@ -223,7 +253,7 @@ func TestExecuteAutoPlanIfNoActiveIssues(t *testing.T) {
 
 		// status:*ラベル付きIssueなし
 		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
-			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes", "status:revising"}).
 			Return([]*github.Issue{}, nil)
 
 		// すべてのIssueがstatus:*ラベル付き
@@ -579,7 +609,7 @@ func TestExecuteAutoPlanWithOptimisticLock(t *testing.T) {
 
 		// 最初のチェック: status:*ラベル付きIssueなし
 		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
-			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes", "status:revising"}).
 			Return([]*github.Issue{}, nil).Once()
 
 		// オープンIssueにラベルなしIssueが存在
@@ -595,7 +625,7 @@ func TestExecuteAutoPlanWithOptimisticLock(t *testing.T) {
 
 		// 楽観的ロック: ラベル付与前の再確認（まだアクティブIssueなし）
 		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
-			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes", "status:revising"}).
 			Return([]*github.Issue{}, nil).Once()
 
 		// ラベル付与
@@ -619,7 +649,7 @@ func TestExecuteAutoPlanWithOptimisticLock(t *testing.T) {
 
 		// 最初のチェック: status:*ラベル付きIssueなし
 		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
-			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes", "status:revising"}).
 			Return([]*github.Issue{}, nil).Once()
 
 		// オープンIssueにラベルなしIssueが存在
@@ -644,7 +674,7 @@ func TestExecuteAutoPlanWithOptimisticLock(t *testing.T) {
 			},
 		}
 		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
-			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes", "status:revising"}).
 			Return(competingIssue, nil).Once()
 
 		// AddLabelは呼ばれない（競合検出でスキップ）
@@ -667,12 +697,12 @@ func TestExecuteAutoPlanWithOptimisticLock(t *testing.T) {
 
 		// 最初の呼び出しは失敗
 		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
-			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes", "status:revising"}).
 			Return(nil, errors.New("API error")).Once()
 
 		// リトライ後は成功
 		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
-			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes", "status:revising"}).
 			Return([]*github.Issue{}, nil).Once()
 
 		allIssues := []*github.Issue{
@@ -687,7 +717,7 @@ func TestExecuteAutoPlanWithOptimisticLock(t *testing.T) {
 
 		// 楽観的ロック再確認
 		mockClient.On("ListIssuesByLabels", mock.Anything, "test-owner", "test-repo",
-			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes"}).
+			[]string{"status:needs-plan", "status:planning", "status:ready", "status:implementing", "status:review-requested", "status:reviewing", "status:lgtm", "status:requires-changes", "status:revising"}).
 			Return([]*github.Issue{}, nil).Once()
 
 		mockClient.On("AddLabel", mock.Anything, "test-owner", "test-repo", 1, "status:needs-plan").

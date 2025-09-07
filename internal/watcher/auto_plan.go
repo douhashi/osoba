@@ -34,6 +34,7 @@ func executeAutoPlanIfNoActiveIssues(
 		"status:reviewing",
 		"status:lgtm",
 		"status:requires-changes",
+		"status:revising",
 	}
 
 	activeIssues, err := ghClient.ListIssuesByLabels(ctx, owner, repo, statusLabels)
@@ -199,6 +200,7 @@ func executeAutoPlanWithOptimisticLock(
 		"status:reviewing",
 		"status:lgtm",
 		"status:requires-changes",
+		"status:revising",
 	}
 
 	// 最初のチェック: アクティブIssueの存在確認
