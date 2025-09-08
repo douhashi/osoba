@@ -48,6 +48,14 @@ func TestNewConfig(t *testing.T) {
 			t.Errorf("default auto_plan_issue = %v, want false", cfg.GitHub.AutoPlanIssue)
 		}
 
+		// tmuxペイン制限機能のデフォルト値確認
+		if cfg.Tmux.MaxPanesPerWindow != 3 {
+			t.Errorf("default max_panes_per_window = %v, want 3", cfg.Tmux.MaxPanesPerWindow)
+		}
+		if cfg.Tmux.LimitPanesEnabled != true {
+			t.Errorf("default limit_panes_enabled = %v, want true", cfg.Tmux.LimitPanesEnabled)
+		}
+
 		// すべてのフェーズで --dangerously-skip-permissions が設定されていることを確認
 		phases := []string{"plan", "implement", "review"}
 		for _, phase := range phases {
@@ -91,6 +99,8 @@ github:
     review: "status:review-requested"
 tmux:
   session_prefix: "test-osoba-"
+  max_panes_per_window: 5
+  limit_panes_enabled: false
 claude:
   phases:
     plan:
@@ -113,6 +123,12 @@ claude:
 				}
 				if cfg.Tmux.SessionPrefix != "test-osoba-" {
 					t.Errorf("session prefix = %v, want test-osoba-", cfg.Tmux.SessionPrefix)
+				}
+				if cfg.Tmux.MaxPanesPerWindow != 5 {
+					t.Errorf("max_panes_per_window = %v, want 5", cfg.Tmux.MaxPanesPerWindow)
+				}
+				if cfg.Tmux.LimitPanesEnabled != false {
+					t.Errorf("limit_panes_enabled = %v, want false", cfg.Tmux.LimitPanesEnabled)
 				}
 				// Claude設定の確認
 				if cfg.Claude == nil || cfg.Claude.Phases == nil {
