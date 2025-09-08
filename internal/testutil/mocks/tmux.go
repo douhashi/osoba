@@ -1,6 +1,8 @@
 package mocks
 
 import (
+	"time"
+
 	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/stretchr/testify/mock"
 )
@@ -208,6 +210,93 @@ func (m *MockTmuxManager) GetPaneBaseIndex() (int, error) {
 func (m *MockTmuxManager) CreateWindowForIssueWithNewWindowDetection(sessionName string, issueNumber int) (string, bool, error) {
 	args := m.Called(sessionName, issueNumber)
 	return args.String(0), args.Bool(1), args.Error(2)
+}
+
+// DiagnosticManager methods
+
+// DiagnoseSession mocks the DiagnoseSession method
+func (m *MockTmuxManager) DiagnoseSession(sessionName string) (*tmux.SessionDiagnostics, error) {
+	args := m.Called(sessionName)
+	return args.Get(0).(*tmux.SessionDiagnostics), args.Error(1)
+}
+
+// DiagnoseWindow mocks the DiagnoseWindow method
+func (m *MockTmuxManager) DiagnoseWindow(sessionName, windowName string) (*tmux.WindowDiagnostics, error) {
+	args := m.Called(sessionName, windowName)
+	return args.Get(0).(*tmux.WindowDiagnostics), args.Error(1)
+}
+
+// ListSessionDiagnostics mocks the ListSessionDiagnostics method
+func (m *MockTmuxManager) ListSessionDiagnostics(prefix string) ([]*tmux.SessionDiagnostics, error) {
+	args := m.Called(prefix)
+	return args.Get(0).([]*tmux.SessionDiagnostics), args.Error(1)
+}
+
+// ListWindowDiagnostics mocks the ListWindowDiagnostics method
+func (m *MockTmuxManager) ListWindowDiagnostics(sessionName string) ([]*tmux.WindowDiagnostics, error) {
+	args := m.Called(sessionName)
+	return args.Get(0).([]*tmux.WindowDiagnostics), args.Error(1)
+}
+
+// WithDiagnosticDefaults sets up default behaviors for diagnostic methods
+func (m *MockTmuxManager) WithDiagnosticDefaults() *MockTmuxManager {
+	// Session診断のデフォルト
+	m.On("DiagnoseSession", mock.Anything).Maybe().Return(&tmux.SessionDiagnostics{
+		Name:      "test-session",
+		Windows:   1,
+		Attached:  false,
+		Created:   "1641641600",
+		Errors:    []string{},
+		Metadata:  map[string]string{"exists": "true", "mock": "true"},
+		Timestamp: time.Now(),
+	}, nil)
+
+	// Window診断のデフォルト
+	m.On("DiagnoseWindow", mock.Anything, mock.Anything).Maybe().Return(&tmux.WindowDiagnostics{
+		Name:        "test-window",
+		SessionName: "test-session",
+		Index:       0,
+		Exists:      true,
+		Active:      false,
+		Panes:       1,
+		IssueNumber: 0,
+		Phase:       "",
+		Errors:      []string{},
+		Metadata:    map[string]string{"exists": "true", "mock": "true"},
+		Timestamp:   time.Now(),
+	}, nil)
+
+	// セッション一覧診断のデフォルト
+	m.On("ListSessionDiagnostics", mock.Anything).Maybe().Return([]*tmux.SessionDiagnostics{
+		{
+			Name:      "test-session",
+			Windows:   1,
+			Attached:  false,
+			Created:   "1641641600",
+			Errors:    []string{},
+			Metadata:  map[string]string{"exists": "true", "mock": "true"},
+			Timestamp: time.Now(),
+		},
+	}, nil)
+
+	// ウィンドウ一覧診断のデフォルト
+	m.On("ListWindowDiagnostics", mock.Anything).Maybe().Return([]*tmux.WindowDiagnostics{
+		{
+			Name:        "test-window",
+			SessionName: "test-session",
+			Index:       0,
+			Exists:      true,
+			Active:      false,
+			Panes:       1,
+			IssueNumber: 0,
+			Phase:       "",
+			Errors:      []string{},
+			Metadata:    map[string]string{"exists": "true", "mock": "true"},
+			Timestamp:   time.Now(),
+		},
+	}, nil)
+
+	return m
 }
 
 // Ensure MockTmuxManager implements tmux.Manager interface

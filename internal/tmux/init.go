@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // MockManager はテスト用のモックマネージャー
@@ -12,6 +13,7 @@ type MockManager struct {
 	SessionManager
 	WindowManager
 	PaneManager
+	DiagnosticManager
 }
 
 // GetPaneBaseIndex テスト用のpane-base-index取得
@@ -23,9 +25,10 @@ func (m *MockManager) GetPaneBaseIndex() (int, error) {
 // createTestMockManager はテスト用のモックマネージャーを作成
 func createTestMockManager() Manager {
 	return &MockManager{
-		SessionManager: &testSessionManager{},
-		WindowManager:  &testWindowManager{},
-		PaneManager:    &testPaneManager{},
+		SessionManager:    &testSessionManager{},
+		WindowManager:     &testWindowManager{},
+		PaneManager:       &testPaneManager{},
+		DiagnosticManager: &testDiagnosticManager{},
 	}
 }
 
@@ -150,6 +153,82 @@ func (m *testPaneManager) GetPaneByTitle(sessionName, windowName string, title s
 		return &PaneInfo{Index: 0, Title: "Plan", Active: true, Width: 80, Height: 40}, nil
 	}
 	return nil, fmt.Errorf("pane with title '%s' not found", title)
+}
+
+// testDiagnosticManager はテスト用のDiagnosticManager実装
+type testDiagnosticManager struct{}
+
+func (m *testDiagnosticManager) DiagnoseSession(sessionName string) (*SessionDiagnostics, error) {
+	return &SessionDiagnostics{
+		Name:      sessionName,
+		Windows:   1,
+		Attached:  false,
+		Created:   "1641641600",
+		Errors:    []string{},
+		Metadata:  map[string]string{"exists": "true", "test": "true"},
+		Timestamp: time.Now(),
+	}, nil
+}
+
+func (m *testDiagnosticManager) DiagnoseWindow(sessionName, windowName string) (*WindowDiagnostics, error) {
+	return &WindowDiagnostics{
+		Name:        windowName,
+		SessionName: sessionName,
+		Index:       0,
+		Exists:      true,
+		Active:      false,
+		Panes:       1,
+		IssueNumber: 0,
+		Phase:       "",
+		Errors:      []string{},
+		Metadata:    map[string]string{"exists": "true", "test": "true"},
+		Timestamp:   time.Now(),
+	}, nil
+}
+
+func (m *testDiagnosticManager) ListSessionDiagnostics(prefix string) ([]*SessionDiagnostics, error) {
+	return []*SessionDiagnostics{
+		{
+			Name:      "test-osoba-session",
+			Windows:   2,
+			Attached:  false,
+			Created:   "1641641600",
+			Errors:    []string{},
+			Metadata:  map[string]string{"exists": "true", "test": "true"},
+			Timestamp: time.Now(),
+		},
+	}, nil
+}
+
+func (m *testDiagnosticManager) ListWindowDiagnostics(sessionName string) ([]*WindowDiagnostics, error) {
+	return []*WindowDiagnostics{
+		{
+			Name:        "330-plan",
+			SessionName: sessionName,
+			Index:       0,
+			Exists:      true,
+			Active:      true,
+			Panes:       1,
+			IssueNumber: 330,
+			Phase:       "plan",
+			Errors:      []string{},
+			Metadata:    map[string]string{"exists": "true", "test": "true", "issue_window": "true"},
+			Timestamp:   time.Now(),
+		},
+		{
+			Name:        "general",
+			SessionName: sessionName,
+			Index:       1,
+			Exists:      true,
+			Active:      false,
+			Panes:       1,
+			IssueNumber: 0,
+			Phase:       "",
+			Errors:      []string{},
+			Metadata:    map[string]string{"exists": "true", "test": "true"},
+			Timestamp:   time.Now(),
+		},
+	}, nil
 }
 
 // init はパッケージ初期化時に実行される

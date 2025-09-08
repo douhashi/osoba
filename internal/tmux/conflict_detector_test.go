@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 )
 
 // MockConflictManager for testing conflict detector
@@ -87,6 +88,71 @@ func (m *MockConflictManager) SelectPane(sessionName, windowName string, paneInd
 }
 func (m *MockConflictManager) SetPaneTitle(sessionName, windowName string, paneIndex int, title string) error {
 	return nil
+}
+
+// DiagnosticManager methods
+func (m *MockConflictManager) DiagnoseSession(sessionName string) (*SessionDiagnostics, error) {
+	return &SessionDiagnostics{
+		Name:      sessionName,
+		Windows:   1,
+		Attached:  false,
+		Created:   "1641641600",
+		Errors:    []string{},
+		Metadata:  map[string]string{"exists": "true", "mock": "true"},
+		Timestamp: time.Now(),
+	}, nil
+}
+
+func (m *MockConflictManager) DiagnoseWindow(sessionName, windowName string) (*WindowDiagnostics, error) {
+	return &WindowDiagnostics{
+		Name:        windowName,
+		SessionName: sessionName,
+		Index:       0,
+		Exists:      true,
+		Active:      false,
+		Panes:       1,
+		IssueNumber: 0,
+		Phase:       "",
+		Errors:      []string{},
+		Metadata:    map[string]string{"exists": "true", "mock": "true"},
+		Timestamp:   time.Now(),
+	}, nil
+}
+
+func (m *MockConflictManager) ListSessionDiagnostics(prefix string) ([]*SessionDiagnostics, error) {
+	diagnostics := []*SessionDiagnostics{}
+	for sessionName := range m.sessions {
+		if prefix == "" || len(sessionName) == 0 || (len(sessionName) >= len(prefix) && sessionName[:len(prefix)] == prefix) {
+			diagnostics = append(diagnostics, &SessionDiagnostics{
+				Name:      sessionName,
+				Windows:   1,
+				Attached:  false,
+				Created:   "1641641600",
+				Errors:    []string{},
+				Metadata:  map[string]string{"exists": "true", "mock": "true"},
+				Timestamp: time.Now(),
+			})
+		}
+	}
+	return diagnostics, nil
+}
+
+func (m *MockConflictManager) ListWindowDiagnostics(sessionName string) ([]*WindowDiagnostics, error) {
+	return []*WindowDiagnostics{
+		{
+			Name:        "mock-window",
+			SessionName: sessionName,
+			Index:       0,
+			Exists:      true,
+			Active:      false,
+			Panes:       1,
+			IssueNumber: 0,
+			Phase:       "",
+			Errors:      []string{},
+			Metadata:    map[string]string{"exists": "true", "mock": "true"},
+			Timestamp:   time.Now(),
+		},
+	}, nil
 }
 
 func TestConflictDetector_CheckSessionConflict(t *testing.T) {
