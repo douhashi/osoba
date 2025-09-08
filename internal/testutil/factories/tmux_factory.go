@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/douhashi/osoba/internal/tmux"
 	"github.com/douhashi/osoba/internal/testutil/mocks"
+	"github.com/douhashi/osoba/internal/tmux"
 )
 
 // TmuxManagerType represents the type of tmux manager to create.

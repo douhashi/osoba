@@ -138,7 +138,7 @@ func TestDefaultManager_DiagnoseSession(t *testing.T) {
 			manager := NewDefaultManagerWithExecutor(mockExec)
 
 			if tt.sessionName != "" {
-				args := []string{"list-sessions", "-t", tt.sessionName, 
+				args := []string{"list-sessions", "-t", tt.sessionName,
 					"-F", "#{session_name}:#{session_windows}:#{session_created}:#{session_attached}"}
 				mockExec.On("Execute", "tmux", args).
 					Return(tt.mockOutput, tt.mockError)
@@ -285,7 +285,7 @@ func TestDefaultManager_ListSessionDiagnostics(t *testing.T) {
 			mockExec := new(MockCommandExecutor)
 			manager := NewDefaultManagerWithExecutor(mockExec)
 
-			args := []string{"list-sessions", 
+			args := []string{"list-sessions",
 				"-F", "#{session_name}:#{session_windows}:#{session_created}:#{session_attached}"}
 			mockExec.On("Execute", "tmux", args).
 				Return(tt.mockOutput, tt.mockError)
@@ -298,7 +298,7 @@ func TestDefaultManager_ListSessionDiagnostics(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Len(t, result, tt.wantCount)
-				
+
 				for _, diag := range result {
 					assert.Contains(t, diag.Name, tt.prefix)
 				}

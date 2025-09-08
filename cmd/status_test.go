@@ -369,6 +369,15 @@ tmux:
 			os.Unsetenv("OSOBA_GITHUB_TOKEN")
 			os.Unsetenv("OSOBA_TEST_MODE") // テスト設定ファイルの検証のため一時的にクリア
 
+			// ghコマンドのモック
+			originalGhAuthTokenFunc := config.GhAuthTokenFunc
+			config.GhAuthTokenFunc = func() (string, error) {
+				return "", fmt.Errorf("gh auth token not available")
+			}
+			defer func() {
+				config.GhAuthTokenFunc = originalGhAuthTokenFunc
+			}()
+
 			// viperをリセット
 			viper.Reset()
 			// cfgFileグローバル変数をクリア

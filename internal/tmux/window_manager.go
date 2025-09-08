@@ -172,7 +172,7 @@ func (m *DefaultManager) KillWindow(sessionName, windowName string) error {
 				"issue_number", diag.IssueNumber,
 				"phase", diag.Phase,
 				"errors", diag.Errors)
-			
+
 			// ウィンドウが存在しない場合は警告
 			if !diag.Exists {
 				logger.Warn("削除対象のウィンドウが存在しません",

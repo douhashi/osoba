@@ -28,10 +28,10 @@ func newStatusCmd() *cobra.Command {
 			return runStatusCmd(cmd)
 		},
 	}
-	
+
 	// --debugフラグを追加
 	cmd.Flags().Bool("debug", false, "詳細な診断情報を表示")
-	
+
 	return cmd
 }
 
@@ -68,7 +68,7 @@ func runStatusCmd(cmd *cobra.Command) error {
 
 	// debugフラグの確認
 	debugMode, _ := cmd.Flags().GetBool("debug")
-	
+
 	// tmuxセッション一覧を取得
 	sessions, err := tmux.ListSessionsAsSessionInfo(cfg.Tmux.SessionPrefix)
 	if err != nil {
@@ -172,10 +172,10 @@ func displayTmuxSessions(cmd *cobra.Command, sessions []*tmux.SessionInfo) {
 
 func displayTmuxSessionsWithDiagnostics(cmd *cobra.Command, sessions []*tmux.SessionInfo, prefix string) {
 	fmt.Fprintln(cmd.OutOrStdout(), "🖥️  tmuxセッション（診断モード）:")
-	
+
 	// tmuxマネージャーを作成
 	manager := tmux.NewDefaultManager()
-	
+
 	// セッション診断情報を取得
 	diagnostics, err := manager.ListSessionDiagnostics(prefix)
 	if err != nil {
@@ -184,7 +184,7 @@ func displayTmuxSessionsWithDiagnostics(cmd *cobra.Command, sessions []*tmux.Ses
 		displayTmuxSessions(cmd, sessions)
 		return
 	}
-	
+
 	if len(diagnostics) == 0 {
 		fmt.Fprintln(cmd.OutOrStdout(), "   実行中のセッションはありません")
 		return
@@ -195,27 +195,27 @@ func displayTmuxSessionsWithDiagnostics(cmd *cobra.Command, sessions []*tmux.Ses
 		if diag.Attached {
 			status = "attached"
 		}
-		
+
 		// エラーがある場合は警告マークを表示
 		errorIndicator := ""
 		if len(diag.Errors) > 0 {
 			errorIndicator = " ⚠️"
 		}
-		
+
 		fmt.Fprintf(cmd.OutOrStdout(), "   📺 %s (%d windows, %s)%s\n",
 			diag.Name, diag.Windows, status, errorIndicator)
-		
+
 		// デバッグ情報を表示
 		fmt.Fprintf(cmd.OutOrStdout(), "      Created: %s\n", diag.Created)
 		fmt.Fprintf(cmd.OutOrStdout(), "      Timestamp: %s\n", diag.Timestamp.Format("2006-01-02 15:04:05"))
-		
+
 		if len(diag.Errors) > 0 {
 			fmt.Fprintln(cmd.OutOrStdout(), "      Errors:")
 			for _, errMsg := range diag.Errors {
 				fmt.Fprintf(cmd.OutOrStdout(), "        - %s\n", errMsg)
 			}
 		}
-		
+
 		// メタデータを表示
 		if len(diag.Metadata) > 0 {
 			fmt.Fprintln(cmd.OutOrStdout(), "      Metadata:")
@@ -248,7 +248,7 @@ func displaySessionWindowsWithDiagnostics(cmd *cobra.Command, sessionName string
 		if diag.Active {
 			activeMarker = " [active]"
 		}
-		
+
 		errorIndicator := ""
 		if len(diag.Errors) > 0 {
 			errorIndicator = " ⚠️"
@@ -263,20 +263,20 @@ func displaySessionWindowsWithDiagnostics(cmd *cobra.Command, sessionName string
 			// パースできない場合はウィンドウ名のみ表示
 			fmt.Fprintf(cmd.OutOrStdout(), "       %s%s%s\n", diag.Name, activeMarker, errorIndicator)
 		}
-		
+
 		// 診断詳細情報
-		fmt.Fprintf(cmd.OutOrStdout(), "         Index: %d, Panes: %d, Exists: %v\n", 
+		fmt.Fprintf(cmd.OutOrStdout(), "         Index: %d, Panes: %d, Exists: %v\n",
 			diag.Index, diag.Panes, diag.Exists)
-		fmt.Fprintf(cmd.OutOrStdout(), "         Timestamp: %s\n", 
+		fmt.Fprintf(cmd.OutOrStdout(), "         Timestamp: %s\n",
 			diag.Timestamp.Format("2006-01-02 15:04:05"))
-		
+
 		if len(diag.Errors) > 0 {
 			fmt.Fprintln(cmd.OutOrStdout(), "         Errors:")
 			for _, errMsg := range diag.Errors {
 				fmt.Fprintf(cmd.OutOrStdout(), "           - %s\n", errMsg)
 			}
 		}
-		
+
 		if len(diag.Metadata) > 0 {
 			fmt.Fprintln(cmd.OutOrStdout(), "         Metadata:")
 			for key, value := range diag.Metadata {

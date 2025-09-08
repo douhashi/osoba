@@ -76,18 +76,18 @@ func (m *DefaultManager) DiagnoseSession(sessionName string) (*SessionDiagnostic
 		if exitCode, isExit := IsExitError(err); isExit && exitCode == 1 {
 			diag.Errors = append(diag.Errors, "session does not exist")
 			diag.Metadata["exists"] = "false"
-			
+
 			if logger := GetLogger(); logger != nil {
 				logger.Debug("セッションが存在しません",
 					"session_name", sessionName)
 			}
 			return diag, nil
 		}
-		
+
 		// その他のエラー
 		errMsg := fmt.Sprintf("failed to get session info: %v", err)
 		diag.Errors = append(diag.Errors, errMsg)
-		
+
 		if logger := GetLogger(); logger != nil {
 			logger.Error("セッション情報取得エラー",
 				"session_name", sessionName,
@@ -171,7 +171,7 @@ func (m *DefaultManager) DiagnoseWindow(sessionName, windowName string) (*Window
 			errMsg := fmt.Sprintf("failed to get window info: %v", err)
 			diag.Errors = append(diag.Errors, errMsg)
 		}
-		
+
 		if logger := GetLogger(); logger != nil {
 			logger.Error("ウィンドウ情報取得エラー",
 				"session_name", sessionName,
@@ -184,12 +184,12 @@ func (m *DefaultManager) DiagnoseWindow(sessionName, windowName string) (*Window
 	// 指定されたウィンドウを検索
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	found := false
-	
+
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
-		
+
 		parts := strings.Split(line, ":")
 		if len(parts) >= 4 && parts[1] == windowName {
 			found = true
@@ -251,7 +251,7 @@ func (m *DefaultManager) ListSessionDiagnostics(prefix string) ([]*SessionDiagno
 			}
 			return []*SessionDiagnostics{}, nil
 		}
-		
+
 		if logger := GetLogger(); logger != nil {
 			logger.Error("セッション一覧取得エラー", "error", err)
 		}
@@ -341,7 +341,7 @@ func (m *DefaultManager) ListWindowDiagnostics(sessionName string) ([]*WindowDia
 		parts := strings.Split(line, ":")
 		if len(parts) >= 4 {
 			windowName := parts[1]
-			
+
 			diag := &WindowDiagnostics{
 				Name:        windowName,
 				SessionName: sessionName,
