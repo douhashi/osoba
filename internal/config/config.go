@@ -51,7 +51,9 @@ type PhaseMessageConfig struct {
 
 // TmuxConfig はtmux関連の設定
 type TmuxConfig struct {
-	SessionPrefix string `mapstructure:"session_prefix"`
+	SessionPrefix       string `mapstructure:"session_prefix"`
+	MaxPanesPerWindow   int    `mapstructure:"max_panes_per_window"`
+	LimitPanesEnabled   bool   `mapstructure:"limit_panes_enabled"`
 }
 
 // LogConfig はログ関連の設定
@@ -97,7 +99,9 @@ func NewConfig() *Config {
 			AutoRevisePR:  true,  // デフォルトで自動Revise機能を有効化
 		},
 		Tmux: TmuxConfig{
-			SessionPrefix: sessionPrefix,
+			SessionPrefix:     sessionPrefix,
+			MaxPanesPerWindow: 3,
+			LimitPanesEnabled: true,
 		},
 		Claude: claude.NewDefaultClaudeConfig(),
 		Log: LogConfig{

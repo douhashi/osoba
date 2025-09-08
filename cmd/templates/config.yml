@@ -12,6 +12,10 @@ github:
 
 tmux:
   session_prefix: "osoba-"
+  # ウィンドウ内のペイン数上限（デフォルト: 3）
+  # max_panes_per_window: 3
+  # ペイン数制限機能の有効/無効（デフォルト: true）
+  # limit_panes_enabled: true
 
 claude:
   phases:
