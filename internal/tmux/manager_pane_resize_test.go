@@ -11,18 +11,18 @@ import (
 
 func TestDefaultManager_ResizePanesEvenly(t *testing.T) {
 	tests := []struct {
-		name            string
-		sessionName     string
-		windowName      string
+		name           string
+		sessionName    string
+		windowName     string
 		panes          []*PaneInfo
-		executorResult  string
-		executorError   error
-		expectedError   bool
+		executorResult string
+		executorError  error
+		expectedError  bool
 	}{
 		{
-			name:           "複数ペインでリサイズ成功",
-			sessionName:    "test-session",
-			windowName:     "test-window",
+			name:        "複数ペインでリサイズ成功",
+			sessionName: "test-session",
+			windowName:  "test-window",
 			panes: []*PaneInfo{
 				{Index: 0, Title: "pane1", Active: true, Width: 40, Height: 20},
 				{Index: 1, Title: "pane2", Active: false, Width: 40, Height: 20},
@@ -32,9 +32,9 @@ func TestDefaultManager_ResizePanesEvenly(t *testing.T) {
 			expectedError:  false,
 		},
 		{
-			name:           "ペイン1個の場合はスキップ",
-			sessionName:    "test-session",
-			windowName:     "test-window",
+			name:        "ペイン1個の場合はスキップ",
+			sessionName: "test-session",
+			windowName:  "test-window",
 			panes: []*PaneInfo{
 				{Index: 0, Title: "pane1", Active: true, Width: 80, Height: 20},
 			},
@@ -61,7 +61,7 @@ func TestDefaultManager_ResizePanesEvenly(t *testing.T) {
 
 			// ListPanesのモック設定
 			listPanesArgs := []string{"list-panes", "-t", tt.sessionName + ":" + tt.windowName, "-F", "#{pane_index}:#{pane_title}:#{pane_active}:#{pane_width}:#{pane_height}"}
-			
+
 			// ペイン情報をモック用の文字列に変換
 			var panesOutput string
 			for i, pane := range tt.panes {
