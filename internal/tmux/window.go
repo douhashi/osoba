@@ -973,7 +973,7 @@ func SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle s
 			if len(parts) >= 3 {
 				paneIndex := parts[0]
 				paneActive := parts[1]
-				paneTitle := strings.Join(parts[2:], ":")
+				// paneTitle := strings.Join(parts[2:], ":")  // 現在使用しないためコメントアウト
 				
 				// アクティブでないペインを探す
 				if paneActive == "0" {
