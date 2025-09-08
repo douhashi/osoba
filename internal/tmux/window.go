@@ -939,13 +939,13 @@ func SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle s
 	}
 
 	// ペイン数制限チェック：デフォルトで3つまで、有効化されている場合のみ
-	maxPanes := 3    // デフォルト値
+	maxPanes := 3        // デフォルト値
 	limitEnabled := true // デフォルト値
-	
+
 	// TODO: 将来的には設定から読み込み
 	// maxPanes = config.Tmux.MaxPanesPerWindow
 	// limitEnabled = config.Tmux.LimitPanesEnabled
-	
+
 	if limitEnabled && paneCount >= maxPanes {
 		if logger := GetLogger(); logger != nil {
 			logger.Info("ペイン数制限によりペイン削除を実行",
@@ -954,16 +954,16 @@ func SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle s
 				"current_pane_count", paneCount,
 				"max_panes", maxPanes)
 		}
-		
+
 		// アクティブペイン情報を含むペイン一覧を取得
 		detailedOutput, err := executor.Execute("tmux", "list-panes", "-t", target, "-F", "#{pane_index}:#{pane_active}:#{pane_title}")
 		if err != nil {
 			return fmt.Errorf("failed to get detailed pane information: %w", err)
 		}
-		
+
 		detailedPanes := strings.Split(strings.TrimSpace(detailedOutput), "\n")
 		var oldestNonActivePaneIndex int = -1
-		
+
 		// 最も古い非アクティブペインを見つける
 		for _, pane := range detailedPanes {
 			if pane == "" {
@@ -974,7 +974,7 @@ func SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle s
 				paneIndex := parts[0]
 				paneActive := parts[1]
 				// paneTitle := strings.Join(parts[2:], ":")  // 現在使用しないためコメントアウト
-				
+
 				// アクティブでないペインを探す
 				if paneActive == "0" {
 					var index int
@@ -986,7 +986,7 @@ func SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle s
 				}
 			}
 		}
-		
+
 		if oldestNonActivePaneIndex >= 0 {
 			killTarget := fmt.Sprintf("%s.%d", target, oldestNonActivePaneIndex)
 			if logger := GetLogger(); logger != nil {
@@ -995,7 +995,7 @@ func SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle s
 					"window_name", windowName,
 					"pane_index", oldestNonActivePaneIndex)
 			}
-			
+
 			_, err = executor.Execute("tmux", "kill-pane", "-t", killTarget)
 			if err != nil {
 				return fmt.Errorf("failed to kill pane at index %d: %w", oldestNonActivePaneIndex, err)

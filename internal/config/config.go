@@ -51,9 +51,9 @@ type PhaseMessageConfig struct {
 
 // TmuxConfig はtmux関連の設定
 type TmuxConfig struct {
-	SessionPrefix       string `mapstructure:"session_prefix"`
-	MaxPanesPerWindow   int    `mapstructure:"max_panes_per_window"`
-	LimitPanesEnabled   bool   `mapstructure:"limit_panes_enabled"`
+	SessionPrefix     string `mapstructure:"session_prefix"`
+	MaxPanesPerWindow int    `mapstructure:"max_panes_per_window"`
+	LimitPanesEnabled bool   `mapstructure:"limit_panes_enabled"`
 }
 
 // LogConfig はログ関連の設定
