@@ -71,6 +71,7 @@ type Manager interface {
 	SessionManager
 	WindowManager
 	PaneManager
+	DiagnosticManager
 
 	// GetPaneBaseIndex tmuxのpane-base-index設定を取得
 	GetPaneBaseIndex() (int, error)

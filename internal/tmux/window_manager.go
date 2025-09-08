@@ -159,6 +159,35 @@ func (m *DefaultManager) KillWindow(sessionName, windowName string) error {
 			"args", []string{"-t", target})
 	}
 
+	// 削除前の診断情報を取得
+	if logger := GetLogger(); logger != nil {
+		if diag, err := m.DiagnoseWindow(sessionName, windowName); err == nil {
+			logger.Debug("削除前ウィンドウ診断情報",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"exists", diag.Exists,
+				"active", diag.Active,
+				"panes", diag.Panes,
+				"index", diag.Index,
+				"issue_number", diag.IssueNumber,
+				"phase", diag.Phase,
+				"errors", diag.Errors)
+			
+			// ウィンドウが存在しない場合は警告
+			if !diag.Exists {
+				logger.Warn("削除対象のウィンドウが存在しません",
+					"session_name", sessionName,
+					"window_name", windowName,
+					"diagnostic_errors", diag.Errors)
+			}
+		} else {
+			logger.Warn("削除前診断情報の取得に失敗",
+				"session_name", sessionName,
+				"window_name", windowName,
+				"diagnostic_error", err)
+		}
+	}
+
 	_, err := m.executor.Execute("tmux", "kill-window", "-t", target)
 	if err != nil {
 		if logger := GetLogger(); logger != nil {

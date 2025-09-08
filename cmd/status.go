@@ -28,6 +28,10 @@ func newStatusCmd() *cobra.Command {
 			return runStatusCmd(cmd)
 		},
 	}
+	
+	// --debugフラグを追加
+	cmd.Flags().Bool("debug", false, "詳細な診断情報を表示")
+	
 	return cmd
 }
 
@@ -62,12 +66,19 @@ func runStatusCmd(cmd *cobra.Command) error {
 		return nil
 	}
 
+	// debugフラグの確認
+	debugMode, _ := cmd.Flags().GetBool("debug")
+	
 	// tmuxセッション一覧を取得
 	sessions, err := tmux.ListSessionsAsSessionInfo(cfg.Tmux.SessionPrefix)
 	if err != nil {
 		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  tmuxセッション取得エラー: %v\n", err)
 	} else {
-		displayTmuxSessions(cmd, sessions)
+		if debugMode {
+			displayTmuxSessionsWithDiagnostics(cmd, sessions, cfg.Tmux.SessionPrefix)
+		} else {
+			displayTmuxSessions(cmd, sessions)
+		}
 	}
 
 	fmt.Fprintln(cmd.OutOrStdout())
@@ -156,6 +167,122 @@ func displayTmuxSessions(cmd *cobra.Command, sessions []*tmux.SessionInfo) {
 
 		// セッション内のウィンドウ詳細を表示
 		displaySessionWindows(cmd, session.Name)
+	}
+}
+
+func displayTmuxSessionsWithDiagnostics(cmd *cobra.Command, sessions []*tmux.SessionInfo, prefix string) {
+	fmt.Fprintln(cmd.OutOrStdout(), "🖥️  tmuxセッション（診断モード）:")
+	
+	// tmuxマネージャーを作成
+	manager := tmux.NewDefaultManager()
+	
+	// セッション診断情報を取得
+	diagnostics, err := manager.ListSessionDiagnostics(prefix)
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "   ⚠️  診断情報取得エラー: %v\n", err)
+		// 通常モードにフォールバック
+		displayTmuxSessions(cmd, sessions)
+		return
+	}
+	
+	if len(diagnostics) == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "   実行中のセッションはありません")
+		return
+	}
+
+	for _, diag := range diagnostics {
+		status := "detached"
+		if diag.Attached {
+			status = "attached"
+		}
+		
+		// エラーがある場合は警告マークを表示
+		errorIndicator := ""
+		if len(diag.Errors) > 0 {
+			errorIndicator = " ⚠️"
+		}
+		
+		fmt.Fprintf(cmd.OutOrStdout(), "   📺 %s (%d windows, %s)%s\n",
+			diag.Name, diag.Windows, status, errorIndicator)
+		
+		// デバッグ情報を表示
+		fmt.Fprintf(cmd.OutOrStdout(), "      Created: %s\n", diag.Created)
+		fmt.Fprintf(cmd.OutOrStdout(), "      Timestamp: %s\n", diag.Timestamp.Format("2006-01-02 15:04:05"))
+		
+		if len(diag.Errors) > 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), "      Errors:")
+			for _, errMsg := range diag.Errors {
+				fmt.Fprintf(cmd.OutOrStdout(), "        - %s\n", errMsg)
+			}
+		}
+		
+		// メタデータを表示
+		if len(diag.Metadata) > 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), "      Metadata:")
+			for key, value := range diag.Metadata {
+				fmt.Fprintf(cmd.OutOrStdout(), "        %s: %s\n", key, value)
+			}
+		}
+
+		// セッション内のウィンドウ詳細を診断モードで表示
+		displaySessionWindowsWithDiagnostics(cmd, diag.Name, manager)
+		fmt.Fprintln(cmd.OutOrStdout())
+	}
+}
+
+func displaySessionWindowsWithDiagnostics(cmd *cobra.Command, sessionName string, manager *tmux.DefaultManager) {
+	// ウィンドウ診断情報を取得
+	windowDiags, err := manager.ListWindowDiagnostics(sessionName)
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "      ⚠️  ウィンドウ診断エラー: %v\n", err)
+		return
+	}
+
+	if len(windowDiags) == 0 {
+		return
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "\n     Windows (%d) - 診断情報:\n", len(windowDiags))
+	for _, diag := range windowDiags {
+		activeMarker := ""
+		if diag.Active {
+			activeMarker = " [active]"
+		}
+		
+		errorIndicator := ""
+		if len(diag.Errors) > 0 {
+			errorIndicator = " ⚠️"
+		}
+
+		// Issue番号とフェーズが取得できた場合は詳細表示
+		if diag.IssueNumber > 0 && diag.Phase != "" {
+			phaseDisplay := getPhaseDisplay(diag.Phase)
+			fmt.Fprintf(cmd.OutOrStdout(), "       %s  Issue #%d (%s)%s%s\n",
+				diag.Name, diag.IssueNumber, phaseDisplay, activeMarker, errorIndicator)
+		} else {
+			// パースできない場合はウィンドウ名のみ表示
+			fmt.Fprintf(cmd.OutOrStdout(), "       %s%s%s\n", diag.Name, activeMarker, errorIndicator)
+		}
+		
+		// 診断詳細情報
+		fmt.Fprintf(cmd.OutOrStdout(), "         Index: %d, Panes: %d, Exists: %v\n", 
+			diag.Index, diag.Panes, diag.Exists)
+		fmt.Fprintf(cmd.OutOrStdout(), "         Timestamp: %s\n", 
+			diag.Timestamp.Format("2006-01-02 15:04:05"))
+		
+		if len(diag.Errors) > 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), "         Errors:")
+			for _, errMsg := range diag.Errors {
+				fmt.Fprintf(cmd.OutOrStdout(), "           - %s\n", errMsg)
+			}
+		}
+		
+		if len(diag.Metadata) > 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), "         Metadata:")
+			for key, value := range diag.Metadata {
+				fmt.Fprintf(cmd.OutOrStdout(), "           %s: %s\n", key, value)
+			}
+		}
 	}
 }
 
