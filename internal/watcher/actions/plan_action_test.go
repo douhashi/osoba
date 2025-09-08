@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/douhashi/osoba/internal/claude"
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/testutil/builders"
 	"github.com/douhashi/osoba/internal/testutil/helpers"
@@ -165,10 +166,12 @@ func TestPlanActionV2_Execute(t *testing.T) {
 			tt.setupMocks(tmuxManager, worktreeManager, claudeExecutor)
 
 			// アクションの作成
+			cfg := config.NewConfig()
 			action := NewPlanAction(
 				"test-session",
 				tmuxManager,
 				worktreeManager,
+				cfg,
 				claudeExecutor,
 				tt.claudeConfig,
 				logger,

@@ -16,6 +16,8 @@ tmux:
   # max_panes_per_window: 3
   # ペイン数制限機能の有効/無効（デフォルト: true）
   # limit_panes_enabled: true
+  # ペインの自動リサイズ機能の有効/無効（デフォルト: true）
+  # auto_resize_panes: true
 
 claude:
   phases:
