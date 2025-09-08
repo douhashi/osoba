@@ -38,6 +38,9 @@ func (m *MockTmuxManager) WithDefaultBehavior() *MockTmuxManager {
 	m.On("SendKeys", mock.Anything, mock.Anything, mock.Anything).Maybe().Return(nil)
 	m.On("ClearWindow", mock.Anything, mock.Anything).Maybe().Return(nil)
 	m.On("RunInWindow", mock.Anything, mock.Anything, mock.Anything).Maybe().Return(nil)
+	
+	// Pane operations
+	m.On("ResizePanesEvenly", mock.Anything, mock.Anything).Maybe().Return(nil)
 
 	// Pane operations
 	m.On("ResizePanesEvenly", mock.Anything, mock.Anything).Maybe().Return(nil)
