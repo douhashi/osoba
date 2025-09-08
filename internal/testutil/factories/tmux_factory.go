@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/douhashi/osoba/internal/tmux"
+	"github.com/douhashi/osoba/internal/testutil/mocks"
 )
 
 // TmuxManagerType represents the type of tmux manager to create.
@@ -82,10 +83,8 @@ func (f *TmuxManagerFactory) CreateWithType(managerType TmuxManagerType) (tmux.M
 
 // createMockManager creates a mock tmux manager.
 func (f *TmuxManagerFactory) createMockManager() tmux.Manager {
-	mock := NewMockTmuxManager()
-	mock.WithDefaultBehavior()
-	mock.WithDiagnosticDefaults()
-	return mock
+	mock := mocks.NewMockTmuxManager()
+	return mock.WithDefaultBehavior().WithDiagnosticDefaults()
 }
 
 // createTestManager creates a test tmux manager with isolation.
@@ -155,10 +154,8 @@ func GetManager() tmux.Manager {
 // This always returns either a mock or test manager, never a real one.
 func GetTestManager() tmux.Manager {
 	if os.Getenv("OSOBA_USE_MOCK_TMUX") == "true" {
-		mock := NewMockTmuxManager()
-		mock.WithDefaultBehavior()
-		mock.WithDiagnosticDefaults()
-		return mock
+		mock := mocks.NewMockTmuxManager()
+		return mock.WithDefaultBehavior().WithDiagnosticDefaults()
 	}
 	return tmux.NewTestManager()
 }

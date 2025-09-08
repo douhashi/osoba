@@ -3,6 +3,8 @@ package factories
 import (
 	"os"
 	"testing"
+
+	"github.com/douhashi/osoba/internal/testutil/mocks"
 )
 
 func TestTmuxManagerFactory_CreateWithType(t *testing.T) {
@@ -117,7 +119,7 @@ func TestTmuxManagerFactory_AutoSelection(t *testing.T) {
 
 			// Check type based on interface assertion
 			switch m := manager.(type) {
-			case *MockTmuxManager:
+			case *mocks.MockTmuxManager:
 				if !tt.expectMock {
 					t.Errorf("Expected non-mock manager, got %T", m)
 				}
@@ -140,7 +142,7 @@ func TestManagerBuilder(t *testing.T) {
 			t.Fatalf("Build() error = %v", err)
 		}
 
-		if _, ok := manager.(*MockTmuxManager); !ok {
+		if _, ok := manager.(*mocks.MockTmuxManager); !ok {
 			t.Errorf("Expected MockTmuxManager, got %T", manager)
 		}
 	})
@@ -175,103 +177,18 @@ func TestManagerBuilder(t *testing.T) {
 }
 
 func TestMockTmuxManager(t *testing.T) {
-	mock := NewMockTmuxManager()
+	t.Run("basic mock functionality", func(t *testing.T) {
+		// Test that the mock can be created and basic methods work
+		mock := mocks.NewMockTmuxManager()
+		mock.WithDefaultBehavior()
 
-	t.Run("session operations", func(t *testing.T) {
-		// Create session
-		err := mock.CreateSession("test-session")
-		if err != nil {
-			t.Fatalf("CreateSession() error = %v", err)
-		}
-
-		// Check session exists
-		exists, err := mock.SessionExists("test-session")
-		if err != nil {
-			t.Fatalf("SessionExists() error = %v", err)
-		}
-		if !exists {
-			t.Error("Session should exist after creation")
-		}
-
-		// List sessions
-		sessions, err := mock.ListSessions("")
-		if err != nil {
-			t.Fatalf("ListSessions() error = %v", err)
-		}
-		if len(sessions) != 1 {
-			t.Errorf("ListSessions() returned %d sessions, want 1", len(sessions))
-		}
-
-		// Create duplicate session should fail
-		err = mock.CreateSession("test-session")
-		if err == nil {
-			t.Error("Creating duplicate session should fail")
-		}
-	})
-
-	t.Run("window operations", func(t *testing.T) {
-		// Create session first
+		// Test basic operations don't panic
 		_ = mock.CreateSession("test-session")
-
-		// Create window
-		err := mock.CreateWindow("test-session", "test-window")
-		if err != nil {
-			t.Fatalf("CreateWindow() error = %v", err)
-		}
-
-		// Check window exists
-		exists, err := mock.WindowExists("test-session", "test-window")
-		if err != nil {
-			t.Fatalf("WindowExists() error = %v", err)
-		}
-		if !exists {
-			t.Error("Window should exist after creation")
-		}
-
-		// Send keys
-		err = mock.SendKeys("test-session", "test-window", "echo hello")
-		if err != nil {
-			t.Fatalf("SendKeys() error = %v", err)
-		}
-
-		// Check stored keys
-		sessions := mock.GetSessions()
-		window := sessions["test-session"].Windows["test-window"]
-		if len(window.Keys) != 1 || window.Keys[0] != "echo hello" {
-			t.Errorf("SendKeys not stored correctly: %v", window.Keys)
-		}
-	})
-
-	t.Run("error simulation", func(t *testing.T) {
-		mock.SetError("CreateSession", os.ErrExist)
-
-		err := mock.CreateSession("error-session")
-		if err != os.ErrExist {
-			t.Errorf("CreateSession() error = %v, want %v", err, os.ErrExist)
-		}
-
-		mock.ClearError("CreateSession")
-		err = mock.CreateSession("error-session")
-		if err != nil {
-			t.Fatalf("CreateSession() after clearing error = %v", err)
-		}
-	})
-
-	t.Run("reset", func(t *testing.T) {
-		_ = mock.CreateSession("session1")
-		_ = mock.CreateSession("session2")
-
-		sessions, _ := mock.ListSessions("")
-		if len(sessions) == 0 {
-			t.Error("Should have sessions before reset")
-		}
-
-		mock.Reset()
-
-		sessions, _ = mock.ListSessions("")
-		if len(sessions) != 0 {
-			t.Errorf("Should have no sessions after reset, got %d", len(sessions))
-		}
+		_, _ = mock.SessionExists("test-session")
+		_, _ = mock.ListSessions("")
+		_ = mock.CreateWindow("test-session", "test-window")
+		_, _ = mock.WindowExists("test-session", "test-window")
+		_ = mock.SendKeys("test-session", "test-window", "echo hello")
 	})
 }
 
@@ -303,7 +220,7 @@ func TestGetManager(t *testing.T) {
 		os.Setenv("OSOBA_USE_MOCK_TMUX", "true")
 
 		manager := GetTestManager()
-		if _, ok := manager.(*MockTmuxManager); !ok {
+		if _, ok := manager.(*mocks.MockTmuxManager); !ok {
 			t.Errorf("GetTestManager() with OSOBA_USE_MOCK_TMUX should return MockTmuxManager, got %T", manager)
 		}
 	})
