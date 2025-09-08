@@ -99,7 +99,7 @@ func NewIssueWatcherWithConfig(client github.GitHubClient, owner, repo, sessionN
 
 	// デフォルトのcleanupManagerを作成（必要に応じて）
 	if cleanupMgr == nil {
-		cleanupMgr = cleanup.NewManager(logger)
+		cleanupMgr = cleanup.NewManager(sessionName, logger)
 	}
 
 	return &IssueWatcher{

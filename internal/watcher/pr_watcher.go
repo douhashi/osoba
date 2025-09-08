@@ -64,8 +64,9 @@ func NewPRWatcherWithConfig(client github.GitHubClient, owner, repo string, labe
 	}
 
 	// デフォルトのcleanupManagerを作成（必要に応じて）
+	// PRWatcherではsessionNameが取得できないため、空文字を渡す（従来の動作）
 	if cleanupMgr == nil {
-		cleanupMgr = cleanup.NewManager(logger)
+		cleanupMgr = cleanup.NewManager("", logger)
 	}
 
 	return &PRWatcher{
