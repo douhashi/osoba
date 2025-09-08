@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/douhashi/osoba/internal/claude"
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
@@ -27,6 +28,7 @@ func NewPlanAction(
 	sessionName string,
 	tmuxManager tmuxpkg.Manager,
 	worktreeManager git.WorktreeManager,
+	cfg *config.Config,
 	claudeExecutor claude.ClaudeExecutor,
 	claudeConfig *claude.ClaudeConfig,
 	logger logger.Logger,
@@ -35,7 +37,7 @@ func NewPlanAction(
 		sessionName,
 		tmuxManager,
 		worktreeManager,
-		nil, // ClaudeCommandBuilderは不要になったのでnilを渡す
+		cfg,
 		logger,
 	)
 

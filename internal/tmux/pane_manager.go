@@ -16,6 +16,9 @@ type PaneManager interface {
 
 	// GetPaneByTitle タイトルでペインを検索
 	GetPaneByTitle(sessionName, windowName string, title string) (*PaneInfo, error)
+
+	// ResizePanesEvenly ペインを均等にリサイズ
+	ResizePanesEvenly(sessionName, windowName string) error
 }
 
 // PaneOptions ペイン作成時のオプション

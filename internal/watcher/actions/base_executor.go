@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
 	"github.com/douhashi/osoba/internal/github"
 	"github.com/douhashi/osoba/internal/logger"
@@ -23,6 +24,7 @@ type BaseExecutor struct {
 	sessionName     string
 	tmuxManager     tmuxpkg.Manager
 	worktreeManager git.WorktreeManager
+	config          *config.Config
 	logger          logger.Logger
 }
 
@@ -31,13 +33,14 @@ func NewBaseExecutor(
 	sessionName string,
 	tmuxManager tmuxpkg.Manager,
 	worktreeManager git.WorktreeManager,
-	_ interface{}, // 互換性保持のためのダミーパラメータ
+	cfg *config.Config,
 	logger logger.Logger,
 ) *BaseExecutor {
 	return &BaseExecutor{
 		sessionName:     sessionName,
 		tmuxManager:     tmuxManager,
 		worktreeManager: worktreeManager,
+		config:          cfg,
 		logger:          logger,
 	}
 }
@@ -191,6 +194,16 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 	newPane, err := e.tmuxManager.CreatePane(e.sessionName, windowName, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pane: %w", err)
+	}
+
+	// 自動リサイズが有効の場合、ペイン作成後にリサイズを実行
+	if e.config != nil && e.config.Tmux.AutoResizePanes {
+		if err := e.tmuxManager.ResizePanesEvenly(e.sessionName, windowName); err != nil {
+			// リサイズの失敗はログに記録するが、処理は継続
+			e.logger.Warn("Failed to resize panes automatically", "error", err, "window", windowName)
+		} else {
+			e.logger.Info("Auto-resized panes evenly", "window", windowName, "session", e.sessionName)
+		}
 	}
 
 	return newPane, nil

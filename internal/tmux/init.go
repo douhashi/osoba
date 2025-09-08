@@ -155,6 +155,11 @@ func (m *testPaneManager) GetPaneByTitle(sessionName, windowName string, title s
 	return nil, fmt.Errorf("pane with title '%s' not found", title)
 }
 
+func (m *testPaneManager) ResizePanesEvenly(sessionName, windowName string) error {
+	// テスト環境では常に成功
+	return nil
+}
+
 // testDiagnosticManager はテスト用のDiagnosticManager実装
 type testDiagnosticManager struct{}
 

@@ -89,6 +89,9 @@ func (m *MockConflictManager) SelectPane(sessionName, windowName string, paneInd
 func (m *MockConflictManager) SetPaneTitle(sessionName, windowName string, paneIndex int, title string) error {
 	return nil
 }
+func (m *MockConflictManager) ResizePanesEvenly(sessionName, windowName string) error {
+	return nil
+}
 
 // DiagnosticManager methods
 func (m *MockConflictManager) DiagnoseSession(sessionName string) (*SessionDiagnostics, error) {

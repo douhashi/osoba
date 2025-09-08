@@ -54,6 +54,7 @@ type TmuxConfig struct {
 	SessionPrefix     string `mapstructure:"session_prefix"`
 	MaxPanesPerWindow int    `mapstructure:"max_panes_per_window"`
 	LimitPanesEnabled bool   `mapstructure:"limit_panes_enabled"`
+	AutoResizePanes   bool   `mapstructure:"auto_resize_panes"`
 }
 
 // LogConfig はログ関連の設定
@@ -102,6 +103,7 @@ func NewConfig() *Config {
 			SessionPrefix:     sessionPrefix,
 			MaxPanesPerWindow: 3,
 			LimitPanesEnabled: true,
+			AutoResizePanes:   true,
 		},
 		Claude: claude.NewDefaultClaudeConfig(),
 		Log: LogConfig{
@@ -144,6 +146,7 @@ func (c *Config) Load(configPath string) error {
 	v.SetDefault("github.auto_plan_issue", false)
 	v.SetDefault("github.auto_revise_pr", true)
 	v.SetDefault("tmux.session_prefix", "osoba-")
+	v.SetDefault("tmux.auto_resize_panes", true)
 
 	// ログ設定のデフォルト値
 	v.SetDefault("log.level", "info")

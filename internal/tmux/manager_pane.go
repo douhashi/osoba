@@ -141,3 +141,26 @@ func parsePaneInfo(line string) (*PaneInfo, error) {
 		Height: height,
 	}, nil
 }
+
+// ResizePanesEvenly ペインを均等にリサイズ
+func (m *DefaultManager) ResizePanesEvenly(sessionName, windowName string) error {
+	// ペイン数を確認（1個以下の場合はスキップ）
+	panes, err := m.ListPanes(sessionName, windowName)
+	if err != nil {
+		return fmt.Errorf("failed to list panes: %w", err)
+	}
+
+	if len(panes) <= 1 {
+		// ペインが1個以下の場合はリサイズ不要
+		return nil
+	}
+
+	// tmux select-layout even-horizontal を実行
+	target := fmt.Sprintf("%s:%s", sessionName, windowName)
+	args := []string{"select-layout", "-t", target, "even-horizontal"}
+	if _, err := m.executor.Execute("tmux", args...); err != nil {
+		return fmt.Errorf("failed to resize panes evenly for %s: %w", target, err)
+	}
+
+	return nil
+}

@@ -66,6 +66,7 @@ func (f *DefaultActionFactory) CreatePlanAction() ActionExecutor {
 		f.sessionName,
 		f.tmuxManager,
 		f.worktreeManager,
+		f.config,
 		f.claudeExecutor,
 		f.claudeConfig,
 		f.logger.WithFields("component", "PlanAction"),
