@@ -226,4 +226,3 @@ func TestCleanupIssueResources_MultipleWindows(t *testing.T) {
 
 	mockExecutor.AssertExpectations(t)
 }
-
