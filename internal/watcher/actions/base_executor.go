@@ -141,10 +141,10 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 		if err := e.tmuxManager.SelectPane(e.sessionName, windowName, existingPane.Index); err != nil {
 			return nil, fmt.Errorf("failed to select existing pane: %w", err)
 		}
-		
+
 		// 既存ペイン使用時もリサイズを実行
 		e.executeAutoResize(windowName)
-		
+
 		return existingPane, nil
 	}
 
@@ -168,6 +168,10 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 		if err := e.tmuxManager.SetPaneTitle(e.sessionName, windowName, baseIndex, phase); err != nil {
 			return nil, fmt.Errorf("failed to set pane title: %w", err)
 		}
+		
+		// 新規ウィンドウでも自動リサイズを実行
+		e.executeAutoResize(windowName)
+		
 		return &tmuxpkg.PaneInfo{
 			Index:  baseIndex,
 			Title:  phase,
@@ -198,10 +202,10 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 		if err := e.tmuxManager.SetPaneTitle(e.sessionName, windowName, baseIndex, phase); err != nil {
 			return nil, fmt.Errorf("failed to set pane title: %w", err)
 		}
-		
+
 		// Planフェーズで既存ペイン使用時もリサイズを実行
 		e.executeAutoResize(windowName)
-		
+
 		return &tmuxpkg.PaneInfo{
 			Index:  baseIndex,
 			Title:  phase,
@@ -280,8 +284,8 @@ func (e *BaseExecutor) executeAutoResize(windowName string) {
 
 	// デバウンス期間内の場合はスキップ
 	if exists && now.Sub(lastTime) < autoResizeDebounceInterval {
-		e.logger.Debug("Skipping resize due to debounce", 
-			"window", windowName, 
+		e.logger.Debug("Skipping resize due to debounce",
+			"window", windowName,
 			"time_since_last", now.Sub(lastTime))
 		return
 	}

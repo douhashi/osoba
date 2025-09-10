@@ -16,14 +16,14 @@ import (
 
 func TestBaseExecutor_ExecuteAutoResize(t *testing.T) {
 	tests := []struct {
-		name                  string
-		config               *config.Config
-		windowName           string
-		setupMocks           func(*mocks.MockTmuxManager)
-		expectResizeCall     bool
-		expectDebounce       bool
-		lastResizeTime       *time.Time
-		wantErr              bool
+		name             string
+		config           *config.Config
+		windowName       string
+		setupMocks       func(*mocks.MockTmuxManager)
+		expectResizeCall bool
+		expectDebounce   bool
+		lastResizeTime   *time.Time
+		wantErr          bool
 	}{
 		{
 			name: "AutoResizePanes有効 - リサイズ実行",
