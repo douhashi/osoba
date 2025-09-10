@@ -3,6 +3,8 @@ package actions
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/git"
@@ -19,6 +21,11 @@ type WorkspaceInfo struct {
 	PaneTitle    string
 }
 
+const (
+	// autoResizeDebounceInterval はリサイズ実行の最小間隔
+	autoResizeDebounceInterval = 500 * time.Millisecond
+)
+
 // BaseExecutor は各ActionExecutorの共通機能を提供する構造体
 type BaseExecutor struct {
 	sessionName     string
@@ -26,6 +33,9 @@ type BaseExecutor struct {
 	worktreeManager git.WorktreeManager
 	config          *config.Config
 	logger          logger.Logger
+	// リサイズのデバウンス機能
+	lastResizeTime map[string]time.Time
+	resizeMutex    sync.Mutex
 }
 
 // NewBaseExecutor は新しいBaseExecutorを作成する
@@ -42,6 +52,7 @@ func NewBaseExecutor(
 		worktreeManager: worktreeManager,
 		config:          cfg,
 		logger:          logger,
+		lastResizeTime:  make(map[string]time.Time),
 	}
 }
 
@@ -130,6 +141,10 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 		if err := e.tmuxManager.SelectPane(e.sessionName, windowName, existingPane.Index); err != nil {
 			return nil, fmt.Errorf("failed to select existing pane: %w", err)
 		}
+
+		// 既存ペイン使用時もリサイズを実行
+		e.executeAutoResize(windowName)
+
 		return existingPane, nil
 	}
 
@@ -153,6 +168,10 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 		if err := e.tmuxManager.SetPaneTitle(e.sessionName, windowName, baseIndex, phase); err != nil {
 			return nil, fmt.Errorf("failed to set pane title: %w", err)
 		}
+
+		// 新規ウィンドウでも自動リサイズを実行
+		e.executeAutoResize(windowName)
+
 		return &tmuxpkg.PaneInfo{
 			Index:  baseIndex,
 			Title:  phase,
@@ -183,6 +202,10 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 		if err := e.tmuxManager.SetPaneTitle(e.sessionName, windowName, baseIndex, phase); err != nil {
 			return nil, fmt.Errorf("failed to set pane title: %w", err)
 		}
+
+		// Planフェーズで既存ペイン使用時もリサイズを実行
+		e.executeAutoResize(windowName)
+
 		return &tmuxpkg.PaneInfo{
 			Index:  baseIndex,
 			Title:  phase,
@@ -223,6 +246,9 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 						"window", windowName)
 					if err := e.tmuxManager.KillPane(e.sessionName, windowName, oldestNonActiveIndex); err != nil {
 						e.logger.Warn("Failed to kill pane", "error", err, "pane_index", oldestNonActiveIndex)
+					} else {
+						// ペイン削除後にリサイズを実行
+						e.executeAutoResize(windowName)
 					}
 				} else {
 					e.logger.Warn("All panes are active, skipping removal")
@@ -237,15 +263,41 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 		return nil, fmt.Errorf("failed to create pane: %w", err)
 	}
 
-	// 自動リサイズが有効の場合、ペイン作成後にリサイズを実行
-	if e.config != nil && e.config.Tmux.AutoResizePanes {
-		if err := e.tmuxManager.ResizePanesEvenly(e.sessionName, windowName); err != nil {
-			// リサイズの失敗はログに記録するが、処理は継続
-			e.logger.Warn("Failed to resize panes automatically", "error", err, "window", windowName)
-		} else {
-			e.logger.Info("Auto-resized panes evenly", "window", windowName, "session", e.sessionName)
-		}
-	}
+	// ペイン作成後に自動リサイズを実行
+	e.executeAutoResize(windowName)
 
 	return newPane, nil
+}
+
+// executeAutoResize はデバウンス機能付きでペインの自動リサイズを実行する
+func (e *BaseExecutor) executeAutoResize(windowName string) {
+	// AutoResizePanesが無効な場合は何もしない
+	if e.config == nil || !e.config.Tmux.AutoResizePanes {
+		return
+	}
+
+	e.resizeMutex.Lock()
+	defer e.resizeMutex.Unlock()
+
+	now := time.Now()
+	lastTime, exists := e.lastResizeTime[windowName]
+
+	// デバウンス期間内の場合はスキップ
+	if exists && now.Sub(lastTime) < autoResizeDebounceInterval {
+		e.logger.Debug("Skipping resize due to debounce",
+			"window", windowName,
+			"time_since_last", now.Sub(lastTime))
+		return
+	}
+
+	// リサイズを実行
+	if err := e.tmuxManager.ResizePanesEvenly(e.sessionName, windowName); err != nil {
+		// リサイズの失敗はログに記録するが、処理は継続
+		e.logger.Warn("Failed to resize panes automatically", "error", err, "window", windowName)
+	} else {
+		e.logger.Info("Auto-resized panes evenly", "window", windowName, "session", e.sessionName)
+	}
+
+	// 最後のリサイズ時刻を更新
+	e.lastResizeTime[windowName] = now
 }

@@ -42,6 +42,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				tmux.On("GetPaneByTitle", "test-session", "issue-123", "Plan").Return(nil, assert.AnError).Once()
 				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
 				tmux.On("SetPaneTitle", "test-session", "issue-123", 0, "Plan").Return(nil).Once()
+				tmux.On("ResizePanesEvenly", "test-session", "issue-123").Return(nil).Once() // 自動リサイズ機能
 				git.On("GetWorktreePathForIssue", 123).Return("/test/worktree/issue-123").Once()
 
 				// Claude実行 - ExecuteInTmuxを使用
@@ -91,6 +92,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				tmux.On("GetPaneByTitle", "test-session", "issue-456", "Plan").Return(nil, assert.AnError).Once()
 				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
 				tmux.On("SetPaneTitle", "test-session", "issue-456", 0, "Plan").Return(nil).Once()
+				tmux.On("ResizePanesEvenly", "test-session", "issue-456").Return(nil).Once() // 自動リサイズ機能
 				git.On("GetWorktreePathForIssue", 456).Return("/test/worktree/issue-456").Once()
 
 				// Claude実行 - ExecuteInTmuxを使用（args空配列）
@@ -142,6 +144,7 @@ func TestPlanActionV2_Execute(t *testing.T) {
 				tmux.On("GetPaneByTitle", "test-session", "issue-999", "Plan").Return(nil, assert.AnError).Once()
 				tmux.On("GetPaneBaseIndex").Return(0, nil).Once()
 				tmux.On("SetPaneTitle", "test-session", "issue-999", 0, "Plan").Return(nil).Once()
+				tmux.On("ResizePanesEvenly", "test-session", "issue-999").Return(nil).Once() // 自動リサイズ機能
 				git.On("GetWorktreePathForIssue", 999).Return("/test/worktree/issue-999").Once()
 			},
 			claudeConfig: &claude.ClaudeConfig{
