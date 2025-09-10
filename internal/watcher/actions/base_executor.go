@@ -168,10 +168,10 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 		if err := e.tmuxManager.SetPaneTitle(e.sessionName, windowName, baseIndex, phase); err != nil {
 			return nil, fmt.Errorf("failed to set pane title: %w", err)
 		}
-		
+
 		// 新規ウィンドウでも自動リサイズを実行
 		e.executeAutoResize(windowName)
-		
+
 		return &tmuxpkg.PaneInfo{
 			Index:  baseIndex,
 			Title:  phase,
