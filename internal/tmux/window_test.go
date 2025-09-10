@@ -986,25 +986,6 @@ func TestIssueWindowManagement(t *testing.T) {
 
 // Issue #147: pane管理のテスト
 func TestPaneManagement(t *testing.T) {
-	t.Run("正常系: window内に新しいpaneを作成", func(t *testing.T) {
-		// Arrange
-		sessionName := "osoba-test"
-		windowName := "issue-147"
-		paneTitle := "plan-phase"
-
-		mockExec := mocks.NewMockTmuxCommandExecutor()
-		// split-window コマンドでpaneを作成
-		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-h", "-p", "50"}).Return("", nil)
-		// paneにタイトルを設定
-		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName, "-T", paneTitle}).Return("", nil)
-
-		// Act
-		err := tmux.CreatePaneInWindowWithExecutor(sessionName, windowName, paneTitle, mockExec)
-
-		// Assert
-		assert.NoError(t, err)
-		mockExec.AssertExpectations(t)
-	})
 
 	t.Run("正常系: 特定のpaneを選択", func(t *testing.T) {
 		// Arrange
@@ -1020,48 +1001,6 @@ func TestPaneManagement(t *testing.T) {
 
 		// Act
 		err := tmux.SelectPaneByTitleWithExecutor(sessionName, windowName, paneTitle, mockExec)
-
-		// Assert
-		assert.NoError(t, err)
-		mockExec.AssertExpectations(t)
-	})
-
-	t.Run("正常系: 既存のpaneが存在する場合は選択のみ", func(t *testing.T) {
-		// Arrange
-		sessionName := "osoba-test"
-		windowName := "issue-147"
-		paneTitle := "plan-phase"
-
-		mockExec := mocks.NewMockTmuxCommandExecutor()
-		// pane一覧取得（既存のpaneが存在）
-		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase\n1:implement-phase", nil)
-		// 既存のpaneを選択
-		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName + ".0"}).Return("", nil)
-
-		// Act
-		err := tmux.SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle, mockExec)
-
-		// Assert
-		assert.NoError(t, err)
-		mockExec.AssertExpectations(t)
-	})
-
-	t.Run("正常系: 既存のpaneが存在しない場合は新規作成", func(t *testing.T) {
-		// Arrange
-		sessionName := "osoba-test"
-		windowName := "issue-147"
-		paneTitle := "review-phase"
-
-		mockExec := mocks.NewMockTmuxCommandExecutor()
-		// pane一覧取得（target paneが存在しない）
-		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase\n1:implement-phase", nil)
-		// 新しいpaneを作成
-		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-h", "-p", "33"}).Return("", nil)
-		// paneにタイトルを設定
-		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName, "-T", paneTitle}).Return("", nil)
-
-		// Act
-		err := tmux.SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle, mockExec)
 
 		// Assert
 		assert.NoError(t, err)
@@ -1083,65 +1022,28 @@ func TestPhaseIntegration(t *testing.T) {
 		// 1. Issueウィンドウ作成
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return("other-window", nil).Once()
 		mockExec.On("Execute", "tmux", []string{"new-window", "-t", sessionName, "-n", windowName}).Return("", nil).Once()
-		// 2. Plan pane作成
-		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:", nil).Once()
-		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName, "-T", "plan-phase"}).Return("", nil).Once()
 
 		// Implementation フェーズ
 		// 1. 既存のIssueウィンドウを確認（存在する）
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return(windowName, nil).Once()
-		// 2. Implementation pane作成
-		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase", nil).Once()
-		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-h", "-p", "50"}).Return("", nil).Times(2)
-		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName, "-T", "implement-phase"}).Return("", nil).Once()
 
 		// Review フェーズ
 		// 1. 既存のIssueウィンドウを確認（存在する）
 		mockExec.On("Execute", "tmux", []string{"list-windows", "-t", sessionName, "-F", "#{window_name}"}).Return(windowName, nil).Once()
-		// 2. Review pane作成
-		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase\n1:implement-phase", nil).Once()
-		mockExec.On("Execute", "tmux", []string{"split-window", "-t", sessionName + ":" + windowName, "-h", "-p", "33"}).Return("", nil).Once()
-		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName, "-T", "review-phase"}).Return("", nil).Once()
 
 		// Act & Assert
 		// Plan フェーズ
 		err := tmux.CreateIssueWindowWithExecutor(sessionName, issueNumber, mockExec)
 		assert.NoError(t, err)
-		err = tmux.SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, "plan-phase", mockExec)
-		assert.NoError(t, err)
-
 		// Implementation フェーズ
 		err = tmux.CreateIssueWindowWithExecutor(sessionName, issueNumber, mockExec)
-		assert.NoError(t, err)
-		err = tmux.SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, "implement-phase", mockExec)
 		assert.NoError(t, err)
 
 		// Review フェーズ
 		err = tmux.CreateIssueWindowWithExecutor(sessionName, issueNumber, mockExec)
 		assert.NoError(t, err)
-		err = tmux.SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, "review-phase", mockExec)
-		assert.NoError(t, err)
 
 		mockExec.AssertExpectations(t)
 	})
 
-	t.Run("統合テスト: 既存paneの再利用", func(t *testing.T) {
-		// Arrange
-		sessionName := "osoba-test"
-		windowName := "issue-147"
-		paneTitle := "plan-phase"
-
-		mockExec := mocks.NewMockTmuxCommandExecutor()
-		// 既存のpaneが存在する場合
-		mockExec.On("Execute", "tmux", []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}"}).Return("0:plan-phase\n1:implement-phase\n2:review-phase", nil)
-		// 既存のpaneを選択
-		mockExec.On("Execute", "tmux", []string{"select-pane", "-t", sessionName + ":" + windowName + ".0"}).Return("", nil)
-
-		// Act
-		err := tmux.SelectOrCreatePaneForPhaseWithExecutor(sessionName, windowName, paneTitle, mockExec)
-
-		// Assert
-		assert.NoError(t, err)
-		mockExec.AssertExpectations(t)
-	})
 }
