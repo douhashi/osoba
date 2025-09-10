@@ -164,3 +164,13 @@ func (m *DefaultManager) ResizePanesEvenly(sessionName, windowName string) error
 
 	return nil
 }
+
+// KillPane 指定されたペインを削除
+func (m *DefaultManager) KillPane(sessionName, windowName string, paneIndex int) error {
+	target := fmt.Sprintf("%s:%s.%d", sessionName, windowName, paneIndex)
+	args := []string{"kill-pane", "-t", target}
+	if _, err := m.executor.Execute("tmux", args...); err != nil {
+		return fmt.Errorf("failed to kill pane %s: %w", target, err)
+	}
+	return nil
+}

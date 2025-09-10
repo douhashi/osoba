@@ -212,6 +212,12 @@ func (m *MockTmuxManager) ResizePanesEvenly(sessionName, windowName string) erro
 	return args.Error(0)
 }
 
+// KillPane mocks the KillPane method
+func (m *MockTmuxManager) KillPane(sessionName, windowName string, paneIndex int) error {
+	args := m.Called(sessionName, windowName, paneIndex)
+	return args.Error(0)
+}
+
 // GetPaneBaseIndex mocks the GetPaneBaseIndex method
 func (m *MockTmuxManager) GetPaneBaseIndex() (int, error) {
 	args := m.Called()

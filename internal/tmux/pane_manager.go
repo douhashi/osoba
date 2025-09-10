@@ -19,6 +19,9 @@ type PaneManager interface {
 
 	// ResizePanesEvenly ペインを均等にリサイズ
 	ResizePanesEvenly(sessionName, windowName string) error
+
+	// KillPane 指定されたペインを削除
+	KillPane(sessionName, windowName string, paneIndex int) error
 }
 
 // PaneOptions ペイン作成時のオプション
