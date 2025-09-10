@@ -24,11 +24,6 @@ func (m *MockTmuxClient) SwitchToIssueWindow(sessionName string, issueNumber int
 	return args.Error(0)
 }
 
-func (m *MockTmuxClient) SelectOrCreatePaneForPhase(sessionName, windowName, paneTitle string) error {
-	args := m.Called(sessionName, windowName, paneTitle)
-	return args.Error(0)
-}
-
 func (m *MockTmuxClient) WindowExists(sessionName, windowName string) (bool, error) {
 	args := m.Called(sessionName, windowName)
 	return args.Bool(0), args.Error(1)

@@ -1,0 +1,148 @@
+#!/bin/sh
+# pre-commit hook for Go formatting and linting
+# Auto-fixes formatting issues locally while matching CI checks
+
+# Enable debugging if HOOK_DEBUG is set
+if [ -n "$HOOK_DEBUG" ]; then
+    set -x
+fi
+
+# Log function for debugging
+log_debug() {
+    if [ -n "$HOOK_DEBUG" ]; then
+        echo "[DEBUG] $1" >&2
+    fi
+}
+
+log_debug "Pre-commit hook started"
+log_debug "Working directory: $(pwd)"
+log_debug "Go version: $(go version)"
+
+# Check if we're in the right directory
+if [ ! -f "go.mod" ]; then
+    echo "Warning: go.mod not found. Are you in the right directory?"
+    echo "Current directory: $(pwd)"
+fi
+
+# Track if any files were auto-formatted
+FILES_FORMATTED=false
+
+# Get list of Go files to be committed
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+
+if [ -z "$STAGED_GO_FILES" ]; then
+    log_debug "No Go files staged for commit"
+    echo "No Go files to check."
+    exit 0
+fi
+
+echo "Checking Go files..."
+log_debug "Files to check: $STAGED_GO_FILES"
+
+# Run go fmt with auto-fix on staged files
+echo "Checking and fixing go fmt..."
+unformatted=""
+for file in $STAGED_GO_FILES; do
+    if [ -f "$file" ]; then
+        fmt_output=$(gofmt -l "$file")
+        if [ -n "$fmt_output" ]; then
+            unformatted="$unformatted $file"
+        fi
+    fi
+done
+
+if [ -n "$unformatted" ]; then
+    FILES_FORMATTED=true
+    echo ""
+    echo "=========================================="
+    echo "⚠️  FORMATTING REQUIRED - AUTO-FIXING..."
+    echo "=========================================="
+    echo ""
+    # Show what will be changed
+    for file in $unformatted; do
+        if [ -f "$file" ]; then
+            echo "Formatting differences in $file:"
+            gofmt -d "$file"
+        fi
+    done
+    echo ""
+    echo "Auto-fixing the following files:"
+    # Auto-fix all unformatted files
+    for file in $unformatted; do
+        if [ -f "$file" ]; then
+            gofmt -w "$file"
+            git add "$file"
+            echo "  ✓ Fixed and staged: $file"
+        fi
+    done
+    echo ""
+fi
+
+# Run go vet (same as CI) - only on staged files' packages
+echo "Running go vet..."
+# Get unique package directories
+PACKAGES=""
+for file in $STAGED_GO_FILES; do
+    if [ -f "$file" ]; then
+        pkg_dir=$(dirname "$file")
+        # Convert to package path
+        pkg="./$pkg_dir"
+        if ! echo "$PACKAGES" | grep -q "$pkg"; then
+            PACKAGES="$PACKAGES $pkg"
+        fi
+    fi
+done
+
+log_debug "Packages to vet: $PACKAGES"
+
+# Run vet on each package
+for pkg in $PACKAGES; do
+    if ! go vet "$pkg" 2>&1; then
+        echo "go vet failed for package $pkg. Please fix the issues before committing."
+        exit 1
+    fi
+done
+
+# Final format check to ensure everything is properly formatted
+# This matches the CI behavior exactly
+echo "Final format check..."
+still_unformatted=""
+for file in $STAGED_GO_FILES; do
+    if [ -f "$file" ]; then
+        fmt_output=$(gofmt -l "$file")
+        if [ -n "$fmt_output" ]; then
+            still_unformatted="$still_unformatted $file"
+        fi
+    fi
+done
+
+if [ -n "$still_unformatted" ]; then
+    echo "ERROR: Some files are still not formatted after auto-fix:"
+    echo "$still_unformatted"
+    echo "This should not happen. Please check these files manually."
+    exit 1
+fi
+
+# Show final status with clear action required
+if [ "$FILES_FORMATTED" = true ]; then
+    echo ""
+    echo "=========================================="
+    echo "📝 IMPORTANT: FILES WERE AUTO-FORMATTED"
+    echo "=========================================="
+    echo ""
+    echo "✅ All checks passed, but files were modified and staged."
+    echo ""
+    echo "👉 ACTION REQUIRED:"
+    echo "   1. Review the changes with: git diff --cached"
+    echo "   2. Commit again to include the formatted files"
+    echo ""
+    echo "=========================================="
+    # Exit with error to stop the commit and force re-commit
+    exit 1
+else
+    echo ""
+    echo "✅ Pre-commit checks passed! No changes needed."
+fi
+
+log_debug "Pre-commit hook completed successfully"
+exit 0
