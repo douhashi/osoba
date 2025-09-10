@@ -405,6 +405,63 @@ func TestDefaultManager_GetPaneByTitle(t *testing.T) {
 	}
 }
 
+func TestDefaultManager_KillPane(t *testing.T) {
+	tests := []struct {
+		name        string
+		sessionName string
+		windowName  string
+		paneIndex   int
+		setupMock   func(*MockCommandExecutor)
+		wantErr     bool
+		errMessage  string
+	}{
+		{
+			name:        "kill pane successfully",
+			sessionName: "osoba-test",
+			windowName:  "issue-123",
+			paneIndex:   1,
+			setupMock: func(m *MockCommandExecutor) {
+				m.On("Execute", "tmux", []string{
+					"kill-pane", "-t", "osoba-test:issue-123.1",
+				}).Return("", nil).Once()
+			},
+			wantErr: false,
+		},
+		{
+			name:        "fail to kill pane - invalid index",
+			sessionName: "osoba-test",
+			windowName:  "issue-123",
+			paneIndex:   99,
+			setupMock: func(m *MockCommandExecutor) {
+				m.On("Execute", "tmux", []string{
+					"kill-pane", "-t", "osoba-test:issue-123.99",
+				}).Return("", fmt.Errorf("pane not found")).Once()
+			},
+			wantErr:    true,
+			errMessage: "failed to kill pane",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockExecutor := new(MockCommandExecutor)
+			tt.setupMock(mockExecutor)
+
+			manager := &DefaultManager{executor: mockExecutor}
+
+			err := manager.KillPane(tt.sessionName, tt.windowName, tt.paneIndex)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMessage)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockExecutor.AssertExpectations(t)
+		})
+	}
+}
+
 // parsePaneInfo のテスト
 func TestParsePaneInfo(t *testing.T) {
 	tests := []struct {

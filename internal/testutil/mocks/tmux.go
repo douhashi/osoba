@@ -42,6 +42,9 @@ func (m *MockTmuxManager) WithDefaultBehavior() *MockTmuxManager {
 	// Pane operations
 	m.On("ResizePanesEvenly", mock.Anything, mock.Anything).Maybe().Return(nil)
 
+	// Pane operations
+	m.On("ResizePanesEvenly", mock.Anything, mock.Anything).Maybe().Return(nil)
+
 	// Issue window operations - GetIssueWindowのデフォルト実装
 	m.On("GetIssueWindow", mock.AnythingOfType("int")).Maybe().Return("issue-123")
 	m.On("MatchIssueWindow", mock.Anything).Maybe().Return(false)
@@ -206,6 +209,12 @@ func (m *MockTmuxManager) GetPaneByTitle(sessionName, windowName string, title s
 // ResizePanesEvenly mocks the ResizePanesEvenly method
 func (m *MockTmuxManager) ResizePanesEvenly(sessionName, windowName string) error {
 	args := m.Called(sessionName, windowName)
+	return args.Error(0)
+}
+
+// KillPane mocks the KillPane method
+func (m *MockTmuxManager) KillPane(sessionName, windowName string, paneIndex int) error {
+	args := m.Called(sessionName, windowName, paneIndex)
 	return args.Error(0)
 }
 
