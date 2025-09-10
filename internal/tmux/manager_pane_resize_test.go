@@ -77,8 +77,14 @@ func TestDefaultManager_ResizePanesEvenly(t *testing.T) {
 
 			mockExecutor.On("Execute", "tmux", listPanesArgs).Return(panesOutput, nil)
 
-			// ペインが2個以上の場合のみ、select-layoutコマンドのモックを設定
+			// ペインが2個以上の場合のみ、新しいリトライ機能のモックを設定
 			if len(tt.panes) > 1 {
+				// ウィンドウサイズチェックのモック
+				target := fmt.Sprintf("%s:%s", tt.sessionName, tt.windowName)
+				windowSizeArgs := []string{"display-message", "-p", "-t", target, "#{window_width} #{window_height}"}
+				mockExecutor.On("Execute", "tmux", windowSizeArgs).Return("120 40", nil)
+
+				// select-layoutのモック
 				selectLayoutArgs := []string{"select-layout", "-t", tt.sessionName + ":" + tt.windowName, "even-horizontal"}
 				mockExecutor.On("Execute", "tmux", selectLayoutArgs).Return(tt.executorResult, tt.executorError)
 			}
@@ -98,43 +104,167 @@ func TestDefaultManager_ResizePanesEvenly(t *testing.T) {
 	}
 }
 
-func TestDefaultManager_ResizePanesEvenly_ListPanesError(t *testing.T) {
-	mockExecutor := &MockCommandExecutor{}
-	manager := &DefaultManager{executor: mockExecutor}
+// TestDefaultManager_GetWindowSize ウィンドウサイズ取得のテスト
+func TestDefaultManager_GetWindowSize(t *testing.T) {
+	tests := []struct {
+		name           string
+		sessionName    string
+		windowName     string
+		mockOutput     string
+		mockError      error
+		expectedWidth  int
+		expectedHeight int
+		expectedError  bool
+	}{
+		{
+			name:           "正常なウィンドウサイズ取得",
+			sessionName:    "test-session",
+			windowName:     "test-window",
+			mockOutput:     "120 40",
+			mockError:      nil,
+			expectedWidth:  120,
+			expectedHeight: 40,
+			expectedError:  false,
+		},
+		{
+			name:           "最小サイズのウィンドウ",
+			sessionName:    "test-session",
+			windowName:     "test-window",
+			mockOutput:     "80 24",
+			mockError:      nil,
+			expectedWidth:  80,
+			expectedHeight: 24,
+			expectedError:  false,
+		},
+		{
+			name:          "tmuxコマンドエラー",
+			sessionName:   "test-session",
+			windowName:    "test-window",
+			mockOutput:    "",
+			mockError:     fmt.Errorf("tmux: no server running"),
+			expectedError: true,
+		},
+		{
+			name:          "不正な出力フォーマット",
+			sessionName:   "test-session",
+			windowName:    "test-window",
+			mockOutput:    "invalid-format",
+			mockError:     nil,
+			expectedError: true,
+		},
+	}
 
-	sessionName := "test-session"
-	windowName := "test-window"
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockExecutor := &MockCommandExecutor{}
+			manager := &DefaultManager{executor: mockExecutor}
 
-	// ListPanesでエラーが発生する場合
-	listPanesArgs := []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}:#{pane_active}:#{pane_width}:#{pane_height}"}
-	mockExecutor.On("Execute", "tmux", listPanesArgs).Return("", fmt.Errorf("tmux error"))
+			// display-messageコマンドのモック設定
+			target := fmt.Sprintf("%s:%s", tt.sessionName, tt.windowName)
+			args := []string{"display-message", "-p", "-t", target, "#{window_width} #{window_height}"}
+			mockExecutor.On("Execute", "tmux", args).Return(tt.mockOutput, tt.mockError)
 
-	err := manager.ResizePanesEvenly(sessionName, windowName)
+			// テスト実行
+			width, height, err := manager.GetWindowSize(tt.sessionName, tt.windowName)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to list panes")
-	mockExecutor.AssertExpectations(t)
+			// 結果検証
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedWidth, width)
+				assert.Equal(t, tt.expectedHeight, height)
+			}
+
+			mockExecutor.AssertExpectations(t)
+		})
+	}
 }
 
-func TestDefaultManager_ResizePanesEvenly_SelectLayoutError(t *testing.T) {
-	mockExecutor := &MockCommandExecutor{}
-	manager := &DefaultManager{executor: mockExecutor}
+// TestDefaultManager_ResizePanesEvenlyWithRetry リトライ機能付きResizePanesEvenlyのテスト
+func TestDefaultManager_ResizePanesEvenlyWithRetry(t *testing.T) {
+	tests := []struct {
+		name               string
+		sessionName        string
+		windowName         string
+		panesOutput        string
+		windowSizeOutput   string
+		selectLayoutErrors []error // 各リトライにおけるエラー
+		expectedError      bool
+	}{
+		{
+			name:               "初回で成功するケース",
+			sessionName:        "test-session",
+			windowName:         "test-window",
+			panesOutput:        "0:pane1:1:60:30\n1:pane2:0:60:30",
+			windowSizeOutput:   "120 40",
+			selectLayoutErrors: []error{nil},
+			expectedError:      false,
+		},
+		{
+			name:               "2回目で成功するケース",
+			sessionName:        "test-session",
+			windowName:         "test-window",
+			panesOutput:        "0:pane1:1:60:30\n1:pane2:0:60:30",
+			windowSizeOutput:   "120 40",
+			selectLayoutErrors: []error{fmt.Errorf("temporary error"), nil},
+			expectedError:      false,
+		},
+		{
+			name:             "最大リトライで失敗するケース",
+			sessionName:      "test-session",
+			windowName:       "test-window",
+			panesOutput:      "0:pane1:1:60:30\n1:pane2:0:60:30",
+			windowSizeOutput: "120 40",
+			selectLayoutErrors: []error{
+				fmt.Errorf("error1"), fmt.Errorf("error2"), fmt.Errorf("error3"),
+			},
+			expectedError: true,
+		},
+		{
+			name:               "ウィンドウサイズ不足でスキップ",
+			sessionName:        "test-session",
+			windowName:         "test-window",
+			panesOutput:        "0:pane1:1:35:15\n1:pane2:0:35:15",
+			windowSizeOutput:   "70 20",
+			selectLayoutErrors: []error{}, // select-layoutは呼ばれない
+			expectedError:      false,
+		},
+	}
 
-	sessionName := "test-session"
-	windowName := "test-window"
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockExecutor := &MockCommandExecutor{}
+			manager := &DefaultManager{executor: mockExecutor}
 
-	// 2つのペインを設定
-	panesOutput := "0:pane1:1:40:20\n1:pane2:0:40:20"
-	listPanesArgs := []string{"list-panes", "-t", sessionName + ":" + windowName, "-F", "#{pane_index}:#{pane_title}:#{pane_active}:#{pane_width}:#{pane_height}"}
-	mockExecutor.On("Execute", "tmux", listPanesArgs).Return(panesOutput, nil)
+			// ListPanesのモック設定
+			listPanesArgs := []string{"list-panes", "-t", tt.sessionName + ":" + tt.windowName, "-F", "#{pane_index}:#{pane_title}:#{pane_active}:#{pane_width}:#{pane_height}"}
+			mockExecutor.On("Execute", "tmux", listPanesArgs).Return(tt.panesOutput, nil)
 
-	// select-layoutでエラーが発生する場合
-	selectLayoutArgs := []string{"select-layout", "-t", sessionName + ":" + windowName, "even-horizontal"}
-	mockExecutor.On("Execute", "tmux", selectLayoutArgs).Return("", fmt.Errorf("select-layout error"))
+			// GetWindowSizeのモック設定
+			if tt.windowSizeOutput != "" {
+				target := fmt.Sprintf("%s:%s", tt.sessionName, tt.windowName)
+				windowSizeArgs := []string{"display-message", "-p", "-t", target, "#{window_width} #{window_height}"}
+				mockExecutor.On("Execute", "tmux", windowSizeArgs).Return(tt.windowSizeOutput, nil)
+			}
 
-	err := manager.ResizePanesEvenly(sessionName, windowName)
+			// select-layoutのモック設定（リトライ回数分）
+			selectLayoutArgs := []string{"select-layout", "-t", tt.sessionName + ":" + tt.windowName, "even-horizontal"}
+			for _, err := range tt.selectLayoutErrors {
+				mockExecutor.On("Execute", "tmux", selectLayoutArgs).Return("", err).Once()
+			}
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to resize panes evenly")
-	mockExecutor.AssertExpectations(t)
+			// テスト実行
+			err := manager.ResizePanesEvenlyWithRetry(tt.sessionName, tt.windowName)
+
+			// 結果検証
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockExecutor.AssertExpectations(t)
+		})
+	}
 }

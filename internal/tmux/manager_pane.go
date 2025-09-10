@@ -4,6 +4,21 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
+)
+
+// ペインリサイズ機能の安定性向上のための定数
+const (
+	// ウィンドウサイズの最小要件
+	MinWindowWidth  = 80
+	MinWindowHeight = 24
+
+	// リトライ設定
+	MaxRetries        = 3
+	BaseRetryInterval = 100 * time.Millisecond
+
+	// リサイズ後の安定化待機時間
+	LayoutStabilizationDelay = 100 * time.Millisecond
 )
 
 // CreatePane 新しいペインを作成
@@ -143,7 +158,42 @@ func parsePaneInfo(line string) (*PaneInfo, error) {
 }
 
 // ResizePanesEvenly ペインを均等にリサイズ
+// 下位互換性のため、リトライ機能付きメソッドを呼び出すラッパー
 func (m *DefaultManager) ResizePanesEvenly(sessionName, windowName string) error {
+	return m.ResizePanesEvenlyWithRetry(sessionName, windowName)
+}
+
+// GetWindowSize ウィンドウのサイズ（幅、高さ）を取得
+func (m *DefaultManager) GetWindowSize(sessionName, windowName string) (width, height int, err error) {
+	target := fmt.Sprintf("%s:%s", sessionName, windowName)
+	args := []string{"display-message", "-p", "-t", target, "#{window_width} #{window_height}"}
+
+	output, err := m.executor.Execute("tmux", args...)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get window size for %s: %w", target, err)
+	}
+
+	// "width height" 形式の出力をパース
+	parts := strings.Fields(strings.TrimSpace(output))
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid window size format: expected 2 fields, got %d", len(parts))
+	}
+
+	width, err = strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid window width: %w", err)
+	}
+
+	height, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid window height: %w", err)
+	}
+
+	return width, height, nil
+}
+
+// ResizePanesEvenlyWithRetry ペインを均等にリサイズ（リトライ機能付き）
+func (m *DefaultManager) ResizePanesEvenlyWithRetry(sessionName, windowName string) error {
 	// ペイン数を確認（1個以下の場合はスキップ）
 	panes, err := m.ListPanes(sessionName, windowName)
 	if err != nil {
@@ -155,14 +205,49 @@ func (m *DefaultManager) ResizePanesEvenly(sessionName, windowName string) error
 		return nil
 	}
 
-	// tmux select-layout even-horizontal を実行
-	target := fmt.Sprintf("%s:%s", sessionName, windowName)
-	args := []string{"select-layout", "-t", target, "even-horizontal"}
-	if _, err := m.executor.Execute("tmux", args...); err != nil {
-		return fmt.Errorf("failed to resize panes evenly for %s: %w", target, err)
+	// ウィンドウサイズチェック
+	width, height, err := m.GetWindowSize(sessionName, windowName)
+	if err != nil {
+		return fmt.Errorf("failed to get window size: %w", err)
 	}
 
-	return nil
+	// 最小サイズ要件をチェック
+	if width < MinWindowWidth || height < MinWindowHeight {
+		// サイズ不足の場合はログ出力してスキップ（エラーにはしない）
+		// ログ機能は既存の実装に依存するため、コメントアウトしている
+		// fmt.Printf("Window size (%dx%d) is too small for resizing, minimum required: %dx%d\n",
+		//           width, height, MinWindowWidth, MinWindowHeight)
+		return nil
+	}
+
+	// リトライロジック実行
+	target := fmt.Sprintf("%s:%s", sessionName, windowName)
+	args := []string{"select-layout", "-t", target, "even-horizontal"}
+
+	var lastErr error
+	for attempt := 1; attempt <= MaxRetries; attempt++ {
+		// tmux select-layout even-horizontal を実行
+		if _, err := m.executor.Execute("tmux", args...); err != nil {
+			lastErr = err
+
+			// 最大リトライに達していない場合は待機してリトライ
+			if attempt < MaxRetries {
+				// exponential backoff: 100ms, 200ms, 400ms
+				delay := BaseRetryInterval * time.Duration(1<<(attempt-1))
+				time.Sleep(delay)
+				continue
+			}
+
+			// 最大リトライに達した場合はエラーを返す
+			return fmt.Errorf("failed to resize panes evenly for %s after %d attempts: %w", target, MaxRetries, lastErr)
+		}
+
+		// 成功時は安定化待機時間を設定
+		time.Sleep(LayoutStabilizationDelay)
+		return nil
+	}
+
+	return fmt.Errorf("failed to resize panes evenly for %s: %w", target, lastErr)
 }
 
 // KillPane 指定されたペインを削除

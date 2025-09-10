@@ -20,6 +20,12 @@ type PaneManager interface {
 	// ResizePanesEvenly ペインを均等にリサイズ
 	ResizePanesEvenly(sessionName, windowName string) error
 
+	// ResizePanesEvenlyWithRetry ペインを均等にリサイズ（リトライ機能付き）
+	ResizePanesEvenlyWithRetry(sessionName, windowName string) error
+
+	// GetWindowSize ウィンドウのサイズ（幅、高さ）を取得
+	GetWindowSize(sessionName, windowName string) (width, height int, err error)
+
 	// KillPane 指定されたペインを削除
 	KillPane(sessionName, windowName string, paneIndex int) error
 }

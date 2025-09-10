@@ -92,6 +92,12 @@ func (m *MockConflictManager) SetPaneTitle(sessionName, windowName string, paneI
 func (m *MockConflictManager) ResizePanesEvenly(sessionName, windowName string) error {
 	return nil
 }
+func (m *MockConflictManager) ResizePanesEvenlyWithRetry(sessionName, windowName string) error {
+	return nil
+}
+func (m *MockConflictManager) GetWindowSize(sessionName, windowName string) (width, height int, err error) {
+	return 120, 40, nil
+}
 func (m *MockConflictManager) KillPane(sessionName, windowName string, paneIndex int) error {
 	return nil
 }

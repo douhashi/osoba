@@ -160,6 +160,16 @@ func (m *testPaneManager) ResizePanesEvenly(sessionName, windowName string) erro
 	return nil
 }
 
+func (m *testPaneManager) ResizePanesEvenlyWithRetry(sessionName, windowName string) error {
+	// テスト環境では常に成功
+	return nil
+}
+
+func (m *testPaneManager) GetWindowSize(sessionName, windowName string) (width, height int, err error) {
+	// テスト環境ではデフォルトサイズを返す
+	return 120, 40, nil
+}
+
 func (m *testPaneManager) KillPane(sessionName, windowName string, paneIndex int) error {
 	// テスト環境では常に成功
 	return nil
