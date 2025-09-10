@@ -160,6 +160,11 @@ func (m *testPaneManager) ResizePanesEvenly(sessionName, windowName string) erro
 	return nil
 }
 
+func (m *testPaneManager) KillPane(sessionName, windowName string, paneIndex int) error {
+	// テスト環境では常に成功
+	return nil
+}
+
 // testDiagnosticManager はテスト用のDiagnosticManager実装
 type testDiagnosticManager struct{}
 

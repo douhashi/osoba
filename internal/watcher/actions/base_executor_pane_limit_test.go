@@ -1,16 +1,16 @@
 package actions
 
 import (
+	"context"
 	"testing"
 
 	"github.com/douhashi/osoba/internal/config"
+	"github.com/douhashi/osoba/internal/logger"
 	"github.com/douhashi/osoba/internal/testutil/builders"
-	"github.com/douhashi/osoba/internal/testutil/helpers"
 	"github.com/douhashi/osoba/internal/testutil/mocks"
 	tmuxpkg "github.com/douhashi/osoba/internal/tmux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/zap/zapcore"
 )
 
 func TestBaseExecutor_EnsurePane_WithPaneLimit(t *testing.T) {
@@ -184,7 +184,7 @@ func TestBaseExecutor_EnsurePane_WithPaneLimit(t *testing.T) {
 			// モックの準備
 			mockTmux := mocks.NewMockTmuxManager()
 			mockGit := mocks.NewMockGitWorktreeManager()
-			logger := helpers.CreateTestLogger(t, zapcore.DebugLevel)
+			logger, _ := logger.New(logger.WithLevel("debug"))
 
 			// テストケースごとのモック設定
 			tt.setupMocks(mockTmux, mockGit)
@@ -205,7 +205,8 @@ func TestBaseExecutor_EnsurePane_WithPaneLimit(t *testing.T) {
 				Build()
 
 			// PrepareWorkspaceを実行
-			workspace, err := executor.PrepareWorkspace(issue, tt.phase)
+			ctx := context.Background()
+			workspace, err := executor.PrepareWorkspace(ctx, issue, tt.phase)
 
 			if tt.wantErr {
 				assert.Error(t, err)
