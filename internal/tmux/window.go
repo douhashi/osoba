@@ -711,7 +711,6 @@ func KillWindowsForIssueWithExecutor(sessionName string, issueNumber int, execut
 
 // Issue #147: pane管理メソッド
 
-
 // SelectPaneByTitle はタイトルを指定してpaneを選択する
 func SelectPaneByTitle(sessionName, windowName, paneTitle string) error {
 	return SelectPaneByTitleWithExecutor(sessionName, windowName, paneTitle, &DefaultCommandExecutor{})
@@ -792,6 +791,3 @@ func SelectPaneByTitleWithExecutor(sessionName, windowName, paneTitle string, ex
 
 	return fmt.Errorf("pane with title '%s' not found in window '%s'", paneTitle, windowName)
 }
-
-
-

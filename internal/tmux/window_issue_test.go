@@ -328,4 +328,3 @@ func TestCreateWindowForIssueWithNewWindowDetection(t *testing.T) {
 		mockExec.AssertExpectations(t)
 	})
 }
-
