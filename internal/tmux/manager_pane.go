@@ -55,6 +55,14 @@ func (m *DefaultManager) CreatePane(sessionName, windowName string, opts PaneOpt
 		newPane.Title = opts.Title
 	}
 
+	// ペイン作成後の自動レイアウト調整
+	// エラーが発生してもペイン作成は成功として扱う（ベストエフォート）
+	if err := m.ResizePanesEvenlyWithRetry(sessionName, windowName); err != nil {
+		// レイアウト調整エラーは記録するが、ペイン作成の結果には影響しない
+		// 実際の運用環境ではログを出力する
+		// log.Printf("Warning: Failed to adjust layout after pane creation: %v", err)
+	}
+
 	return newPane, nil
 }
 
