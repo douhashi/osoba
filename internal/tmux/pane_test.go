@@ -31,7 +31,7 @@ func TestDefaultManager_CreatePane(t *testing.T) {
 		errMessage  string
 	}{
 		{
-			name:        "create horizontal pane successfully",
+			name:        "create horizontal pane successfully with auto layout",
 			sessionName: "osoba-test",
 			windowName:  "issue-123",
 			opts: PaneOptions{
@@ -55,6 +55,22 @@ func TestDefaultManager_CreatePane(t *testing.T) {
 				m.On("Execute", "tmux", []string{
 					"set-option", "-t", "osoba-test:issue-123.1", "-p", "pane-border-format", " Implementation ",
 				}).Return("", nil).Once()
+
+				// Auto layout adjustment - list panes for ResizePanesEvenlyWithRetry
+				m.On("Execute", "tmux", []string{
+					"list-panes", "-t", "osoba-test:issue-123", "-F",
+					"#{pane_index}:#{pane_title}:#{pane_active}:#{pane_width}:#{pane_height}",
+				}).Return("0:Plan:0:80:40\n1:Implementation:1:80:40", nil).Once()
+
+				// Get window size for ResizePanesEvenlyWithRetry
+				m.On("Execute", "tmux", []string{
+					"display-message", "-p", "-t", "osoba-test:issue-123", "#{window_width} #{window_height}",
+				}).Return("160 40", nil).Once()
+
+				// Execute select-layout for ResizePanesEvenlyWithRetry
+				m.On("Execute", "tmux", []string{
+					"select-layout", "-t", "osoba-test:issue-123", "even-horizontal",
+				}).Return("", nil).Once()
 			},
 			want: &PaneInfo{
 				Index:  1,
@@ -66,7 +82,7 @@ func TestDefaultManager_CreatePane(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:        "create horizontal pane with custom percentage",
+			name:        "create horizontal pane with custom percentage and auto layout",
 			sessionName: "osoba-test",
 			windowName:  "issue-456",
 			opts: PaneOptions{
@@ -90,6 +106,22 @@ func TestDefaultManager_CreatePane(t *testing.T) {
 				m.On("Execute", "tmux", []string{
 					"set-option", "-t", "osoba-test:issue-456.1", "-p", "pane-border-format", " Review ",
 				}).Return("", nil).Once()
+
+				// Auto layout adjustment - list panes for ResizePanesEvenlyWithRetry
+				m.On("Execute", "tmux", []string{
+					"list-panes", "-t", "osoba-test:issue-456", "-F",
+					"#{pane_index}:#{pane_title}:#{pane_active}:#{pane_width}:#{pane_height}",
+				}).Return("0:Plan:0:56:80\n1:Review:1:24:80", nil).Once()
+
+				// Get window size for ResizePanesEvenlyWithRetry
+				m.On("Execute", "tmux", []string{
+					"display-message", "-p", "-t", "osoba-test:issue-456", "#{window_width} #{window_height}",
+				}).Return("80 80", nil).Once()
+
+				// Execute select-layout for ResizePanesEvenlyWithRetry
+				m.On("Execute", "tmux", []string{
+					"select-layout", "-t", "osoba-test:issue-456", "even-horizontal",
+				}).Return("", nil).Once()
 			},
 			want: &PaneInfo{
 				Index:  1,
@@ -97,6 +129,100 @@ func TestDefaultManager_CreatePane(t *testing.T) {
 				Active: true,
 				Width:  24,
 				Height: 80,
+			},
+			wantErr: false,
+		},
+		{
+			name:        "create pane successfully even if layout adjustment fails",
+			sessionName: "osoba-test",
+			windowName:  "issue-789",
+			opts: PaneOptions{
+				Split:      "-v",
+				Percentage: 50,
+				Title:      "Debug",
+			},
+			setupMock: func(m *MockCommandExecutor) {
+				// split-window command
+				m.On("Execute", "tmux", []string{
+					"split-window", "-v", "-p", "50", "-t", "osoba-test:issue-789",
+				}).Return("", nil).Once()
+
+				// list-panes to get new pane info
+				m.On("Execute", "tmux", []string{
+					"list-panes", "-t", "osoba-test:issue-789", "-F",
+					"#{pane_index}:#{pane_title}:#{pane_active}:#{pane_width}:#{pane_height}",
+				}).Return("0:Plan:0:160:20\n1:Debug:1:160:20", nil).Once()
+
+				// set-option for pane title
+				m.On("Execute", "tmux", []string{
+					"set-option", "-t", "osoba-test:issue-789.1", "-p", "pane-border-format", " Debug ",
+				}).Return("", nil).Once()
+
+				// Auto layout adjustment - list panes for ResizePanesEvenlyWithRetry
+				m.On("Execute", "tmux", []string{
+					"list-panes", "-t", "osoba-test:issue-789", "-F",
+					"#{pane_index}:#{pane_title}:#{pane_active}:#{pane_width}:#{pane_height}",
+				}).Return("0:Plan:0:160:20\n1:Debug:1:160:20", nil).Once()
+
+				// Get window size for ResizePanesEvenlyWithRetry
+				m.On("Execute", "tmux", []string{
+					"display-message", "-p", "-t", "osoba-test:issue-789", "#{window_width} #{window_height}",
+				}).Return("160 40", nil).Once()
+
+				// Execute select-layout for ResizePanesEvenlyWithRetry - fails but doesn't affect pane creation
+				m.On("Execute", "tmux", []string{
+					"select-layout", "-t", "osoba-test:issue-789", "even-horizontal",
+				}).Return("", fmt.Errorf("layout adjustment error")).Times(3) // Retries 3 times
+			},
+			want: &PaneInfo{
+				Index:  1,
+				Title:  "Debug",
+				Active: true,
+				Width:  160,
+				Height: 20,
+			},
+			wantErr: false, // Pane creation should succeed despite layout error
+		},
+		{
+			name:        "skip layout adjustment for single pane",
+			sessionName: "osoba-test",
+			windowName:  "issue-single",
+			opts: PaneOptions{
+				Split:      "-h",
+				Percentage: 50,
+				Title:      "OnlyPane",
+			},
+			setupMock: func(m *MockCommandExecutor) {
+				// split-window command
+				m.On("Execute", "tmux", []string{
+					"split-window", "-h", "-p", "50", "-t", "osoba-test:issue-single",
+				}).Return("", nil).Once()
+
+				// list-panes to get new pane info - returns only single pane (edge case)
+				m.On("Execute", "tmux", []string{
+					"list-panes", "-t", "osoba-test:issue-single", "-F",
+					"#{pane_index}:#{pane_title}:#{pane_active}:#{pane_width}:#{pane_height}",
+				}).Return("0:OnlyPane:1:160:40", nil).Once()
+
+				// set-option for pane title
+				m.On("Execute", "tmux", []string{
+					"set-option", "-t", "osoba-test:issue-single.0", "-p", "pane-border-format", " OnlyPane ",
+				}).Return("", nil).Once()
+
+				// Auto layout adjustment - list panes for ResizePanesEvenlyWithRetry
+				m.On("Execute", "tmux", []string{
+					"list-panes", "-t", "osoba-test:issue-single", "-F",
+					"#{pane_index}:#{pane_title}:#{pane_active}:#{pane_width}:#{pane_height}",
+				}).Return("0:OnlyPane:1:160:40", nil).Once()
+
+				// No window size check or select-layout since only 1 pane
+			},
+			want: &PaneInfo{
+				Index:  0,
+				Title:  "OnlyPane",
+				Active: true,
+				Width:  160,
+				Height: 40,
 			},
 			wantErr: false,
 		},
