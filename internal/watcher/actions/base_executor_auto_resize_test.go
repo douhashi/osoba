@@ -238,29 +238,19 @@ func TestBaseExecutor_PaneDeleteAutoResize(t *testing.T) {
 				tmux.On("GetPaneByTitle", "test-session", "issue-123", "Review").
 					Return(nil, assert.AnError).Once()
 
-				// ペイン一覧取得（上限に達している）
-				tmux.On("ListPanes", "test-session", "issue-123").Return([]*tmuxpkg.PaneInfo{
-					{Index: 0, Title: "Plan", Active: false},
-					{Index: 1, Title: "Implementation", Active: true},
-					{Index: 2, Title: "Test", Active: false},
-				}, nil).Once()
-
-				// 最古の非アクティブペイン削除
-				tmux.On("KillPane", "test-session", "issue-123", 0).Return(nil).Once()
-
-				// ペイン削除後のリサイズ実行を期待
-				tmux.On("ResizePanesEvenly", "test-session", "issue-123").Return(nil).Once()
-
-				// 新規pane作成
+				// 新規pane作成（ペイン数制限機能が統合されたCreatePaneが呼ばれる）
 				tmux.On("CreatePane", "test-session", "issue-123", tmuxpkg.PaneOptions{
 					Split:      "-h",
 					Percentage: 50,
 					Title:      "Review",
+					Config: &tmuxpkg.PaneConfig{
+						LimitPanesEnabled: true,
+						MaxPanesPerWindow: 3,
+					},
 				}).Return(&tmuxpkg.PaneInfo{Index: 3, Title: "Review", Active: true}, nil).Once()
 
-				// ペイン作成後のリサイズは、デバウンス機能により実行されない可能性がある
-				// デバウンス期間内の連続実行はスキップされるため、期待値を調整
-				// tmux.On("ResizePanesEvenly", "test-session", "issue-123").Return(nil).Maybe()
+				// ペイン作成後のリサイズ（executeAutoResize経由）
+				tmux.On("ResizePanesEvenly", "test-session", "issue-123").Return(nil).Once()
 
 				git.On("GetWorktreePathForIssue", 123).Return("/test/worktree/issue-123").Once()
 			},

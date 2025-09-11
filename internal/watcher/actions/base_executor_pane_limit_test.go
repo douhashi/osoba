@@ -42,21 +42,15 @@ func TestBaseExecutor_EnsurePane_WithPaneLimit(t *testing.T) {
 				tmux.On("GetPaneByTitle", "test-session", "issue-999", "Review").
 					Return(nil, assert.AnError).Once()
 
-				// ペイン一覧取得（3つ存在、上限に達している）
-				tmux.On("ListPanes", "test-session", "issue-999").Return([]*tmuxpkg.PaneInfo{
-					{Index: 0, Title: "Plan", Active: false},
-					{Index: 1, Title: "Implementation", Active: true},
-					{Index: 2, Title: "Test", Active: false},
-				}, nil).Once()
-
-				// 最古の非アクティブペイン（index: 0）を削除
-				tmux.On("KillPane", "test-session", "issue-999", 0).Return(nil).Once()
-
-				// 新規pane作成
+				// 新規pane作成（ペイン数制限機能が統合されたCreatePaneが呼ばれる）
 				tmux.On("CreatePane", "test-session", "issue-999", tmuxpkg.PaneOptions{
 					Split:      "-h",
 					Percentage: 50,
 					Title:      "Review",
+					Config: &tmuxpkg.PaneConfig{
+						LimitPanesEnabled: true,
+						MaxPanesPerWindow: 3,
+					},
 				}).Return(&tmuxpkg.PaneInfo{Index: 3, Title: "Review", Active: true}, nil).Once()
 
 				// Worktreeパス取得
@@ -85,17 +79,15 @@ func TestBaseExecutor_EnsurePane_WithPaneLimit(t *testing.T) {
 				tmux.On("GetPaneByTitle", "test-session", "issue-999", "Review").
 					Return(nil, assert.AnError).Once()
 
-				// ペイン一覧取得（2つ存在、両方アクティブ）
-				tmux.On("ListPanes", "test-session", "issue-999").Return([]*tmuxpkg.PaneInfo{
-					{Index: 0, Title: "Plan", Active: true},
-					{Index: 1, Title: "Implementation", Active: true},
-				}, nil).Once()
-
-				// 削除はスキップされ、新規pane作成
+				// 新規pane作成（ペイン数制限機能が統合されたCreatePaneが呼ばれる）
 				tmux.On("CreatePane", "test-session", "issue-999", tmuxpkg.PaneOptions{
 					Split:      "-h",
 					Percentage: 50,
 					Title:      "Review",
+					Config: &tmuxpkg.PaneConfig{
+						LimitPanesEnabled: true,
+						MaxPanesPerWindow: 2,
+					},
 				}).Return(&tmuxpkg.PaneInfo{Index: 2, Title: "Review", Active: true}, nil).Once()
 
 				// Worktreeパス取得
@@ -126,11 +118,12 @@ func TestBaseExecutor_EnsurePane_WithPaneLimit(t *testing.T) {
 
 				// ListPanesは呼ばれない（制限無効のため）
 
-				// 新規pane作成
+				// 新規pane作成（制限無効なのでConfig=nil）
 				tmux.On("CreatePane", "test-session", "issue-999", tmuxpkg.PaneOptions{
 					Split:      "-h",
 					Percentage: 50,
 					Title:      "Review",
+					Config:     nil,
 				}).Return(&tmuxpkg.PaneInfo{Index: 3, Title: "Review", Active: true}, nil).Once()
 
 				// Worktreeパス取得
@@ -159,17 +152,15 @@ func TestBaseExecutor_EnsurePane_WithPaneLimit(t *testing.T) {
 				tmux.On("GetPaneByTitle", "test-session", "issue-999", "Implementation").
 					Return(nil, assert.AnError).Once()
 
-				// ペイン一覧取得（2つ存在、上限未満）
-				tmux.On("ListPanes", "test-session", "issue-999").Return([]*tmuxpkg.PaneInfo{
-					{Index: 0, Title: "Plan", Active: false},
-					{Index: 1, Title: "Test", Active: true},
-				}, nil).Once()
-
-				// 削除は実行されず、新規pane作成
+				// 新規pane作成（ペイン数制限機能が統合されたCreatePaneが呼ばれる）
 				tmux.On("CreatePane", "test-session", "issue-999", tmuxpkg.PaneOptions{
 					Split:      "-h",
 					Percentage: 50,
 					Title:      "Implementation",
+					Config: &tmuxpkg.PaneConfig{
+						LimitPanesEnabled: true,
+						MaxPanesPerWindow: 5,
+					},
 				}).Return(&tmuxpkg.PaneInfo{Index: 2, Title: "Implementation", Active: true}, nil).Once()
 
 				// Worktreeパス取得

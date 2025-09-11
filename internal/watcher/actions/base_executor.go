@@ -181,10 +181,19 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 
 	// 既存ウィンドウの場合
 	// フェーズに応じたpane作成オプション
+	var paneConfig *tmuxpkg.PaneConfig
+	if e.config != nil && e.config.Tmux.LimitPanesEnabled {
+		paneConfig = &tmuxpkg.PaneConfig{
+			LimitPanesEnabled: e.config.Tmux.LimitPanesEnabled,
+			MaxPanesPerWindow: e.config.Tmux.MaxPanesPerWindow,
+		}
+	}
+
 	opts := tmuxpkg.PaneOptions{
 		Split:      "-h", // 水平分割（縦分割）
 		Percentage: 50,   // 50%で分割
 		Title:      phase,
+		Config:     paneConfig,
 	}
 
 	// 最初のフェーズ（Plan）の場合は、既存のpane（index 0）を使用
@@ -213,57 +222,14 @@ func (e *BaseExecutor) ensurePane(windowName string, phase string, isNewWindow b
 		}, nil
 	}
 
-	// ペイン数制限のチェック（新規ペイン作成前）
-	if e.config != nil && e.config.Tmux.LimitPanesEnabled {
-		panes, err := e.tmuxManager.ListPanes(e.sessionName, windowName)
-		if err != nil {
-			e.logger.Warn("Failed to list panes for limit check", "error", err)
-		} else {
-			maxPanes := e.config.Tmux.MaxPanesPerWindow
-			if maxPanes <= 0 {
-				maxPanes = 3 // デフォルト値
-			}
-
-			if len(panes) >= maxPanes {
-				e.logger.Info("Pane limit reached, removing oldest non-active pane",
-					"current_count", len(panes),
-					"max_panes", maxPanes)
-
-				// 最古の非アクティブペインを探す
-				var oldestNonActiveIndex int = -1
-				for _, pane := range panes {
-					if !pane.Active {
-						if oldestNonActiveIndex == -1 || pane.Index < oldestNonActiveIndex {
-							oldestNonActiveIndex = pane.Index
-						}
-					}
-				}
-
-				// 非アクティブペインが見つかった場合は削除
-				if oldestNonActiveIndex >= 0 {
-					e.logger.Info("Removing pane",
-						"pane_index", oldestNonActiveIndex,
-						"window", windowName)
-					if err := e.tmuxManager.KillPane(e.sessionName, windowName, oldestNonActiveIndex); err != nil {
-						e.logger.Warn("Failed to kill pane", "error", err, "pane_index", oldestNonActiveIndex)
-					} else {
-						// ペイン削除後にリサイズを実行
-						e.executeAutoResize(windowName)
-					}
-				} else {
-					e.logger.Warn("All panes are active, skipping removal")
-				}
-			}
-		}
-	}
-
 	// Plan以外のフェーズでは新しいpaneを作成
+	// CreatePane内でペイン数制限とレイアウト調整が行われる
 	newPane, err := e.tmuxManager.CreatePane(e.sessionName, windowName, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pane: %w", err)
 	}
 
-	// ペイン作成後に自動リサイズを実行
+	// ペイン作成後に自動リサイズを実行（CreatePane内でも行われるが、デバウンス機能のため追加実行）
 	e.executeAutoResize(windowName)
 
 	return newPane, nil

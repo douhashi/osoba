@@ -23,6 +23,15 @@ const (
 
 // CreatePane 新しいペインを作成
 func (m *DefaultManager) CreatePane(sessionName, windowName string, opts PaneOptions) (*PaneInfo, error) {
+	// ペイン数制限のチェック（ペイン作成前）
+	if opts.Config != nil && opts.Config.LimitPanesEnabled {
+		if err := m.enforcePaneLimit(sessionName, windowName, opts.Config.MaxPanesPerWindow); err != nil {
+			// ペイン制限のエラーはログに記録するが、処理は継続（ベストエフォート）
+			// 実際の運用環境ではログを出力する
+			// log.Printf("Warning: Failed to enforce pane limit: %v", err)
+		}
+	}
+
 	// デフォルト値の設定
 	percentage := opts.Percentage
 	if percentage == 0 {
@@ -64,6 +73,48 @@ func (m *DefaultManager) CreatePane(sessionName, windowName string, opts PaneOpt
 	}
 
 	return newPane, nil
+}
+
+// enforcePaneLimit ペイン数が制限を超えている場合、最古の非アクティブペインを削除
+func (m *DefaultManager) enforcePaneLimit(sessionName, windowName string, maxPanes int) error {
+	if maxPanes <= 0 {
+		maxPanes = 3 // デフォルト値
+	}
+
+	panes, err := m.ListPanes(sessionName, windowName)
+	if err != nil {
+		return fmt.Errorf("failed to list panes: %w", err)
+	}
+
+	// 現在のペイン数が上限以下の場合は何もしない
+	if len(panes) < maxPanes {
+		return nil
+	}
+
+	// 最古の非アクティブペインを探す
+	var oldestNonActiveIndex int = -1
+	for _, pane := range panes {
+		if !pane.Active {
+			if oldestNonActiveIndex == -1 || pane.Index < oldestNonActiveIndex {
+				oldestNonActiveIndex = pane.Index
+			}
+		}
+	}
+
+	// 非アクティブペインが見つかった場合は削除
+	if oldestNonActiveIndex >= 0 {
+		if err := m.KillPane(sessionName, windowName, oldestNonActiveIndex); err != nil {
+			return fmt.Errorf("failed to kill pane %d: %w", oldestNonActiveIndex, err)
+		}
+
+		// ペイン削除後のレイアウト調整
+		if err := m.ResizePanesEvenlyWithRetry(sessionName, windowName); err != nil {
+			// レイアウト調整エラーは記録するが、処理は継続
+			// log.Printf("Warning: Failed to adjust layout after pane removal: %v", err)
+		}
+	}
+
+	return nil
 }
 
 // SelectPane 指定されたペインを選択
