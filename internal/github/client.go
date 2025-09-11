@@ -416,6 +416,52 @@ func (c *GHClient) ListAllOpenIssues(ctx context.Context, owner, repo string) ([
 	return issues, nil
 }
 
+// ListClosedIssues はリポジトリのクローズされたIssueを取得する
+func (c *GHClient) ListClosedIssues(ctx context.Context, owner, repo string) ([]*Issue, error) {
+	if owner == "" {
+		return nil, errors.New("owner is required")
+	}
+	if repo == "" {
+		return nil, errors.New("repo is required")
+	}
+
+	// ghコマンドを実行してクローズされたIssueを取得
+	output, err := c.executeGHCommand(ctx, "issue", "list",
+		"--repo", owner+"/"+repo,
+		"--state", "closed", // クローズされたIssueのみ
+		"--limit", "30", // 最大30件まで取得（最近クローズされたもの）
+		"--json", "number,title,labels,state,body,createdAt,updatedAt,author,url")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list closed issues: %w", err)
+	}
+
+	var ghIssues []map[string]interface{}
+	if err := json.Unmarshal(output, &ghIssues); err != nil {
+		return nil, fmt.Errorf("failed to parse closed issue list: %w", err)
+	}
+
+	issues := make([]*Issue, 0, len(ghIssues))
+	for _, ghIssue := range ghIssues {
+		issue, err := convertMapToIssue(ghIssue)
+		if err != nil {
+			if c.logger != nil {
+				c.logger.Warn("Failed to convert closed issue", "error", err)
+			}
+			continue
+		}
+		issues = append(issues, issue)
+	}
+
+	if c.logger != nil {
+		c.logger.Debug("Listed closed issues",
+			"owner", owner,
+			"repo", repo,
+			"count", len(issues))
+	}
+
+	return issues, nil
+}
+
 // convertMapToIssue はmap[string]interfaceを github.Issue に変換する
 func convertMapToIssue(issueMap map[string]interface{}) (*Issue, error) {
 	issue := &Issue{}

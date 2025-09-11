@@ -390,6 +390,18 @@ func (m *integrationMockGitHubClient) GetClosingIssueNumber(ctx context.Context,
 	return 0, nil
 }
 
+func (m *integrationMockGitHubClient) ListClosedIssues(ctx context.Context, owner, repo string) ([]*github.Issue, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.returnError {
+		return nil, errors.New("mock error")
+	}
+
+	// 空のリストを返す
+	return []*github.Issue{}, nil
+}
+
 // 既存の統合テスト（mainブランチから）
 func TestStartWithActionsIntegration(t *testing.T) {
 	t.Run("複数のIssueを連続して処理", func(t *testing.T) {

@@ -79,6 +79,14 @@ func (m *MockGitHubClientForAutoMerge) TransitionLabels(ctx context.Context, own
 	return args.Error(0)
 }
 
+func (m *MockGitHubClientForAutoMerge) ListClosedIssues(ctx context.Context, owner, repo string) ([]*github.Issue, error) {
+	args := m.Called(ctx, owner, repo)
+	if issues := args.Get(0); issues != nil {
+		return issues.([]*github.Issue), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockGitHubClientForAutoMerge) GetPullRequestForIssue(ctx context.Context, issueNumber int) (*github.PullRequest, error) {
 	args := m.Called(ctx, issueNumber)
 	if args.Get(0) == nil {
