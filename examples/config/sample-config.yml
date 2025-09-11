@@ -108,6 +108,20 @@ notifications:
   #   from: "osoba@example.com"
   #   to: ["dev@example.com"]
 
+# クリーンアップ設定
+cleanup:
+  # クリーンアップ機能の有効化
+  enabled: true
+  
+  # クリーンアップ実行間隔（分）
+  # 最小: 1, 最大: 60
+  interval_minutes: 5
+  
+  # Issue Windowsクリーンアップ設定
+  issue_windows:
+    # tmuxウィンドウのクリーンアップを有効化
+    enabled: true
+
 # 高度な設定
 advanced:
   # 並行処理数

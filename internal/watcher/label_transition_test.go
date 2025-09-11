@@ -117,6 +117,14 @@ func (m *MockGitHubClient) GetClosingIssueNumber(ctx context.Context, prNumber i
 	return args.Int(0), args.Error(1)
 }
 
+func (m *MockGitHubClient) ListClosedIssues(ctx context.Context, owner, repo string) ([]*github.Issue, error) {
+	args := m.Called(ctx, owner, repo)
+	if issues := args.Get(0); issues != nil {
+		return issues.([]*github.Issue), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func TestExecuteLabelTransition(t *testing.T) {
 	tests := []struct {
 		name          string

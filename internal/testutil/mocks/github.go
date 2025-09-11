@@ -152,6 +152,15 @@ func (m *MockGitHubClient) ListAllOpenIssues(ctx context.Context, owner, repo st
 	return args.Get(0).([]*github.Issue), args.Error(1)
 }
 
+// ListClosedIssues mocks the ListClosedIssues method
+func (m *MockGitHubClient) ListClosedIssues(ctx context.Context, owner, repo string) ([]*github.Issue, error) {
+	args := m.Called(ctx, owner, repo)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*github.Issue), args.Error(1)
+}
+
 // GetClosingIssueNumber mocks the GetClosingIssueNumber method
 func (m *MockGitHubClient) GetClosingIssueNumber(ctx context.Context, prNumber int) (int, error) {
 	args := m.Called(ctx, prNumber)

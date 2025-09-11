@@ -122,6 +122,14 @@ func (m *MockGitHubClientForAutoPlan) GetClosingIssueNumber(ctx context.Context,
 	return args.Int(0), args.Error(1)
 }
 
+func (m *MockGitHubClientForAutoPlan) ListClosedIssues(ctx context.Context, owner, repo string) ([]*github.Issue, error) {
+	args := m.Called(ctx, owner, repo)
+	if issues := args.Get(0); issues != nil {
+		return issues.([]*github.Issue), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func TestExecuteAutoPlanIfNoActiveIssues(t *testing.T) {
 	testLogger, _ := logger.New(logger.WithLevel("debug"))
 

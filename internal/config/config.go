@@ -19,7 +19,20 @@ type Config struct {
 	Tmux       TmuxConfig           `mapstructure:"tmux"`
 	Claude     *claude.ClaudeConfig `mapstructure:"claude"`
 	Log        LogConfig            `mapstructure:"log"`
+	Cleanup    CleanupConfig        `mapstructure:"cleanup"`
 	IsTestMode bool                 // テストモードかどうかを示すフラグ
+}
+
+// CleanupConfig はクリーンアップ機能の設定
+type CleanupConfig struct {
+	Enabled         bool               `mapstructure:"enabled"`
+	IntervalMinutes int                `mapstructure:"interval_minutes"`
+	IssueWindows    IssueWindowsConfig `mapstructure:"issue_windows"`
+}
+
+// IssueWindowsConfig はIssueウィンドウのクリーンアップ設定
+type IssueWindowsConfig struct {
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // GitHubConfig はGitHub関連の設定
@@ -110,6 +123,13 @@ func NewConfig() *Config {
 			Level:  "info",
 			Format: "text",
 		},
+		Cleanup: CleanupConfig{
+			Enabled:         true,
+			IntervalMinutes: 5,
+			IssueWindows: IssueWindowsConfig{
+				Enabled: true,
+			},
+		},
 		IsTestMode: isTestMode,
 	}
 }
@@ -151,6 +171,11 @@ func (c *Config) Load(configPath string) error {
 	// ログ設定のデフォルト値
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
+
+	// Cleanup設定のデフォルト値
+	v.SetDefault("cleanup.enabled", true)
+	v.SetDefault("cleanup.interval_minutes", 5)
+	v.SetDefault("cleanup.issue_windows.enabled", true)
 
 	// Claude設定のデフォルト値
 	v.SetDefault("claude.phases.plan.args", []string{"--dangerously-skip-permissions"})
@@ -220,6 +245,9 @@ func (c *Config) LoadOrDefault(configPath string) string {
 		c.Claude = claude.NewDefaultClaudeConfig()
 	}
 
+	// Cleanupのデフォルト設定を確保
+	c.Cleanup.SetDefaults()
+
 	// テストモードの場合、セッションプレフィックスを上書き
 	if os.Getenv("OSOBA_TEST_MODE") == "true" {
 		c.IsTestMode = true
@@ -269,6 +297,11 @@ func (c *Config) Validate() error {
 		if err := c.validateClaudeConfig(); err != nil {
 			return fmt.Errorf("invalid claude config: %w", err)
 		}
+	}
+
+	// Cleanup設定のバリデーション
+	if err := c.Cleanup.Validate(); err != nil {
+		return fmt.Errorf("invalid cleanup config: %w", err)
 	}
 
 	return nil
@@ -405,4 +438,31 @@ func (c *Config) CreateLogger() (logger.Logger, error) {
 		logger.WithLevel(c.Log.Level),
 		logger.WithFormat(c.Log.Format),
 	)
+}
+
+// SetDefaults はCleanupConfigのデフォルト値を設定する
+// 注：この関数は設定ファイルを読み込む前にのみ呼ばれることを想定
+// 設定ファイルがない場合にデフォルト値を適用する
+func (c *CleanupConfig) SetDefaults() {
+	// IntervalMinutesのデフォルト値設定（常に適用）
+	if c.IntervalMinutes == 0 {
+		c.IntervalMinutes = 5
+	}
+
+	// 注：Enabledフィールドは bool なので明示的にfalseかゼロ値かを区別できない
+	// そのため、この実装では IntervalMinutes以外のデフォルト値は
+	// NewConfig で設定されるものを使用する
+}
+
+// Validate はCleanupConfigの妥当性を検証する
+func (c *CleanupConfig) Validate() error {
+	if c.Enabled && (c.IntervalMinutes < 1 || c.IntervalMinutes > 60) {
+		return errors.New("cleanup interval must be between 1 and 60 minutes")
+	}
+	return nil
+}
+
+// GetInterval はクリーンアップ間隔をtime.Durationで返す
+func (c *CleanupConfig) GetInterval() time.Duration {
+	return time.Duration(c.IntervalMinutes) * time.Minute
 }
