@@ -10,6 +10,17 @@ github:
   # デフォルト: false（無効）
   # auto_plan_issue: false
 
+# クリーンアップ機能の設定
+cleanup:
+  # クリーンアップ機能の有効/無効（デフォルト: true）
+  enabled: true
+  # クリーンアップ実行間隔（分）（デフォルト: 5）
+  interval_minutes: 5
+  # Issueウィンドウのクリーンアップ設定
+  issue_windows:
+    # クローズされたIssueのウィンドウを自動削除（デフォルト: true）
+    enabled: true
+
 tmux:
   session_prefix: "osoba-"
   # ウィンドウ内のペイン数上限（デフォルト: 3）
