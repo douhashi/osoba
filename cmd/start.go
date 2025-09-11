@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/douhashi/osoba/internal/claude"
+	"github.com/douhashi/osoba/internal/cleanup"
 	"github.com/douhashi/osoba/internal/config"
 	"github.com/douhashi/osoba/internal/daemon"
 	"github.com/douhashi/osoba/internal/git"
@@ -307,7 +308,44 @@ func runWatchWithFlags(cmd *cobra.Command, args []string, intervalFlag, configFl
 		appLogger.Info("PR監視を終了しました")
 	}()
 
-	// 両方の監視が終了するまで待機
+	// クリーンアップ監視を開始（設定で有効な場合）
+	if cfg.Cleanup.Enabled && cfg.Cleanup.IssueWindows.Enabled {
+		// クリーンアップマネージャーを作成
+		cleanupManager := cleanup.NewManager(sessionName, appLogger)
+
+		// クリーンアップ間隔を設定から取得（分単位を秒に変換）
+		cleanupInterval := time.Duration(cfg.Cleanup.IntervalMinutes) * time.Minute
+
+		// CleanupWatcherを作成
+		cleanupWatcher, err := watcher.NewCleanupWatcher(
+			githubClient,
+			owner,
+			repoName,
+			cleanupInterval,
+			cleanupManager,
+			appLogger,
+		)
+		if err != nil {
+			return fmt.Errorf("CleanupWatcherの作成に失敗: %w", err)
+		}
+
+		// CleanupWatcherを開始
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			appLogger.Info("クリーンアップ監視を開始します",
+				"interval", cleanupInterval,
+				"issue_windows", cfg.Cleanup.IssueWindows.Enabled)
+			cleanupWatcher.Start(ctx)
+			appLogger.Info("クリーンアップ監視を終了しました")
+		}()
+	} else {
+		appLogger.Info("クリーンアップ監視は無効です",
+			"cleanup_enabled", cfg.Cleanup.Enabled,
+			"issue_windows_enabled", cfg.Cleanup.IssueWindows.Enabled)
+	}
+
+	// すべての監視が終了するまで待機
 	wg.Wait()
 	return nil
 }
