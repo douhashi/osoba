@@ -32,9 +32,16 @@ type PaneManager interface {
 
 // PaneOptions ペイン作成時のオプション
 type PaneOptions struct {
-	Split      string // "-v" (vertical) or "-h" (horizontal)
-	Percentage int    // split percentage
-	Title      string // pane title for border
+	Split      string      // "-v" (vertical) or "-h" (horizontal)
+	Percentage int         // split percentage
+	Title      string      // pane title for border
+	Config     *PaneConfig // ペイン管理設定（オプション）
+}
+
+// PaneConfig ペイン管理設定
+type PaneConfig struct {
+	LimitPanesEnabled bool // ペイン数制限を有効にするか
+	MaxPanesPerWindow int  // ウィンドウごとの最大ペイン数
 }
 
 // PaneInfo ペイン情報
